@@ -1,0 +1,1784 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Hero IT Console</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+<style>
+/* ── Variables ───────────────────────────────────────────── */
+:root {
+  --bg:        #080e1a;
+  --bg2:       #0d1628;
+  --bg3:       #111f38;
+  --border:    rgba(0, 101, 243, 0.18);
+  --border2:   rgba(0, 101, 243, 0.35);
+  --blue:      #0065F3;
+  --blue2:     #0097CC;
+  --cyan:      #19CDEB;
+  --text:      #e2e8f4;
+  --text2:     #8a9bc0;
+  --text3:     #4a5c7a;
+  --green:     #22d87a;
+  --amber:     #f0b429;
+  --red:       #f56565;
+  --purple:    #a78bfa;
+  --mono:      'JetBrains Mono', monospace;
+  --sans:      'DM Sans', sans-serif;
+  --radius:    10px;
+  --sidebar-w: 230px;
+}
+
+/* ── Reset ───────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: var(--sans);
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  display: flex;
+  overflow: hidden;
+}
+
+/* ── Sidebar ─────────────────────────────────────────────── */
+#sidebar {
+  width: var(--sidebar-w);
+  min-height: 100vh;
+  background: var(--bg2);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 10;
+}
+
+/* subtle scanline effect on sidebar */
+#sidebar::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0,101,243,0.015) 2px,
+    rgba(0,101,243,0.015) 4px
+  );
+  pointer-events: none;
+}
+
+.sidebar-header {
+  padding: 24px 20px 20px;
+  border-bottom: 1px solid var(--border);
+}
+.sidebar-logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+.logo-shield {
+  width: 32px;
+  height: 32px;
+  background: linear-gradient(135deg, var(--blue), var(--cyan));
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  flex-shrink: 0;
+}
+.logo-text {
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: 0.5px;
+  line-height: 1.2;
+}
+.logo-sub {
+  font-family: var(--mono);
+  font-size: 9px;
+  color: var(--cyan);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+.sidebar-user {
+  margin-top: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.user-dot {
+  width: 7px;
+  height: 7px;
+  background: var(--green);
+  border-radius: 50%;
+  box-shadow: 0 0 6px var(--green);
+  animation: pulse-dot 2s ease-in-out infinite;
+}
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+.user-label {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text2);
+  letter-spacing: 0.5px;
+}
+
+/* ── Nav ─────────────────────────────────────────────────── */
+nav {
+  padding: 16px 12px;
+  flex: 1;
+}
+.nav-section-label {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 2px;
+  color: var(--text3);
+  text-transform: uppercase;
+  padding: 0 8px;
+  margin-bottom: 6px;
+  margin-top: 16px;
+}
+.nav-section-label:first-child { margin-top: 0; }
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  margin-bottom: 2px;
+  border: 1px solid transparent;
+  text-decoration: none;
+  color: var(--text2);
+  font-size: 13.5px;
+  font-weight: 400;
+  position: relative;
+}
+.nav-item:hover {
+  background: rgba(0,101,243,0.08);
+  color: var(--text);
+}
+.nav-item.active {
+  background: rgba(0,101,243,0.14);
+  border-color: var(--border2);
+  color: var(--cyan);
+}
+.nav-item.active::before {
+  content: '';
+  position: absolute;
+  left: -1px;
+  top: 20%;
+  height: 60%;
+  width: 2px;
+  background: var(--cyan);
+  border-radius: 0 2px 2px 0;
+}
+.nav-icon {
+  font-size: 15px;
+  width: 20px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.sidebar-footer {
+  padding: 14px 20px;
+  border-top: 1px solid var(--border);
+}
+.version-tag {
+  font-family: var(--mono);
+  font-size: 9px;
+  color: var(--text3);
+  letter-spacing: 1px;
+}
+
+/* ── Main content ────────────────────────────────────────── */
+#main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* top bar */
+.topbar {
+  height: 54px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 28px;
+  background: var(--bg2);
+  flex-shrink: 0;
+}
+.topbar-title {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text2);
+  letter-spacing: 0.5px;
+}
+.topbar-title span {
+  color: var(--cyan);
+}
+.topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.clock {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text3);
+}
+#global-status {
+  font-family: var(--mono);
+  font-size: 10px;
+  padding: 4px 10px;
+  border-radius: 20px;
+  background: rgba(34,216,122,0.1);
+  border: 1px solid rgba(34,216,122,0.3);
+  color: var(--green);
+  letter-spacing: 0.5px;
+}
+
+/* content area */
+.content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 28px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border2) transparent;
+}
+.content::-webkit-scrollbar { width: 4px; }
+.content::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 4px; }
+
+/* page sections */
+.page { display: none; }
+.page.active { display: block; animation: fadein 0.2s ease; }
+@keyframes fadein { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+/* ── Section header ──────────────────────────────────────── */
+.section-header {
+  margin-bottom: 24px;
+}
+.section-title {
+  font-family: var(--mono);
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: -0.3px;
+}
+.section-title span {
+  color: var(--cyan);
+}
+.section-desc {
+  margin-top: 5px;
+  font-size: 13px;
+  color: var(--text2);
+}
+
+/* ── Cards grid ──────────────────────────────────────────── */
+.cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+  margin-bottom: 28px;
+}
+
+/* ── Action card ─────────────────────────────────────────── */
+.action-card {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 20px;
+  transition: border-color 0.2s, background 0.2s;
+  position: relative;
+  overflow: hidden;
+}
+.action-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, var(--card-color, var(--blue)), transparent);
+  opacity: 0.7;
+}
+.action-card:hover {
+  border-color: var(--border2);
+  background: var(--bg3);
+}
+.card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+.card-icon {
+  font-size: 22px;
+  line-height: 1;
+}
+.card-badge {
+  font-family: var(--mono);
+  font-size: 9px;
+  padding: 3px 8px;
+  border-radius: 20px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+.badge-manual {
+  background: rgba(240,180,41,0.12);
+  border: 1px solid rgba(240,180,41,0.3);
+  color: var(--amber);
+}
+.badge-auto {
+  background: rgba(25,205,235,0.1);
+  border: 1px solid rgba(25,205,235,0.3);
+  color: var(--cyan);
+}
+.card-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+.card-desc {
+  font-size: 12px;
+  color: var(--text2);
+  line-height: 1.6;
+  margin-bottom: 16px;
+}
+
+/* ── Buttons ─────────────────────────────────────────────── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  border: none;
+  transition: all 0.15s;
+  font-family: var(--sans);
+  text-decoration: none;
+}
+.btn-primary {
+  background: var(--blue);
+  color: #fff;
+}
+.btn-primary:hover { background: #0055d4; }
+.btn-secondary {
+  background: transparent;
+  color: var(--text2);
+  border: 1px solid var(--border);
+}
+.btn-secondary:hover { border-color: var(--border2); color: var(--text); }
+.btn-danger {
+  background: rgba(245,101,101,0.12);
+  color: var(--red);
+  border: 1px solid rgba(245,101,101,0.25);
+}
+.btn-danger:hover { background: rgba(245,101,101,0.2); }
+.btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ── Form elements ───────────────────────────────────────── */
+.form-group {
+  margin-bottom: 14px;
+}
+.form-label {
+  display: block;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--text2);
+  margin-bottom: 6px;
+}
+.form-input {
+  width: 100%;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 9px 12px;
+  font-size: 13px;
+  color: var(--text);
+  font-family: var(--sans);
+  transition: border-color 0.15s;
+  outline: none;
+}
+.form-input:focus { border-color: var(--blue); }
+.form-input::placeholder { color: var(--text3); }
+
+/* ── Log console ─────────────────────────────────────────── */
+.log-console {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+.log-console-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg2);
+}
+.log-console-title {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text2);
+  letter-spacing: 1px;
+}
+.log-console-dots {
+  display: flex;
+  gap: 5px;
+}
+.log-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+.log-body {
+  padding: 14px 16px;
+  min-height: 180px;
+  max-height: 340px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+.log-line {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  line-height: 1.8;
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+.log-time {
+  color: var(--text3);
+  flex-shrink: 0;
+  min-width: 70px;
+}
+.log-msg { color: var(--text2); }
+.log-msg.success { color: var(--green); }
+.log-msg.error   { color: var(--red); }
+.log-msg.warn    { color: var(--amber); }
+.log-msg.info    { color: var(--cyan); }
+.log-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 140px;
+  gap: 8px;
+}
+.log-empty-icon { font-size: 28px; opacity: 0.3; }
+.log-empty-text { font-family: var(--mono); font-size: 11px; color: var(--text3); }
+
+/* ── Panel (2-col layout) ────────────────────────────────── */
+.panel-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+@media (max-width: 900px) {
+  .panel-grid { grid-template-columns: 1fr; }
+}
+
+/* ── Info box ────────────────────────────────────────────── */
+.info-box {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 18px 20px;
+}
+.info-box-title {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--text3);
+  margin-bottom: 12px;
+}
+
+/* ── Stat chips ──────────────────────────────────────────── */
+.stats-row {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+}
+.stat-chip {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 18px;
+  flex: 1;
+  min-width: 130px;
+}
+.stat-value {
+  font-family: var(--mono);
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1;
+  margin-bottom: 4px;
+}
+.stat-label {
+  font-size: 11px;
+  color: var(--text2);
+}
+
+/* ── Config section ──────────────────────────────────────── */
+.config-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 13px 0;
+  border-bottom: 1px solid var(--border);
+}
+.config-row:last-child { border-bottom: none; }
+.config-key {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text2);
+}
+.config-val {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--cyan);
+  background: rgba(25,205,235,0.08);
+  padding: 3px 10px;
+  border-radius: 6px;
+}
+
+/* ── Loading spinner ─────────────────────────────────────── */
+.spinner {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border: 2px solid rgba(255,255,255,0.2);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Toast ───────────────────────────────────────────────── */
+#toast {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  background: var(--bg3);
+  border: 1px solid var(--border2);
+  border-radius: 10px;
+  padding: 12px 18px;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text);
+  z-index: 999;
+  transition: opacity 0.3s, transform 0.3s;
+  opacity: 0;
+  transform: translateY(10px);
+  pointer-events: none;
+  max-width: 340px;
+}
+#toast.show {
+  opacity: 1;
+  transform: none;
+}
+
+/* ── Gateway URL notice ──────────────────────────────────── */
+.url-notice {
+  background: rgba(240,180,41,0.06);
+  border: 1px solid rgba(240,180,41,0.2);
+  border-radius: 10px;
+  padding: 14px 16px;
+  margin-bottom: 20px;
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+.url-notice-icon { font-size: 16px; flex-shrink: 0; margin-top: 1px; }
+.url-notice-text { font-size: 12px; color: var(--text2); line-height: 1.6; }
+.url-notice-text strong { color: var(--amber); }
+.url-notice-text code {
+  font-family: var(--mono);
+  font-size: 11px;
+  background: rgba(255,255,255,0.05);
+  padding: 1px 6px;
+  border-radius: 4px;
+  color: var(--cyan);
+}
+
+/* ── Scroll ──────────────────────────────────────────────── */
+html { scroll-behavior: smooth; }
+</style>
+</head>
+<body>
+
+<!-- ══ SIDEBAR ══════════════════════════════════════════════ -->
+<aside id="sidebar">
+  <div class="sidebar-header">
+    <div class="sidebar-logo">
+      <div class="logo-shield">🛡️</div>
+      <div>
+        <div class="logo-text">Hero IT Console</div>
+        <div class="logo-sub">heroinsuranceusa.com</div>
+      </div>
+    </div>
+    <div class="sidebar-user">
+      <div class="user-dot"></div>
+      <span class="user-label">Fernando Romero · IT Admin</span>
+    </div>
+  </div>
+
+  <nav>
+    <div class="nav-section-label">Principal</div>
+    <a class="nav-item active" onclick="showPage('dashboard')" href="#">
+      <span class="nav-icon">⬡</span> Dashboard
+    </a>
+
+    <div class="nav-section-label">Emails</div>
+    <a class="nav-item" onclick="showPage('onboarding-empleados')" href="#">
+      <span class="nav-icon">👤</span> Onboarding Empleados
+    </a>
+    <a class="nav-item" onclick="showPage('onboarding-agentes')" href="#">
+      <span class="nav-icon">🤝</span> Onboarding Agentes
+    </a>
+    <a class="nav-item" onclick="showPage('reset')" href="#">
+      <span class="nav-icon">🔑</span> Reset de Contraseña
+    </a>
+
+    <div class="nav-section-label">Administración</div>
+    <a class="nav-item" onclick="showPage('usuarios')" href="#">
+      <span class="nav-icon">👥</span> Usuarios Workspace
+    </a>
+    <a class="nav-item" onclick="showPage('logs')" href="#">
+      <span class="nav-icon">📋</span> Historial de Logs
+    </a>
+
+    <div class="nav-section-label">Sistema</div>
+    <a class="nav-item" onclick="showPage('config')" href="#">
+      <span class="nav-icon">⚙️</span> Configuración
+    </a>
+  </nav>
+
+  <div class="sidebar-footer">
+    <div class="version-tag">v1.0.0 · Hero IT Console</div>
+  </div>
+</aside>
+
+<!-- ══ MAIN ═════════════════════════════════════════════════ -->
+<div id="main">
+
+  <!-- Top bar -->
+  <div class="topbar">
+    <div class="topbar-title">Hero IT Console / <span id="current-section-label">Dashboard</span></div>
+    <div class="topbar-right">
+      <div class="clock" id="clock"></div>
+      <div id="global-status">● SISTEMA LISTO</div>
+    </div>
+  </div>
+
+  <div class="content">
+
+    <!-- ══ DASHBOARD ══════════════════════════════════════ -->
+    <div class="page active" id="page-dashboard">
+      <div class="section-header">
+        <div class="section-title"><span>//</span> Dashboard</div>
+        <div class="section-desc">Acceso rápido a todas las herramientas de IT.</div>
+      </div>
+
+      <div class="stats-row">
+        <div class="stat-chip">
+          <div class="stat-value" style="color:var(--cyan)">3</div>
+          <div class="stat-label">Scripts activos</div>
+        </div>
+        <div class="stat-chip">
+          <div class="stat-value" id="stat-logs">0</div>
+          <div class="stat-label">Acciones en sesión</div>
+        </div>
+        <div class="stat-chip">
+          <div class="stat-value" style="color:var(--green)">●</div>
+          <div class="stat-label">Gateway conectado</div>
+        </div>
+      </div>
+
+      <!-- URL notice -->
+      <div class="url-notice">
+        <div class="url-notice-icon">⚠️</div>
+        <div class="url-notice-text">
+          <strong>Configuración pendiente:</strong> Antes de usar los botones de email, pega tu API Key de Resend en la sección
+          <strong>Configuración</strong> y presiona "Probar conexión".
+        </div>
+      </div>
+
+      <div class="cards-grid">
+
+        <div class="action-card" style="--card-color: #19CDEB">
+          <div class="card-header">
+            <div class="card-icon">👤</div>
+            <span class="card-badge badge-manual">Manual</span>
+          </div>
+          <div class="card-title">Onboarding Empleados</div>
+          <div class="card-desc">Envía el email de bienvenida con cuenta corporativa, contraseña temporal y herramientas del equipo.</div>
+          <button class="btn btn-primary" onclick="showPage('onboarding-empleados')">Ir al módulo →</button>
+        </div>
+
+        <div class="action-card" style="--card-color: #22d87a">
+          <div class="card-header">
+            <div class="card-icon">🤝</div>
+            <span class="card-badge badge-manual">Manual</span>
+          </div>
+          <div class="card-title">Onboarding Agentes</div>
+          <div class="card-desc">Envía el email de bienvenida específico para agentes, con credenciales de acceso y políticas de seguridad.</div>
+          <button class="btn btn-primary" onclick="showPage('onboarding-agentes')">Ir al módulo →</button>
+        </div>
+
+        <div class="action-card" style="--card-color: #f0b429">
+          <div class="card-header">
+            <div class="card-icon">🔑</div>
+            <span class="card-badge badge-manual">Manual</span>
+          </div>
+          <div class="card-title">Reset de Contraseña</div>
+          <div class="card-desc">Envía el email de restablecimiento con nueva contraseña temporal al correo personal del usuario.</div>
+          <button class="btn btn-primary" onclick="showPage('reset')">Ir al módulo →</button>
+        </div>
+
+        <div class="action-card" style="--card-color: #a78bfa">
+          <div class="card-header">
+            <div class="card-icon">👥</div>
+            <span class="card-badge badge-auto">Consulta</span>
+          </div>
+          <div class="card-title">Usuarios Workspace</div>
+          <div class="card-desc">Consulta todos los usuarios activos de Google Workspace en tiempo real via Admin Directory API.</div>
+          <button class="btn btn-secondary" onclick="showPage('usuarios')">Próximamente →</button>
+        </div>
+
+      </div>
+
+      <!-- Recent log mini -->
+      <div class="log-console">
+        <div class="log-console-header">
+          <span class="log-console-title">LOG DE SESIÓN</span>
+          <div class="log-console-dots">
+            <div class="log-dot" style="background:#f56565"></div>
+            <div class="log-dot" style="background:#f0b429"></div>
+            <div class="log-dot" style="background:#22d87a"></div>
+          </div>
+        </div>
+        <div class="log-body" id="log-dashboard">
+          <div class="log-empty">
+            <div class="log-empty-icon">⬡</div>
+            <div class="log-empty-text">Sin actividad aún en esta sesión</div>
+          </div>
+        </div>
+      </div>
+    </div><!-- /dashboard -->
+
+    <!-- ══ ONBOARDING EMPLEADOS ════════════════════════════ -->
+    <div class="page" id="page-onboarding-empleados">
+      <div class="section-header">
+        <div class="section-title"><span>//</span> Onboarding <span>Empleados</span></div>
+        <div class="section-desc">Envía el email de bienvenida con credenciales de Google Workspace y herramientas del equipo.</div>
+      </div>
+
+      <div class="panel-grid">
+        <div class="info-box">
+          <div class="info-box-title">Datos del nuevo empleado</div>
+          <div class="form-group">
+            <label class="form-label">Nombre completo</label>
+            <input class="form-input" id="emp-nombre" type="text" placeholder="ej: Luis García"/>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Email corporativo</label>
+            <input class="form-input" id="emp-email" type="email" placeholder="lgarcia@heroinsuranceusa.com"/>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Contraseña temporal</label>
+            <input class="form-input" id="emp-password" type="text" placeholder="TemporalHero2026*"/>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Email personal (destino)</label>
+            <input class="form-input" id="emp-email-personal" type="email" placeholder="luis.garcia@gmail.com"/>
+          </div>
+          <div style="display:flex; gap:10px; margin-top:18px">
+            <button class="btn btn-primary" id="btn-send-emp" onclick="sendOnboarding('empleado')">
+              ✉️ Enviar email de bienvenida
+            </button>
+            <button class="btn btn-secondary" onclick="clearForm('emp')">Limpiar</button>
+          </div>
+        </div>
+
+        <div style="display:flex; flex-direction:column; gap:16px">
+          <div class="info-box">
+            <div class="info-box-title">¿Qué incluye este email?</div>
+            <div style="font-size:13px; color:var(--text2); line-height:1.8">
+              ✓ Credenciales de acceso a Google Workspace<br>
+              ✓ Instrucciones para primer inicio de sesión<br>
+              ✓ Gather Town, Fathom, Scribe, ExpressVPN, ClickUp<br>
+              ✓ Políticas de archivos y seguridad<br>
+              ✓ Enlace a soporte IT
+            </div>
+          </div>
+          <div class="info-box">
+            <div class="info-box-title">Estado del último envío</div>
+            <div id="emp-status" style="font-family:var(--mono); font-size:12px; color:var(--text3)">
+              — Sin envíos en esta sesión
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="log-console">
+        <div class="log-console-header">
+          <span class="log-console-title">CONSOLA · ONBOARDING EMPLEADOS</span>
+          <div class="log-console-dots">
+            <div class="log-dot" style="background:#f56565"></div>
+            <div class="log-dot" style="background:#f0b429"></div>
+            <div class="log-dot" style="background:#22d87a"></div>
+          </div>
+        </div>
+        <div class="log-body" id="log-emp">
+          <div class="log-empty">
+            <div class="log-empty-icon">📭</div>
+            <div class="log-empty-text">Completa el formulario y presiona "Enviar"</div>
+          </div>
+        </div>
+      </div>
+    </div><!-- /onboarding-empleados -->
+
+    <!-- ══ ONBOARDING AGENTES ══════════════════════════════ -->
+    <div class="page" id="page-onboarding-agentes">
+      <div class="section-header">
+        <div class="section-title"><span>//</span> Onboarding <span>Agentes</span></div>
+        <div class="section-desc">Envía el email de bienvenida específico para agentes con sus credenciales de acceso.</div>
+      </div>
+
+      <div class="panel-grid">
+        <div class="info-box">
+          <div class="info-box-title">Datos del nuevo agente</div>
+          <div class="form-group">
+            <label class="form-label">Nombre completo</label>
+            <input class="form-input" id="agt-nombre" type="text" placeholder="ej: María López"/>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Email corporativo</label>
+            <input class="form-input" id="agt-email" type="email" placeholder="mlopez@heroinsuranceusa.com"/>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Contraseña temporal</label>
+            <input class="form-input" id="agt-password" type="text" placeholder="TemporalHero2026*"/>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Email personal (destino)</label>
+            <input class="form-input" id="agt-email-personal" type="email" placeholder="maria.lopez@gmail.com"/>
+          </div>
+          <div style="display:flex; gap:10px; margin-top:18px">
+            <button class="btn btn-primary" id="btn-send-agt" onclick="sendOnboarding('agente')">
+              ✉️ Enviar email de bienvenida
+            </button>
+            <button class="btn btn-secondary" onclick="clearForm('agt')">Limpiar</button>
+          </div>
+        </div>
+
+        <div style="display:flex; flex-direction:column; gap:16px">
+          <div class="info-box">
+            <div class="info-box-title">¿Qué incluye este email?</div>
+            <div style="font-size:13px; color:var(--text2); line-height:1.8">
+              ✓ Credenciales de acceso a Google Workspace<br>
+              ✓ Instrucciones para primer inicio de sesión<br>
+              ✓ Políticas de seguridad para agentes<br>
+              ✓ Enlace a soporte IT<br>
+              <span style="color:var(--text3)">✗ Sin sección de herramientas internas</span>
+            </div>
+          </div>
+          <div class="info-box">
+            <div class="info-box-title">Estado del último envío</div>
+            <div id="agt-status" style="font-family:var(--mono); font-size:12px; color:var(--text3)">
+              — Sin envíos en esta sesión
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="log-console">
+        <div class="log-console-header">
+          <span class="log-console-title">CONSOLA · ONBOARDING AGENTES</span>
+          <div class="log-console-dots">
+            <div class="log-dot" style="background:#f56565"></div>
+            <div class="log-dot" style="background:#f0b429"></div>
+            <div class="log-dot" style="background:#22d87a"></div>
+          </div>
+        </div>
+        <div class="log-body" id="log-agt">
+          <div class="log-empty">
+            <div class="log-empty-icon">📭</div>
+            <div class="log-empty-text">Completa el formulario y presiona "Enviar"</div>
+          </div>
+        </div>
+      </div>
+    </div><!-- /onboarding-agentes -->
+
+    <!-- ══ RESET PASSWORD ══════════════════════════════════ -->
+    <div class="page" id="page-reset">
+      <div class="section-header">
+        <div class="section-title"><span>//</span> Reset de <span>Contraseña</span></div>
+        <div class="section-desc">Envía un email de restablecimiento con nueva contraseña temporal al correo personal del usuario.</div>
+      </div>
+
+      <div class="panel-grid">
+        <div class="info-box">
+          <div class="info-box-title">Datos del usuario</div>
+          <div class="form-group">
+            <label class="form-label">Nombre completo</label>
+            <input class="form-input" id="rst-nombre" type="text" placeholder="ej: Carlos Mendoza"/>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Email corporativo</label>
+            <input class="form-input" id="rst-email" type="email" placeholder="cmendoza@heroinsuranceusa.com"/>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Nueva contraseña temporal</label>
+            <input class="form-input" id="rst-password" type="text" placeholder="NuevaHero2026* (dejar vacío si aún no aplica)"/>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Email personal (destino)</label>
+            <input class="form-input" id="rst-email-personal" type="email" placeholder="carlos.mendoza@gmail.com"/>
+          </div>
+          <div style="display:flex; gap:10px; margin-top:18px">
+            <button class="btn btn-danger" id="btn-send-rst" onclick="sendReset()">
+              🔑 Enviar reset de contraseña
+            </button>
+            <button class="btn btn-secondary" onclick="clearForm('rst')">Limpiar</button>
+          </div>
+        </div>
+
+        <div style="display:flex; flex-direction:column; gap:16px">
+          <div class="info-box">
+            <div class="info-box-title">¿Qué incluye este email?</div>
+            <div style="font-size:13px; color:var(--text2); line-height:1.8">
+              ✓ Aviso de seguridad destacado<br>
+              ✓ Email corporativo + nueva contraseña<br>
+              ✓ Pasos para cambiar contraseña en Workspace<br>
+              ✓ Instrucciones de activación MFA<br>
+              ✓ Enlace a soporte IT<br>
+              ✓ Timestamp con fecha/hora ET
+            </div>
+          </div>
+          <div class="info-box" style="border-color: rgba(245,101,101,0.2); background: rgba(245,101,101,0.04)">
+            <div class="info-box-title" style="color:var(--red)">⚠️ Importante</div>
+            <div style="font-size:12px; color:var(--text2); line-height:1.6">
+              Asegúrate de haber cambiado ya la contraseña en la consola de Google Workspace <strong style="color:var(--text)">antes</strong> de enviar este email, o de indicar al usuario que el sistema le asignará una al iniciar sesión.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="log-console">
+        <div class="log-console-header">
+          <span class="log-console-title">CONSOLA · RESET PASSWORD</span>
+          <div class="log-console-dots">
+            <div class="log-dot" style="background:#f56565"></div>
+            <div class="log-dot" style="background:#f0b429"></div>
+            <div class="log-dot" style="background:#22d87a"></div>
+          </div>
+        </div>
+        <div class="log-body" id="log-rst">
+          <div class="log-empty">
+            <div class="log-empty-icon">🔑</div>
+            <div class="log-empty-text">Completa el formulario y presiona "Enviar reset"</div>
+          </div>
+        </div>
+      </div>
+    </div><!-- /reset -->
+
+    <!-- ══ USUARIOS WORKSPACE ══════════════════════════════ -->
+    <div class="page" id="page-usuarios">
+      <div class="section-header">
+        <div class="section-title"><span>//</span> Usuarios <span>Workspace</span></div>
+        <div class="section-desc">Próximamente — consulta en tiempo real de todos los usuarios activos vía Admin Directory API.</div>
+      </div>
+      <div class="info-box" style="text-align:center; padding: 48px; border-style: dashed">
+        <div style="font-size:40px; margin-bottom:16px; opacity:0.4">👥</div>
+        <div style="font-family:var(--mono); font-size:13px; color:var(--text2); margin-bottom:8px">Módulo en desarrollo</div>
+        <div style="font-size:12px; color:var(--text3)">Requiere configurar Admin Directory API en el gateway de Apps Script.</div>
+      </div>
+    </div>
+
+    <!-- ══ LOGS ════════════════════════════════════════════ -->
+    <div class="page" id="page-logs">
+      <div class="section-header">
+        <div class="section-title"><span>//</span> Historial de <span>Logs</span></div>
+        <div class="section-desc">Registro de todas las acciones ejecutadas en esta sesión.</div>
+      </div>
+      <div style="display:flex; gap:10px; margin-bottom:16px">
+        <button class="btn btn-secondary" onclick="clearAllLogs()">🗑 Limpiar logs</button>
+      </div>
+      <div class="log-console">
+        <div class="log-console-header">
+          <span class="log-console-title">LOG COMPLETO DE SESIÓN</span>
+          <div class="log-console-dots">
+            <div class="log-dot" style="background:#f56565"></div>
+            <div class="log-dot" style="background:#f0b429"></div>
+            <div class="log-dot" style="background:#22d87a"></div>
+          </div>
+        </div>
+        <div class="log-body" id="log-full" style="max-height: 500px">
+          <div class="log-empty">
+            <div class="log-empty-icon">📋</div>
+            <div class="log-empty-text">Sin actividad registrada en esta sesión</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ CONFIG ══════════════════════════════════════════ -->
+    <div class="page" id="page-config">
+      <div class="section-header">
+        <div class="section-title"><span>//</span> Configuración</div>
+        <div class="section-desc">Variables del sistema y URLs de conexión con Apps Script.</div>
+      </div>
+
+      <div class="info-box" style="margin-bottom:16px">
+        <div class="info-box-title">Resend · API Key</div>
+        <div class="url-notice" style="margin-bottom:14px; margin-top:4px">
+          <div class="url-notice-icon">💡</div>
+          <div class="url-notice-text">
+            Obtén tu API Key en <strong>resend.com → API Keys</strong>. Asegúrate de que tu dominio
+            <code>heroinsuranceusa.com</code> esté verificado en Resend para enviar desde <code>it@heroinsuranceusa.com</code>.
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">API Key de Resend</label>
+          <input class="form-input" id="cfg-api-key" type="password"
+            placeholder="re_••••••••••••••••••••••••••••••••"
+            oninput="saveConfig()"/>
+        </div>
+        <div style="margin-top:4px">
+          <button class="btn btn-primary" onclick="testConexion()">🔌 Probar conexión</button>
+        </div>
+      </div>
+
+      <div class="info-box">
+        <div class="info-box-title">Estado actual del sistema</div>
+        <div class="config-row">
+          <span class="config-key">Servicio de email</span>
+          <span class="config-val">Resend API</span>
+        </div>
+        <div class="config-row">
+          <span class="config-key">Remitente</span>
+          <span class="config-val">it@heroinsuranceusa.com</span>
+        </div>
+        <div class="config-row">
+          <span class="config-key">Scripts integrados</span>
+          <span class="config-val">3 activos</span>
+        </div>
+        <div class="config-row">
+          <span class="config-key">API Key</span>
+          <span class="config-val" id="cfg-status-key">No configurada</span>
+        </div>
+        <div class="config-row">
+          <span class="config-key">Último test de conexión</span>
+          <span class="config-val" id="cfg-last-test">—</span>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /content -->
+</div><!-- /main -->
+
+<!-- Toast -->
+<div id="toast"></div>
+
+<script>
+// ── Logs globales ─────────────────────────────────────────────
+const sessionLogs = [];
+let sessionActionCount = 0;
+
+// ── Navegación ────────────────────────────────────────────────
+const pageLabels = {
+  'dashboard': 'Dashboard',
+  'onboarding-empleados': 'Onboarding Empleados',
+  'onboarding-agentes': 'Onboarding Agentes',
+  'reset': 'Reset de Contraseña',
+  'usuarios': 'Usuarios Workspace',
+  'logs': 'Historial de Logs',
+  'config': 'Configuración'
+};
+
+function showPage(id) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  const page = document.getElementById('page-' + id);
+  if (page) page.classList.add('active');
+  const navItems = document.querySelectorAll('.nav-item');
+  navItems.forEach(n => {
+    if (n.getAttribute('onclick') && n.getAttribute('onclick').includes("'" + id + "'")) {
+      n.classList.add('active');
+    }
+  });
+  document.getElementById('current-section-label').textContent = pageLabels[id] || id;
+  return false;
+}
+
+// ── Reloj ─────────────────────────────────────────────────────
+function updateClock() {
+  const now = new Date();
+  const opts = { timeZone: 'America/New_York', hour12: false,
+    hour: '2-digit', minute: '2-digit', second: '2-digit' };
+  document.getElementById('clock').textContent =
+    now.toLocaleTimeString('es-MX', opts) + ' ET';
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+// ── Resend API helper ─────────────────────────────────────────
+async function sendViaResend({ to, subject, html, text }) {
+  const apiKey = localStorage.getItem('hero_resend_key') || '';
+  if (!apiKey) throw new Error('API Key de Resend no configurada. Ve a Configuración.');
+
+  const resp = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: {
+      'Authorization': 'Bearer ' + apiKey,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      from: 'Fernando Romero <it@heroinsuranceusa.com>',
+      to: [to],
+      subject,
+      html,
+      text
+    })
+  });
+
+  const result = await resp.json();
+  if (!resp.ok) throw new Error(result.message || result.name || 'Error de Resend');
+  return result;
+}
+
+// ── Log helper ────────────────────────────────────────────────
+function addLog(message, type = 'info', consoleId = null) {
+  const now = new Date();
+  const t = now.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  const entry = { time: t, message, type };
+  sessionLogs.push(entry);
+  sessionActionCount++;
+  document.getElementById('stat-logs').textContent = sessionActionCount;
+
+  const line = `<div class="log-line"><span class="log-time">${t}</span><span class="log-msg ${type}">${message}</span></div>`;
+
+  // add to full log
+  const fullLog = document.getElementById('log-full');
+  if (fullLog.querySelector('.log-empty')) fullLog.innerHTML = '';
+  fullLog.insertAdjacentHTML('beforeend', line);
+  fullLog.scrollTop = fullLog.scrollHeight;
+
+  // add to dashboard log
+  const dashLog = document.getElementById('log-dashboard');
+  if (dashLog.querySelector('.log-empty')) dashLog.innerHTML = '';
+  dashLog.insertAdjacentHTML('beforeend', line);
+  dashLog.scrollTop = dashLog.scrollHeight;
+
+  // add to specific console
+  if (consoleId) {
+    const specific = document.getElementById(consoleId);
+    if (specific) {
+      if (specific.querySelector('.log-empty')) specific.innerHTML = '';
+      specific.insertAdjacentHTML('beforeend', line);
+      specific.scrollTop = specific.scrollHeight;
+    }
+  }
+}
+
+// ── Toast ─────────────────────────────────────────────────────
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 3200);
+}
+
+// ── Clear form ────────────────────────────────────────────────
+function clearForm(prefix) {
+  ['nombre','email','password','email-personal'].forEach(f => {
+    const el = document.getElementById(prefix + '-' + f);
+    if (el) el.value = '';
+  });
+}
+
+function clearAllLogs() {
+  ['log-full','log-dashboard','log-emp','log-agt','log-rst'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = '<div class="log-empty"><div class="log-empty-icon">🗑</div><div class="log-empty-text">Logs limpiados</div></div>';
+  });
+  sessionLogs.length = 0;
+}
+
+// ── Validar formulario ────────────────────────────────────────
+function validateForm(prefix) {
+  const nombre = document.getElementById(prefix + '-nombre').value.trim();
+  const email  = document.getElementById(prefix + '-email').value.trim();
+  const pers   = document.getElementById(prefix + '-email-personal').value.trim();
+  if (!nombre) { showToast('⚠️ Falta el nombre del usuario'); return false; }
+  if (!email)  { showToast('⚠️ Falta el email corporativo'); return false; }
+  if (!pers)   { showToast('⚠️ Falta el email personal'); return false; }
+  return { nombre, email, pers };
+}
+
+
+// ── Verificar API key ─────────────────────────────────────────
+function checkApiKey() {
+  if (!localStorage.getItem('hero_resend_key')) {
+    showToast('⚠️ Configura primero el API Key de Resend en Configuración');
+    addLog('ERROR: API Key no configurada. Ve a Configuración.', 'error');
+    return false;
+  }
+  return true;
+}
+
+// ── Enviar onboarding (empleados o agentes) ───────────────────
+async function sendOnboarding(tipo) {
+  const prefix   = tipo === 'empleado' ? 'emp' : 'agt';
+  const logId    = tipo === 'empleado' ? 'log-emp' : 'log-agt';
+  const btnId    = tipo === 'empleado' ? 'btn-send-emp' : 'btn-send-agt';
+  const statusId = tipo === 'empleado' ? 'emp-status' : 'agt-status';
+  const label    = tipo === 'empleado' ? 'Onboarding Empleados' : 'Onboarding Agentes';
+
+  const data = validateForm(prefix);
+  if (!data) return;
+  if (!checkApiKey()) return;
+
+  const password = document.getElementById(prefix + '-password').value.trim();
+  const btn = document.getElementById(btnId);
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Enviando...';
+
+  addLog(`Iniciando envío de ${label} → ${data.nombre} (${data.pers})`, 'info', logId);
+
+  try {
+    const html = tipo === 'empleado'
+      ? buildEmailOnboardingEmpleado(data.nombre, data.email, password)
+      : buildEmailOnboardingAgente(data.nombre, data.email, password);
+
+    const asunto = tipo === 'empleado'
+      ? 'Bienvenido(a) a Hero Insurance USA - Información de acceso'
+      : 'Bienvenido(a) a Hero Insurance USA - Acceso de Agente';
+
+    await sendViaResend({
+      to: data.pers,
+      subject: asunto,
+      html,
+      text: `Hola ${data.nombre}, bienvenido(a) a Hero Insurance USA.\n\nCorreo: ${data.email}\nContraseña temporal: ${password}\n\nwww.heroinsuranceusa.com`
+    });
+
+    addLog(`✓ Email enviado a ${data.nombre} → ${data.pers}`, 'success', logId);
+    document.getElementById(statusId).innerHTML =
+      `<span style="color:var(--green)">✓ Enviado a ${data.nombre}</span><br>
+       <span style="font-size:10px; color:var(--text3)">${new Date().toLocaleString('es-MX')}</span>`;
+    showToast(`✅ Email enviado a ${data.nombre}`);
+    clearForm(prefix);
+
+  } catch (err) {
+    addLog(`✗ Error: ${err.message}`, 'error', logId);
+    showToast('❌ Error al enviar. Revisa la consola.');
+  }
+
+  btn.disabled = false;
+  btn.innerHTML = '✉️ Enviar email de bienvenida';
+}
+
+// ── Enviar reset password ─────────────────────────────────────
+async function sendReset() {
+  const data = validateForm('rst');
+  if (!data) return;
+  if (!checkApiKey()) return;
+
+  const password = document.getElementById('rst-password').value.trim();
+  const btn = document.getElementById('btn-send-rst');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Enviando...';
+
+  addLog(`Iniciando Reset Password → ${data.nombre} (${data.pers})`, 'warn', 'log-rst');
+
+  try {
+    const html = buildEmailReset(data.nombre, data.email, password);
+
+    await sendViaResend({
+      to: data.pers,
+      subject: 'Restablecimiento de Contraseña - Hero Insurance USA',
+      html,
+      text: `Hola ${data.nombre}, tu contraseña ha sido restablecida.\n\nCorreo: ${data.email}\nNueva contraseña: ${password}\n\nHero Insurance USA`
+    });
+
+    addLog(`✓ Reset enviado a ${data.nombre} → ${data.pers}`, 'success', 'log-rst');
+    showToast(`✅ Reset enviado a ${data.nombre}`);
+    clearForm('rst');
+
+  } catch (err) {
+    addLog(`✗ Error: ${err.message}`, 'error', 'log-rst');
+    showToast('❌ Error al enviar reset. Revisa la consola.');
+  }
+
+  btn.disabled = false;
+  btn.innerHTML = '🔑 Enviar reset de contraseña';
+}
+
+// ── Config / API Key ──────────────────────────────────────────
+function saveConfig() {
+  const key = document.getElementById('cfg-api-key').value.trim();
+  if (key) {
+    localStorage.setItem('hero_resend_key', key);
+    document.getElementById('cfg-status-key').textContent = key.substring(0, 12) + '••••••••••••';
+    showToast('✅ API Key guardada');
+  }
+}
+
+async function testConexion() {
+  const key = document.getElementById('cfg-api-key').value.trim();
+  if (!key) { showToast('⚠️ Ingresa primero el API Key'); return; }
+
+  addLog('Probando conexión con Resend...', 'info');
+  try {
+    const resp = await fetch('https://api.resend.com/domains', {
+      headers: { 'Authorization': 'Bearer ' + key }
+    });
+    const result = await resp.json();
+    const ts = new Date().toLocaleTimeString('es-MX');
+    document.getElementById('cfg-last-test').textContent = ts;
+
+    if (resp.ok) {
+      addLog('✓ API Key válida — Resend conectado correctamente', 'success');
+      showToast('✅ Conexión exitosa con Resend');
+      document.getElementById('global-status').textContent = '● RESEND OK';
+      document.getElementById('global-status').style.color = 'var(--green)';
+      localStorage.setItem('hero_resend_key', key);
+      document.getElementById('cfg-status-key').textContent = key.substring(0, 12) + '••••••••••••';
+    } else {
+      addLog(`✗ API Key inválida: ${result.message || 'Error'}`, 'error');
+      showToast('❌ API Key inválida');
+    }
+  } catch (e) {
+    addLog('✗ No se pudo conectar: ' + e.message, 'error');
+    showToast('❌ Sin conexión con Resend');
+  }
+}
+
+// ── Init ──────────────────────────────────────────────────────
+(function init() {
+  const savedKey = localStorage.getItem('hero_resend_key');
+  if (savedKey) {
+    document.getElementById('cfg-api-key').value = savedKey;
+    document.getElementById('cfg-status-key').textContent = savedKey.substring(0, 12) + '••••••••••••';
+  }
+  addLog('Hero IT Console iniciado · Fernando Romero · IT Admin', 'info');
+  addLog(savedKey ? 'API Key cargada — sistema listo' : 'Configura el API Key de Resend en Configuración', savedKey ? 'success' : 'warn');
+})();
+
+// ── Email templates ──────────────────────────────────────────
+function buildEmailOnboardingEmpleado(nombre, email, password) {
+  return `<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8"/>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<style>
+  body, table, td, a { -webkit-text-size-adjust:100%; -ms-text-size-adjust:100%; }
+  body { margin:0; padding:0; background-color:#f0f4f8; }
+  a { color:#0065F3; }
+</style>
+</head>
+<body style="margin:0;padding:0;background-color:#f0f4f8;">
+<table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color:#f0f4f8;">
+<tr><td style="padding:32px 16px;">
+<table role="presentation" cellspacing="0" cellpadding="0" border="0" width="600" align="center"
+       style="background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.10);">
+  <!-- HEADER -->
+  <tr>
+    <td style="background:linear-gradient(135deg,#0065F3 0%,#0097CC 60%,#19CDEB 100%);padding:0;">
+      <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+        <tr><td style="height:4px;background:linear-gradient(90deg,#19CDEB,rgba(255,255,255,.35),#19CDEB);"></td></tr>
+      </table>
+      <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+        <tr>
+          <td style="padding:36px 40px 28px;text-align:center;">
+            <img src="https://i.imgur.com/mZDIi6V.png" alt="Hero Insurance USA" width="180"
+                 style="width:180px;max-width:180px;height:auto;display:block;margin:0 auto 20px;"/>
+            <h1 style="margin:0 0 8px;font-family:Arial,sans-serif;font-size:28px;font-weight:900;color:#ffffff;letter-spacing:-0.5px;line-height:1.1;">
+              ¡Bienvenido al equipo,<br/><span style="opacity:0.85;">${nombre}!</span>
+            </h1>
+            <p style="margin:0;font-family:Arial,sans-serif;font-size:14px;color:rgba(255,255,255,0.82);line-height:1.5;">
+              Nos alegra que te unas a nuestra familia. Estamos emocionados de tenerte con nosotros.
+            </p>
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+  <!-- BODY -->
+  <tr>
+    <td style="padding:36px 40px;background:#ffffff;">
+      <p style="margin:0 0 24px;font-family:Arial,sans-serif;font-size:15px;color:#2d3748;line-height:1.6;">
+        Hola <strong>${nombre}</strong>, a continuación te compartimos todo lo que necesitas para comenzar tu primera semana con nosotros.
+      </p>
+      <!-- Cuenta corporativa -->
+      <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%"
+             style="margin-bottom:24px;background:#f7faff;border-radius:12px;border:1px solid #e2eaf8;">
+        <tr><td style="padding:0;">
+          <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+            <tr><td style="padding:14px 20px;background:#eef4ff;border-radius:12px 12px 0 0;border-bottom:1px solid #d8e6ff;">
+              <span style="font-family:Arial,sans-serif;font-size:11px;font-weight:900;letter-spacing:2px;text-transform:uppercase;color:#0065F3;">✉ Cuenta Corporativa</span>
+            </td></tr>
+          </table>
+          <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+            <tr><td style="padding:18px 20px;">
+              <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin-bottom:12px;">
+                <tr><td style="padding:12px 16px;background:#ffffff;border-radius:8px;border:1px solid #dde8ff;">
+                  <p style="margin:0 0 3px;font-family:Arial,sans-serif;font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:#8fa6cc;">Correo corporativo</p>
+                  <p style="margin:0;font-family:'Courier New',monospace;font-size:14px;font-weight:700;color:#0065F3;">${email}</p>
+                </td></tr>
+              </table>
+              <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin-bottom:14px;">
+                <tr><td style="padding:12px 16px;background:#fff8e6;border-radius:8px;border:1px solid #f5d87a;">
+                  <p style="margin:0 0 3px;font-family:Arial,sans-serif;font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:#b08a00;">CONTRASEÑA TEMPORAL</p>
+                  <p style="margin:0;font-family:'Courier New',monospace;font-size:14px;font-weight:700;color:#7a5f00;">${password}</p>
+                </td></tr>
+              </table>
+              <p style="margin:0;font-family:Arial,sans-serif;font-size:13px;color:#4a5568;line-height:1.55;">
+                Todas las herramientas de trabajo se gestionan a través de <strong style="color:#0065F3;">Google Workspace</strong> — Gmail, Drive, Calendar, Meet y más.
+              </p>
+            </td></tr>
+          </table>
+        </td></tr>
+      </table>
+      <!-- Herramientas -->
+      <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%"
+             style="margin-bottom:24px;background:#f7faff;border-radius:12px;border:1px solid #e2eaf8;">
+        <tr><td style="padding:0;">
+          <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+            <tr><td style="padding:14px 20px;background:#eef4ff;border-radius:12px 12px 0 0;border-bottom:1px solid #d8e6ff;">
+              <span style="font-family:Arial,sans-serif;font-size:11px;font-weight:900;letter-spacing:2px;text-transform:uppercase;color:#0065F3;">HERRAMIENTAS A TU DISPOSICIÓN</span>
+            </td></tr>
+          </table>
+          <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+            <tr><td style="padding:18px 20px;">
+              <p style="margin:0 0 16px;font-family:Arial,sans-serif;font-size:13px;color:#4a5568;">Durante tu primer día recibirás acceso a las plataformas necesarias para tu rol:</p>
+              <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin-bottom:10px;">
+                <tr valign="top"><td width="48" style="padding-right:12px;"><img src="https://i.imgur.com/CcVDV8K.png" alt="Gather Town" width="40" height="40" style="width:40px;height:40px;border-radius:10px;display:block;"/></td>
+                <td valign="top"><p style="margin:0 0 2px;font-family:Arial,sans-serif;font-size:13px;font-weight:700;color:#1a202c;">Gather Town &nbsp;<a href="https://app.v2.gather.town/app/hero-insurance-usa-2e9e375c-6dcb-40c4-b607-d0791d5dfb78" target="_blank" style="font-size:11px;font-weight:600;color:#0065F3;text-decoration:none;">Acceder →</a></p>
+                <p style="margin:0;font-family:Arial,sans-serif;font-size:12px;color:#718096;line-height:1.5;">Nuestra oficina virtual interactiva donde el equipo se reune y colabora en tiempo real.</p></td></tr>
+              </table>
+              <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin-bottom:10px;">
+                <tr valign="top"><td width="48" style="padding-right:12px;"><img src="https://cdn-1.webcatalog.io/catalog/fathom-video/fathom-video-icon-filled-256.png" alt="Fathom" width="40" height="40" style="width:40px;height:40px;border-radius:10px;display:block;"/></td>
+                <td valign="top"><p style="margin:0 0 2px;font-family:Arial,sans-serif;font-size:13px;font-weight:700;color:#1a202c;">Fathom &nbsp;<a href="https://fathom.video" target="_blank" style="font-size:11px;font-weight:600;color:#0065F3;text-decoration:none;">Acceder →</a></p>
+                <p style="margin:0;font-family:Arial,sans-serif;font-size:12px;color:#718096;line-height:1.5;">Graba, transcribe y resume automáticamente tus reuniones de Google Meet.</p></td></tr>
+              </table>
+              <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin-bottom:10px;">
+                <tr valign="top"><td width="48" style="padding-right:12px;"><img src="https://i.imgur.com/7d0c77c.png" alt="Scribe" width="40" height="40" style="width:40px;height:40px;border-radius:10px;display:block;"/></td>
+                <td valign="top"><p style="margin:0 0 2px;font-family:Arial,sans-serif;font-size:13px;font-weight:700;color:#1a202c;">Scribe &nbsp;<a href="https://scribehow.com" target="_blank" style="font-size:11px;font-weight:600;color:#0065F3;text-decoration:none;">Acceder →</a></p>
+                <p style="margin:0;font-family:Arial,sans-serif;font-size:12px;color:#718096;line-height:1.5;">Crea guías y procedimientos paso a paso de forma automática desde tu pantalla.</p></td></tr>
+              </table>
+              <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin-bottom:10px;">
+                <tr valign="top"><td width="48" style="padding-right:12px;"><img src="https://img.icons8.com/color/1200/express-vpn.jpg" alt="ExpressVPN" width="40" height="40" style="width:40px;height:40px;border-radius:10px;display:block;"/></td>
+                <td valign="top"><p style="margin:0 0 2px;font-family:Arial,sans-serif;font-size:13px;font-weight:700;color:#1a202c;">ExpressVPN &nbsp;<a href="https://www.expressvpn.com" target="_blank" style="font-size:11px;font-weight:600;color:#0065F3;text-decoration:none;">Acceder →</a></p>
+                <p style="margin:0;font-family:Arial,sans-serif;font-size:12px;color:#718096;line-height:1.5;">Conexión segura que protege tu navegación y el acceso a información corporativa.</p></td></tr>
+              </table>
+              <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+                <tr valign="top"><td width="48" style="padding-right:12px;"><img src="https://i.imgur.com/4WZmKFm.png" alt="ClickUp" width="40" height="40" style="width:40px;height:40px;border-radius:10px;display:block;"/></td>
+                <td valign="top"><p style="margin:0 0 2px;font-family:Arial,sans-serif;font-size:13px;font-weight:700;color:#1a202c;">ClickUp &nbsp;<a href="https://app.clickup.com" target="_blank" style="font-size:11px;font-weight:600;color:#0065F3;text-decoration:none;">Acceder →</a></p>
+                <p style="margin:0;font-family:Arial,sans-serif;font-size:12px;color:#718096;line-height:1.5;">Plataforma de gestión de tareas y proyectos donde organizamos actividades y fechas.</p></td></tr>
+              </table>
+            </td></tr>
+          </table>
+        </td></tr>
+      </table>
+      <!-- Archivos + Seguridad -->
+      <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin-bottom:24px;">
+        <tr valign="top">
+          <td width="48%" style="padding-right:8px;">
+            <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background:#f7faff;border-radius:12px;border:1px solid #e2eaf8;">
+              <tr><td style="padding:14px 18px 18px;">
+                <p style="margin:0 0 10px;font-family:Arial,sans-serif;font-size:11px;font-weight:900;letter-spacing:2px;text-transform:uppercase;color:#0065F3;">ARCHIVOS</p>
+                <p style="margin:0;font-family:Arial,sans-serif;font-size:13px;color:#4a5568;line-height:1.55;">Todos los archivos corporativos deben gestionarse desde <strong style="color:#0065F3;">Google Drive</strong>.</p>
+              </td></tr>
+            </table>
+          </td>
+          <td width="52%" style="padding-left:8px;">
+            <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background:#fff8f8;border-radius:12px;border:1px solid #ffd4d4;">
+              <tr><td style="padding:14px 18px 18px;">
+                <p style="margin:0 0 10px;font-family:Arial,sans-serif;font-size:11px;font-weight:900;letter-spacing:2px;text-transform:uppercase;color:#cc3333;">SEGURIDAD</p>
+                <ul style="margin:0;padding:0 0 0 16px;font-family:Arial,sans-serif;font-size:13px;color:#4a5568;line-height:1.7;">
+                  <li>Tu cuenta es de <strong>uso personal</strong></li>
+                  <li>No compartas tu contraseña</li>
+                  <li>Toda la información es <strong>confidencial</strong></li>
+                </ul>
+              </td></tr>
+            </table>
+          </td>
+        </tr>
+      </table>
+      <!-- Soporte IT -->
+      <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin-bottom:28px;background:linear-gradient(135deg,#eef4ff,#e6f7ff);border-radius:12px;border:1px solid #c5deff;">
+        <tr><td style="padding:18px 20px;">
+          <p style="margin:0 0 3px;font-family:Arial,sans-serif;font-size:13px;font-weight:700;color:#1a202c;">¿Tienes algún inconveniente?</p>
+          <p style="margin:0 0 10px;font-family:Arial,sans-serif;font-size:12px;color:#4a5568;line-height:1.5;">Si presentas cualquier problema con tu cuenta, accesos o equipo, nuestro equipo de IT está disponible para ayudarte.</p>
+          <a href="https://forms.gle/8dkvmbgAFwqVx2Mj9" target="_blank" style="display:inline-block;padding:10px 22px;background:linear-gradient(135deg,#0065F3,#0097CC);color:#ffffff;font-family:Arial,sans-serif;font-size:12px;font-weight:700;text-decoration:none;border-radius:8px;">Solicitar soporte IT →</a>
+        </td></tr>
+      </table>
+      <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+        <tr><td style="padding:20px;text-align:center;background:#f7faff;border-radius:12px;">
+          <p style="margin:0;font-family:Arial,sans-serif;font-size:15px;font-weight:700;color:#1a202c;">¡Bienvenido(a) al equipo!</p>
+          <p style="margin:6px 0 0;font-family:Arial,sans-serif;font-size:13px;color:#718096;line-height:1.5;">Te deseamos mucho éxito en esta nueva etapa con nosotros.</p>
+        </td></tr>
+      </table>
+    </td>
+  </tr>
+  <!-- FOOTER -->
+  <tr>
+    <td style="padding:14px 40px 20px;background:#f0f4f8;border-radius:0 0 16px 16px;">
+      <p style="margin:0;font-family:Arial,sans-serif;font-size:10px;color:#a0aec0;line-height:1.55;text-align:center;">
+        <strong style="color:#718096;">CONFIDENTIALITY NOTICE:</strong> The contents of this e-mail message and any attachments are intended solely for the addressee(s) and may contain confidential and/or legally privileged information. If you are not the intended recipient, please notify the sender immediately and delete this message.
+      </p>
+    </td>
+  </tr>
+</table>
+</td></tr>
+</table>
+</body>
+</html>`;
+}
+
+
+// ── Template: Onboarding Agentes ─────────────────────────────────
+function buildEmailOnboardingAgente(nombre, email, password) {
+  return `<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8"/>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<style>
+  body, table, td, a { -webkit-text-size-adjust:100%; -ms-text-size-adjust:100%; }
+  body { margin:0; padding:0; background-color:#f0f4f8; }
+  a { color:#0065F3; }
+</style>
+</head>
+<body style="margin:0;padding:0;background-color:#f0f4f8;">
+<table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color:#f0f4f8;">
+<tr><td style="padding:32px 16px;">
+<table role="presentation" cellspacing="0" cellpadding="0" border="0" width="600" align="center"
+       style="background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.10);">
+  <tr>
+    <td style="background:linear-gradient(135deg,#0065F3 0%,#0097CC 60%,#19CDEB 100%);padding:0;">
+      <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+        <tr><td style="height:4px;background:linear-gradient(90deg,#19CDEB,rgba(255,255,255,.35),#19CDEB);"></td></tr>
+      </table>
+      <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+        <tr><td style="padding:36px 40px 28px;text-align:center;">
+          <img src="https://i.imgur.com/mZDIi6V.png" alt="Hero Insurance USA" width="180" style="width:180px;max-width:180px;height:auto;display:block;margin:0 auto 20px;"/>
+          <h1 style="margin:0 0 8px;font-family:Arial,sans-serif;font-size:28px;font-weight:900;color:#ffffff;line-height:1.1;">
+            ¡Bienvenido al equipo,<br/><span style="opacity:0.85;">${nombre}!</span>
+          </h1>
+          <p style="margin:0;font-family:Arial,sans-serif;font-size:14px;color:rgba(255,255,255,0.82);line-height:1.5;">
+            Nos alegra que te unas a nuestra familia.
+          </p>
+        </td></tr>
+      </table>
+    </td>
+  </tr>
+  <tr>
+    <td style="padding:36px 40px;background:#ffffff;">
+      <p style="margin:0 0 24px;font-family:Arial,sans-serif;font-size:15px;color:#2d3748;line-height:1.6;">
+        Hola <strong>${nombre}</strong>, a continuación te compartimos tus credenciales de acceso.
+      </p>
+      <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin-bottom:24px;background:#f7faff;border-radius:12px;border:1px solid #e2eaf8;">
+        <tr><td style="padding:0;">
+          <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+            <tr><td style="padding:14px 20px;background:#eef4ff;border-radius:12px 12px 0 0;border-bottom:1px solid #d8e6ff;">
+              <span style="font-family:Arial,sans-serif;font-size:11px;font-weight:900;letter-spacing:2px;text-transform:uppercase;color:#0065F3;">✉ Cuenta Corporativa</span>
+            </td></tr>
+          </table>
+          <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+            <tr><td style="padding:18px 20px;">
+              <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin-bottom:12px;">
+                <tr><td style="padding:12px 16px;background:#ffffff;border-radius:8px;border:1px solid #dde8ff;">
+                  <p style="margin:0 0 3px;font-family:Arial,sans-serif;font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:#8fa6cc;">Correo corporativo</p>
+                  <p style="margin:0;font-family:'Courier New',monospace;font-size:14px;font-weight:700;color:#0065F3;">${email}</p>
+                </td></tr>
+              </table>
+              <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin-bottom:14px;">
+                <tr><td style="padding:12px 16px;background:#fff8e6;border-radius:8px;border:1px solid #f5d87a;">
+                  <p style="margin:0 0 3px;font-family:Arial,sans-serif;font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:#b08a00;">CONTRASEÑA TEMPORAL</p>
+                  <p style="margin:0;font-family:'Courier New',monospace;font-size:14px;font-weight:700;color:#7a5f00;">${password}</p>
+                </td></tr>
+              </table>
+            </td></tr>
+          </table>
+        </td></tr>
+      </table>
+      <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin-bottom:24px;background:#fff8f8;border-radius:12px;border:1px solid #ffd4d4;">
+        <tr><td style="padding:14px 20px 18px;">
+          <p style="margin:0 0 12px;font-family:Arial,sans-serif;font-size:11px;font-weight:900;letter-spacing:2px;text-transform:uppercase;color:#cc3333;">SEGURIDAD</p>
+          <ul style="margin:0;padding:0 0 0 16px;font-family:Arial,sans-serif;font-size:13px;color:#4a5568;line-height:1.8;">
+            <li>Tu cuenta es de <strong>uso personal</strong></li>
+            <li>No compartas tu contraseña con nadie</li>
+            <li>Toda la información de clientes es <strong>confidencial</strong></li>
+          </ul>
+        </td></tr>
+      </table>
+      <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin-bottom:28px;background:linear-gradient(135deg,#eef4ff,#e6f7ff);border-radius:12px;border:1px solid #c5deff;">
+        <tr><td style="padding:18px 20px;">
+          <p style="margin:0 0 3px;font-family:Arial,sans-serif;font-size:13px;font-weight:700;color:#1a202c;">¿Tienes algún inconveniente?</p>
+          <p style="margin:0 0 10px;font-family:Arial,sans-serif;font-size:12px;color:#4a5568;line-height:1.5;">Nuestro equipo de IT está disponible para ayudarte.</p>
+          <a href="https://forms.gle/8dkvmbgAFwqVx2Mj9" target="_blank" style="display:inline-block;padding:10px 22px;background:linear-gradient(135deg,#0065F3,#0097CC);color:#ffffff;font-family:Arial,sans-serif;font-size:12px;font-weight:700;text-decoration:none;border-radius:8px;">Solicitar soporte IT →</a>
+        </td></tr>
+      </table>
+      <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+        <tr><td style="padding:20px;text-align:center;background:#f7faff;border-radius:12px;">
+          <p style="margin:0;font-family:Arial,sans-serif;font-size:15px;font-weight:700;color:#1a202c;">¡Bienvenido(a) al equipo!</p>
+          <p style="margin:6px 0 0;font-family:Arial,sans-serif;font-size:13px;color:#718096;">Te deseamos mucho éxito en esta nueva etapa.</p>
+        </td></tr>
+      </table>
+    </td>
+  </tr>
+  <tr>
+    <td style="padding:14px 40px 20px;background:#f0f4f8;border-radius:0 0 16px 16px;">
+      <p style="margin:0;font-family:Arial,sans-serif;font-size:10px;color:#a0aec0;line-height:1.55;text-align:center;">
+        <strong style="color:#718096;">CONFIDENTIALITY NOTICE:</strong> The contents of this e-mail message and any attachments are intended solely for the addressee(s) and may contain confidential and/or legally privileged information. If you are not the intended recipient, please notify the sender immediately and delete this message.
+      </p>
+    </td>
+  </tr>
+</table>
+</td></tr>
+</table>
+</body>
+</html>`;
+}
+
+
+// ── Template: Reset Password ──────────────────────────────────────
+function buildEmailReset(nombre, emailCorp, password) {
+  const now      = new Date();
+  const opciones = { timeZone: 'America/New_York', year:'numeric', month:'long', day:'numeric', hour:'2-digit', minute:'2-digit' };
+  const fechaStr = now.toLocaleDateString('es-ES', opciones);
+
+  return `<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8"/>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<style>
+  body, table, td, a { -webkit-text-size-adjust:100%; -ms-text-size-adjust:100%; }
+  body { margin:0; padding:0; background-color:#f0f4f8; }
+  a { color:#0065F3; }
+</style>
+</head>
+<body style="margin:0;padding:0;background-color:#f0f4f8;">
+<table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color:#f0f4f8;">
+<tr><td style="padding:32px 16px;">
+<table role="presentation" cellspacing="0" cellpadding="0" border="0" width="600" align="center"
+       style="background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.10);">
+  <tr>
+    <td style="background:linear-gradient(135deg,#0A1628 0%,#0d2445 60%,#0065F3 100%);padding:0;">
+      <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+        <tr><td style="height:4px;background:linear-gradient(90deg,#0065F3,rgba(255,255,255,.25),#0065F3);"></td></tr>
+      </table>
+      <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+        <tr><td style="padding:36px 40px 28px;text-align:center;">
+          <img src="https://i.imgur.com/mZDIi6V.png" alt="Hero Insurance USA" width="180" style="width:180px;max-width:180px;height:auto;display:block;margin:0 auto 24px;"/>
+          <div style="display:inline-block;width:56px;height:56px;background:rgba(255,255,255,0.10);border:2px solid rgba(255,255,255,0.20);border-radius:50%;text-align:center;line-height:56px;font-size:26px;margin-bottom:16px;">🔒</div>
+          <h1 style="margin:0 0 8px;font-family:Arial,sans-serif;font-size:24px;font-weight:900;color:#ffffff;line-height:1.2;">Restablecimiento de Contraseña</h1>
+          <p style="margin:0;font-family:Arial,sans-serif;font-size:13px;color:rgba(255,255,255,0.70);line-height:1.5;">Se ha generado una nueva contraseña temporal para tu cuenta.</p>
+        </td></tr>
+      </table>
+    </td>
+  </tr>
+  <tr>
+    <td style="padding:36px 40px;background:#ffffff;">
+      <p style="margin:0 0 24px;font-family:Arial,sans-serif;font-size:15px;color:#2d3748;line-height:1.6;">
+        Hola <strong>${nombre}</strong>, hemos procesado el restablecimiento de la contraseña para tu cuenta corporativa.
+      </p>
+      <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin-bottom:24px;background:#fff8e6;border-radius:12px;border:1px solid #f5d87a;border-left:4px solid #f0b429;">
+        <tr><td style="padding:14px 18px;">
+          <p style="margin:0 0 4px;font-family:Arial,sans-serif;font-size:12px;font-weight:700;color:#b08a00;letter-spacing:0.5px;text-transform:uppercase;">Aviso de seguridad</p>
+          <p style="margin:0;font-family:Arial,sans-serif;font-size:13px;color:#7a5f00;line-height:1.55;">Si no solicitaste este cambio, contacta de inmediato al equipo de IT.</p>
+        </td></tr>
+      </table>
+      <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin-bottom:24px;background:#f7faff;border-radius:12px;border:1px solid #e2eaf8;">
+        <tr><td style="padding:0;">
+          <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+            <tr><td style="padding:14px 20px;background:#eef4ff;border-radius:12px 12px 0 0;border-bottom:1px solid #d8e6ff;">
+              <span style="font-family:Arial,sans-serif;font-size:11px;font-weight:900;letter-spacing:2px;text-transform:uppercase;color:#0065F3;">Nuevas credenciales</span>
+            </td></tr>
+          </table>
+          <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+            <tr><td style="padding:18px 20px;">
+              <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin-bottom:12px;">
+                <tr><td style="padding:12px 16px;background:#ffffff;border-radius:8px;border:1px solid #dde8ff;">
+                  <p style="margin:0 0 3px;font-family:Arial,sans-serif;font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:#8fa6cc;">Correo corporativo</p>
+                  <p style="margin:0;font-family:'Courier New',monospace;font-size:14px;font-weight:700;color:#0065F3;">${emailCorp}</p>
+                </td></tr>
+              </table>
+              <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin-bottom:14px;">
+                <tr><td style="padding:12px 16px;background:#f0fff4;border-radius:8px;border:1px solid #9ae6b4;">
+                  <p style="margin:0 0 3px;font-family:Arial,sans-serif;font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:#276749;">Nueva contraseña temporal</p>
+                  <p style="margin:0;font-family:'Courier New',monospace;font-size:14px;font-weight:700;color:#22543d;">${password || 'Se te asignará una contraseña al iniciar sesión'}</p>
+                </td></tr>
+              </table>
+              <p style="margin:0;font-family:Arial,sans-serif;font-size:13px;color:#4a5568;line-height:1.55;">
+                Accede a <a href="https://workspace.google.com" style="color:#0065F3;font-weight:700;">Google Workspace</a> con estas credenciales. El sistema te pedirá cambiar tu contraseña en el primer inicio de sesión.
+              </p>
+            </td></tr>
+          </table>
+        </td></tr>
+      </table>
+      <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin-bottom:24px;background:linear-gradient(135deg,#eef4ff,#e6f7ff);border-radius:12px;border:1px solid #c5deff;">
+        <tr><td style="padding:18px 20px;">
+          <p style="margin:0 0 3px;font-family:Arial,sans-serif;font-size:13px;font-weight:700;color:#1a202c;">¿Necesitas ayuda?</p>
+          <p style="margin:0 0 10px;font-family:Arial,sans-serif;font-size:12px;color:#4a5568;line-height:1.5;">Si no reconoces esta solicitud o tienes problemas para acceder, contacta al equipo de IT de inmediato.</p>
+          <a href="https://forms.gle/8dkvmbgAFwqVx2Mj9" target="_blank" style="display:inline-block;padding:10px 22px;background:linear-gradient(135deg,#0065F3,#0097CC);color:#ffffff;font-family:Arial,sans-serif;font-size:12px;font-weight:700;text-decoration:none;border-radius:8px;">Contactar soporte IT →</a>
+        </td></tr>
+      </table>
+      <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+        <tr><td style="padding:14px 18px;background:#f7faff;border-radius:10px;border:1px solid #e2eaf8;text-align:center;">
+          <p style="margin:0;font-family:'Courier New',monospace;font-size:11px;color:#a0aec0;">Solicitud procesada el ${fechaStr} (ET)</p>
+        </td></tr>
+      </table>
+    </td>
+  </tr>
+  <tr>
+    <td style="padding:14px 40px 20px;background:#f0f4f8;border-radius:0 0 16px 16px;">
+      <p style="margin:0;font-family:Arial,sans-serif;font-size:10px;color:#a0aec0;line-height:1.55;text-align:center;">
+        <strong style="color:#718096;">CONFIDENTIALITY NOTICE:</strong> The contents of this e-mail message and any attachments are intended solely for the addressee(s) and may contain confidential and/or legally privileged information. If you are not the intended recipient, please notify the sender immediately and delete this message.
+      </p>
+    </td>
+  </tr>
+</table>
+</td></tr>
+</table>
+</body>
+</html>`;
+}
+
+
+</script>
+</body>
+</html>
