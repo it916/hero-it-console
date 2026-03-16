@@ -662,6 +662,10 @@ html { scroll-behavior: smooth; }
       <span class="nav-icon">🔑</span> Reset de Contraseña
     </a>
 
+    <a class="nav-item" onclick="showPage('solicitudes')" href="#">
+      <span class="nav-icon">📥</span> Solicitudes de Alta
+    </a>
+
     <div class="nav-section-label">Administración</div>
     <a class="nav-item" onclick="showPage('usuarios')" href="#">
       <span class="nav-icon">👥</span> Usuarios Workspace
@@ -1146,6 +1150,24 @@ html { scroll-behavior: smooth; }
         </div>
       </div>
     </div>
+
+    <!-- ══ SOLICITUDES DE ALTA ═════════════════════════════ -->
+    <div class="page" id="page-solicitudes">
+      <div class="section-header">
+        <div class="section-title"><span>//</span> Solicitudes de <span>Alta</span></div>
+        <div class="section-desc">Solicitudes enviadas desde el formulario de Alta de Agente.</div>
+      </div>
+      <div style="display:flex;gap:10px;margin-bottom:16px;align-items:center;flex-wrap:wrap;">
+        <button class="btn btn-primary" onclick="loadSolicitudes()" id="btn-load-sol">↺ Actualizar</button>
+        <span id="sol-count" style="font-family:var(--mono);font-size:11px;color:var(--text3);"></span>
+      </div>
+      <div id="sol-list">
+        <div class="info-box" style="text-align:center;padding:40px;">
+          <div style="font-size:32px;opacity:0.3;margin-bottom:12px;">📥</div>
+          <div style="font-family:var(--mono);font-size:12px;color:var(--text3);">Presiona "Actualizar" para cargar las solicitudes</div>
+        </div>
+      </div>
+    </div>
     <div class="page" id="page-logs">
       <div class="section-header">
         <div class="section-title"><span>//</span> Historial de <span>Logs</span></div>
@@ -1242,7 +1264,9 @@ const pageLabels = {
   'reset': 'Reset de Contraseña',
   'usuarios': 'Usuarios Workspace',
   'logs': 'Historial de Logs',
-  'config': 'Configuración'
+  'config': 'Configuración',
+  'solicitudes': 'Solicitudes de Alta',
+  'crear-usuario': 'Crear Usuario'
 };
 
 function showPage(id) {
@@ -1570,6 +1594,100 @@ function buildEmailReset(nombre, emailCorp, password) {
   + '</td></tr></table></td></tr></table></body></html>';
 }
 
+// ── Módulo Solicitudes de Alta ────────────────────────────────
+async function loadSolicitudes() {
+  const btn = document.getElementById('btn-load-sol');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Cargando...';
+
+  try {
+    const resp = await fetch(WORKER_URL + '/alta-agente');
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || 'Error del Worker');
+
+    const solicitudes = data.solicitudes || [];
+    document.getElementById('sol-count').textContent =
+      solicitudes.length + ' solicitud' + (solicitudes.length !== 1 ? 'es' : '');
+
+    const container = document.getElementById('sol-list');
+
+    if (!solicitudes.length) {
+      container.innerHTML = '<div class="info-box" style="text-align:center;padding:40px;">' +
+        '<div style="font-size:32px;opacity:0.3;margin-bottom:12px;">📭</div>' +
+        '<div style="font-family:var(--mono);font-size:12px;color:var(--text3);">Sin solicitudes pendientes</div></div>';
+      return;
+    }
+
+    container.innerHTML = solicitudes.map(s => {
+      const fecha = new Date(s.fecha).toLocaleString('es-MX', {
+        timeZone: 'America/New_York', year:'numeric', month:'short',
+        day:'numeric', hour:'2-digit', minute:'2-digit'
+      });
+      const estadoColor = s.estado === 'pendiente' ? 'var(--amber)' : 'var(--green)';
+      const estadoBg    = s.estado === 'pendiente' ? 'rgba(240,180,41,0.1)' : 'rgba(34,216,122,0.1)';
+
+      return '<div class="action-card" style="margin-bottom:12px; --card-color:' +
+        (s.estado === 'pendiente' ? 'var(--amber)' : 'var(--green)') + '">' +
+        '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">' +
+          '<div>' +
+            '<div style="font-size:14px;font-weight:600;color:var(--text);">' + s.nombre + ' ' + s.apellido + '</div>' +
+            '<div style="font-family:var(--mono);font-size:11px;color:var(--cyan);margin-top:2px;">' + s.correo + '</div>' +
+          '</div>' +
+          '<span style="font-family:var(--mono);font-size:10px;padding:3px 10px;border-radius:20px;background:' + estadoBg + ';color:' + estadoColor + ';">' + s.estado + '</span>' +
+        '</div>' +
+        '<div style="display:flex;gap:16px;font-size:12px;color:var(--text2);margin-bottom:14px;">' +
+          '<span>📞 ' + s.telefono + '</span>' +
+          '<span>🕐 ' + fecha + ' ET</span>' +
+        '</div>' +
+        (s.estado === 'pendiente' ?
+          '<div style="display:flex;gap:8px;">' +
+            '<button class="btn btn-primary" onclick="procesarAlta(\'' + s.id + '\',\'' + s.nombre + '\',\'' + s.apellido + '\',\'' + s.correo + '\')" style="font-size:12px;">➕ Crear usuario</button>' +
+            '<button class="btn btn-secondary" onclick="resolverSolicitud(\'' + s.id + '\', \'procesada\')" style="font-size:12px;">✓ Marcar procesada</button>' +
+          '</div>'
+        : '') +
+      '</div>';
+    }).join('');
+
+  } catch (err) {
+    document.getElementById('sol-list').innerHTML =
+      '<div class="info-box" style="text-align:center;padding:32px;border-color:rgba(245,101,101,0.3);">' +
+      '<div style="color:var(--red);font-family:var(--mono);font-size:12px;">Error: ' + err.message + '</div></div>';
+  }
+
+  btn.disabled = false;
+  btn.innerHTML = '↺ Actualizar';
+}
+
+async function resolverSolicitud(id, estado) {
+  try {
+    await fetch(WORKER_URL + '/alta-agente/resolver', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, estado })
+    });
+    showToast('Solicitud marcada como ' + estado);
+    loadSolicitudes();
+  } catch (err) {
+    showToast('Error: ' + err.message);
+  }
+}
+
+function procesarAlta(id, nombre, apellido, correo) {
+  // Pre-llenar el formulario de Crear Usuario con los datos de la solicitud
+  showPage('crear-usuario');
+  document.getElementById('new-nombre').value = nombre;
+  document.getElementById('new-apellido').value = apellido;
+  document.getElementById('new-email-personal').value = correo;
+  // Sugerir email corporativo
+  const sugerido = (nombre.charAt(0) + apellido).toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s/g,'');
+  document.getElementById('new-email-user').value = sugerido;
+  previewEmail();
+  showToast('Datos cargados desde solicitud de alta');
+  // Guardar id para marcar como procesada al crear
+  window._altaId = id;
+}
+
 // ── Módulo Crear Usuario ──────────────────────────────────────
 let nuevoUsuario = null;
 
@@ -1626,6 +1744,12 @@ async function crearUsuario() {
 
     addLog('Usuario creado: ' + emailCorp, 'success', 'log-new');
     showToast('Usuario creado en Workspace');
+
+    // Si viene de una solicitud de alta, marcarla como procesada
+    if (window._altaId) {
+      await resolverSolicitud(window._altaId, 'procesada');
+      window._altaId = null;
+    }
 
     const statusBox = document.getElementById('new-status-box');
     statusBox.style.display = 'block';
