@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Soporte IT · Hero Insurance USA</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&family=Montserrat:wght@400;500;600&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root { --cyan:#19CDEB; --blue:#0097CC; --royal:#0065F3; --dark:#373535; --white:#FDFDFD; --radius:14px; }
+    body { font-family:'Montserrat',sans-serif; background:var(--dark); min-height:100vh; display:flex; flex-direction:column; align-items:center; padding:0 0 60px; }
+
+    .hero-header { width:100%; background:linear-gradient(135deg,var(--royal) 0%,var(--blue) 40%,var(--cyan) 100%); padding:36px 24px 48px; text-align:center; position:relative; overflow:hidden; }
+    .hero-header::before { content:''; position:absolute; inset:0; background:radial-gradient(ellipse at 50% 0%,rgba(255,255,255,0.18) 0%,transparent 70%); }
+    .hero-header::after { content:''; position:absolute; bottom:-1px; left:0; right:0; height:40px; background:var(--dark); clip-path:ellipse(55% 100% at 50% 100%); }
+    .logo-text { font-family:'Inter',sans-serif; font-weight:900; font-size:clamp(28px,6vw,42px); letter-spacing:-3px; text-transform:uppercase; color:var(--white); position:relative; z-index:1; line-height:1; }
+    .logo-sub { font-family:'Inter',sans-serif; font-weight:700; font-size:11px; letter-spacing:5px; text-transform:uppercase; color:rgba(255,255,255,0.75); position:relative; z-index:1; margin-top:4px; }
+    .header-tagline { font-size:13px; color:rgba(255,255,255,0.85); margin-top:10px; font-style:italic; position:relative; z-index:1; }
+
+    .container { width:100%; max-width:620px; padding:0 20px; margin-top:-20px; position:relative; z-index:2; }
+
+    .card { background:#2a2828; border-radius:var(--radius); border:1px solid rgba(25,205,235,0.15); padding:36px; box-shadow:0 8px 40px rgba(0,0,0,0.4); margin-bottom:16px; }
+    .card-title { font-family:'Inter',sans-serif; font-weight:700; font-size:11px; letter-spacing:3px; text-transform:uppercase; color:var(--cyan); margin-bottom:24px; display:flex; align-items:center; gap:10px; }
+    .card-title::after { content:''; flex:1; height:1px; background:rgba(25,205,235,0.2); }
+
+    .field { display:flex; flex-direction:column; gap:8px; margin-bottom:16px; }
+    .field:last-of-type { margin-bottom:0; }
+    label { font-size:12px; font-weight:600; letter-spacing:0.5px; color:rgba(255,255,255,0.6); text-transform:uppercase; }
+
+    input, select, textarea {
+      border:1.5px solid rgba(255,255,255,0.1); border-radius:8px; padding:12px 16px;
+      font-size:15px; font-family:'Montserrat',sans-serif; color:var(--white);
+      background:rgba(255,255,255,0.06); transition:border-color 0.2s,box-shadow 0.2s; outline:none;
+    }
+    input:focus, select:focus, textarea:focus {
+      border-color:var(--cyan); background:rgba(25,205,235,0.06); box-shadow:0 0 0 3px rgba(25,205,235,0.12);
+    }
+    input::placeholder, textarea::placeholder { color:rgba(255,255,255,0.25); }
+    select option { background:#2a2828; color:var(--white); }
+    textarea { resize:vertical; min-height:120px; line-height:1.6; }
+
+    .row { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+    @media(max-width:500px) { .row { grid-template-columns:1fr; } }
+
+    /* Prioridad chips */
+    .priority-group { display:flex; gap:10px; flex-wrap:wrap; }
+    .priority-chip input[type="radio"] { display:none; }
+    .priority-chip label {
+      display:flex; align-items:center; gap:6px; padding:8px 16px; border-radius:20px;
+      border:1.5px solid rgba(255,255,255,0.15); cursor:pointer; font-size:12px; font-weight:600;
+      letter-spacing:0.5px; color:rgba(255,255,255,0.5); transition:all 0.2s; text-transform:uppercase;
+    }
+    .priority-chip input:checked + label { border-color:var(--chip-color); color:var(--chip-color); background:var(--chip-bg); }
+    .priority-chip.baja   { --chip-color:#22d87a; --chip-bg:rgba(34,216,122,0.1); }
+    .priority-chip.media  { --chip-color:#f0b429; --chip-bg:rgba(240,180,41,0.1); }
+    .priority-chip.alta   { --chip-color:#f97316; --chip-bg:rgba(249,115,22,0.1); }
+    .priority-chip.urgente{ --chip-color:#f56565; --chip-bg:rgba(245,101,101,0.1); }
+
+    .btn-primary { display:flex; align-items:center; justify-content:center; gap:10px; width:100%; padding:15px 28px; margin-top:8px; border-radius:8px; font-size:15px; font-weight:700; font-family:'Inter',sans-serif; letter-spacing:1px; text-transform:uppercase; cursor:pointer; border:none; background:linear-gradient(90deg,var(--royal) 0%,var(--blue) 50%,var(--cyan) 100%); color:#fff; transition:all 0.25s; box-shadow:0 4px 20px rgba(0,151,204,0.35); }
+    .btn-primary:hover { transform:translateY(-2px); box-shadow:0 8px 28px rgba(0,151,204,0.5); }
+    .btn-primary:disabled { opacity:0.6; cursor:not-allowed; transform:none; }
+
+    .toast { display:none; align-items:center; gap:12px; background:linear-gradient(90deg,#0065F3,#19CDEB); color:#fff; padding:16px 22px; border-radius:10px; margin-bottom:20px; font-size:14px; font-weight:600; animation:fadeIn 0.35s ease; box-shadow:0 4px 20px rgba(0,101,243,0.4); }
+    .toast.show { display:flex; }
+    .toast-icon { width:28px; height:28px; background:rgba(255,255,255,0.25); border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:14px; flex-shrink:0; }
+    @keyframes fadeIn { from{opacity:0;transform:translateY(-10px);} to{opacity:1;transform:translateY(0);} }
+
+    .footer { margin-top:20px; text-align:center; font-size:11px; color:rgba(255,255,255,0.2); letter-spacing:1px; }
+    .ticket-id { font-family:'Courier New',monospace; font-size:13px; color:var(--cyan); background:rgba(25,205,235,0.1); padding:4px 12px; border-radius:6px; }
+  </style>
+</head>
+<body>
+  <div class="hero-header">
+    <div class="logo-text">Hero <span style="color:var(--cyan)">Insurance</span></div>
+    <div class="logo-sub">USA</div>
+    <div class="header-tagline">Soporte de Tecnología</div>
+  </div>
+
+  <div class="container">
+    <div id="toast" class="toast">
+      <div class="toast-icon">✓</div>
+      <div id="toast-msg">Ticket enviado. Te contactaremos pronto.</div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Nuevo ticket de soporte</div>
+
+      <div class="row">
+        <div class="field">
+          <label for="nombre">Tu nombre *</label>
+          <input type="text" id="nombre" placeholder="Ej. María López"/>
+        </div>
+        <div class="field">
+          <label for="email">Tu correo corporativo *</label>
+          <input type="email" id="email" placeholder="mlopez@heroinsuranceusa.com"/>
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="categoria">Categoría *</label>
+        <select id="categoria">
+          <option value="" disabled selected>Selecciona una categoría</option>
+          <option value="Problema con equipo o hardware">Problema con equipo o hardware</option>
+          <option value="Acceso a aplicación o plataforma">Acceso a aplicación o plataforma</option>
+          <option value="Solicitud de software">Solicitud de software</option>
+          <option value="Otro">Otro</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label>Prioridad *</label>
+        <div class="priority-group">
+          <div class="priority-chip baja">
+            <input type="radio" name="prioridad" id="p-baja" value="Baja"/>
+            <label for="p-baja">● Baja</label>
+          </div>
+          <div class="priority-chip media">
+            <input type="radio" name="prioridad" id="p-media" value="Media" checked/>
+            <label for="p-media">● Media</label>
+          </div>
+          <div class="priority-chip alta">
+            <input type="radio" name="prioridad" id="p-alta" value="Alta"/>
+            <label for="p-alta">● Alta</label>
+          </div>
+          <div class="priority-chip urgente">
+            <input type="radio" name="prioridad" id="p-urgente" value="Urgente"/>
+            <label for="p-urgente">● Urgente</label>
+          </div>
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="asunto">Asunto *</label>
+        <input type="text" id="asunto" placeholder="Describe brevemente el problema"/>
+      </div>
+
+      <div class="field">
+        <label for="descripcion">Descripción detallada *</label>
+        <textarea id="descripcion" placeholder="Explica con detalle qué está pasando, desde cuándo, y qué has intentado..."></textarea>
+      </div>
+
+      <button class="btn-primary" onclick="enviarTicket()">Enviar ticket →</button>
+    </div>
+
+    <div class="footer">HERO INSURANCE USA · IT DEPARTMENT</div>
+  </div>
+
+<script>
+  const WORKER_URL = 'https://hero-email-worker.broad-fire-d2d6.workers.dev';
+
+  async function enviarTicket() {
+    const nombre      = document.getElementById('nombre').value.trim();
+    const email       = document.getElementById('email').value.trim();
+    const categoria   = document.getElementById('categoria').value;
+    const prioridad   = document.querySelector('input[name="prioridad"]:checked')?.value || 'Media';
+    const asunto      = document.getElementById('asunto').value.trim();
+    const descripcion = document.getElementById('descripcion').value.trim();
+
+    if (!nombre || !email || !categoria || !asunto || !descripcion) {
+      alert('Por favor completa todos los campos obligatorios.'); return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      alert('El correo no parece válido.'); return;
+    }
+
+    const btn = document.querySelector('.btn-primary');
+    btn.disabled = true;
+    btn.textContent = 'Enviando...';
+
+    try {
+      const resp = await fetch(WORKER_URL + '/ticket', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nombre, email, categoria, prioridad, asunto, descripcion })
+      });
+      const result = await resp.json();
+      if (!resp.ok) throw new Error(result.error || 'Error del servidor');
+
+      document.getElementById('toast-msg').innerHTML =
+        'Ticket enviado correctamente. Tu ID: <span class="ticket-id">' + result.id + '</span>';
+      const toast = document.getElementById('toast');
+      toast.classList.add('show');
+
+      ['nombre','email','asunto','descripcion'].forEach(id => document.getElementById(id).value = '');
+      document.getElementById('categoria').selectedIndex = 0;
+      document.getElementById('p-media').checked = true;
+
+      setTimeout(() => toast.classList.remove('show'), 6000);
+    } catch(err) {
+      alert('No se pudo enviar el ticket: ' + err.message);
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = 'Enviar ticket →';
+    }
+  }
+</script>
+</body>
+</html>
