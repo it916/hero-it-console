@@ -679,6 +679,9 @@ html { scroll-behavior: smooth; }
     <a class="nav-item" onclick="showPage('logs')" href="#">
       <span class="nav-icon">📋</span> Historial de Logs
     </a>
+    <a class="nav-item" onclick="showPage('auditoria')" href="#">
+      <span class="nav-icon">🗂️</span> Auditoría
+    </a>
 
     <div class="nav-section-label">Sistema</div>
     <a class="nav-item" onclick="showPage('config')" href="#">
@@ -1266,6 +1269,46 @@ html { scroll-behavior: smooth; }
         </div>
       </div>
     </div>
+
+    <!-- ══ AUDITORÍA ══════════════════════════════════════ -->
+    <div class="page" id="page-auditoria">
+      <div class="section-header">
+        <div class="section-title"><span>//</span> Auditoría</div>
+        <div class="section-desc">Historial persistente de todas las acciones importantes del sistema.</div>
+      </div>
+
+      <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;align-items:center;">
+        <input class="form-input" id="audit-search" type="text" placeholder="Buscar en el historial..."
+          oninput="searchAudit()" style="flex:1;min-width:200px;max-width:300px;"/>
+        <select id="audit-filter-tipo" onchange="searchAudit()" style="background:var(--bg2);border:1px solid var(--border);color:var(--text2);padding:8px 12px;border-radius:8px;font-size:12px;font-family:var(--sans);">
+          <option value="">Todos los tipos</option>
+          <option value="email">Emails</option>
+          <option value="reset">Resets</option>
+          <option value="usuario">Usuarios</option>
+          <option value="ticket">Tickets</option>
+        </select>
+        <button class="btn btn-primary" onclick="loadAudit()" id="btn-load-audit">↺ Actualizar</button>
+        <button class="btn btn-secondary" onclick="exportAuditCSV()">⬇ Exportar CSV</button>
+        <span id="audit-count" style="font-family:var(--mono);font-size:11px;color:var(--text3);margin-left:auto;"></span>
+      </div>
+
+      <div class="log-console">
+        <div class="log-console-header">
+          <span class="log-console-title">HISTORIAL PERSISTENTE DE AUDITORÍA</span>
+          <div class="log-console-dots">
+            <div class="log-dot" style="background:#f56565"></div>
+            <div class="log-dot" style="background:#f0b429"></div>
+            <div class="log-dot" style="background:#22d87a"></div>
+          </div>
+        </div>
+        <div id="audit-body" style="padding:14px 16px;min-height:200px;max-height:600px;overflow-y:auto;">
+          <div class="log-empty">
+            <div class="log-empty-icon">🗂️</div>
+            <div class="log-empty-text">Presiona "Actualizar" para cargar el historial</div>
+          </div>
+        </div>
+      </div>
+    </div>
     <div class="page" id="page-logs">
       <div class="section-header">
         <div class="section-title"><span>//</span> Historial de <span>Logs</span></div>
@@ -1365,6 +1408,7 @@ const pageLabels = {
   'config': 'Configuración',
   'solicitudes': 'Solicitudes de Alta',
   'tickets': 'Tickets de Soporte',
+  'auditoria': 'Auditoría',
   'crear-usuario': 'Crear Usuario'
 };
 
@@ -1396,7 +1440,16 @@ updateClock();
 // ── Worker URL ────────────────────────────────────────────────
 const WORKER_URL = 'https://hero-email-worker.broad-fire-d2d6.workers.dev';
 
-// ── Resend API via Worker ─────────────────────────────────────
+// ── Auditoría persistente ─────────────────────────────────────
+async function auditLog(tipo, descripcion, detalle = null) {
+  try {
+    await fetch(WORKER_URL + '/audit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tipo, descripcion, detalle, usuario: 'Fernando Romero' })
+    });
+  } catch(e) { console.warn('auditLog error:', e.message); }
+}
 async function sendViaResend({ to, subject, html, text }) {
   const resp = await fetch(WORKER_URL, {
     method: 'POST',
@@ -1504,6 +1557,7 @@ async function sendOnboarding(tipo) {
       text: 'Hola ' + data.nombre + ', bienvenido a Hero Insurance USA. Correo: ' + data.email + ' / Contrasena: ' + password });
 
     addLog('Email enviado a ' + data.nombre + ' -> ' + data.pers, 'success', logId);
+    auditLog('email', 'Onboarding ' + (tipo === 'empleado' ? 'Empleado' : 'Agente') + ' enviado a ' + data.nombre, data.email + ' → ' + data.pers);
     document.getElementById(statusId).innerHTML =
       '<span style="color:var(--green)">Enviado a ' + data.nombre + '</span><br>' +
       '<span style="font-size:10px;color:var(--text3)">' + new Date().toLocaleString('es-MX') + '</span>';
@@ -1537,6 +1591,7 @@ async function sendReset() {
       text: 'Hola ' + data.nombre + ', tu contrasena ha sido restablecida. Correo: ' + data.email + ' / Nueva contrasena: ' + password
     });
     addLog('Reset enviado a ' + data.nombre + ' -> ' + data.pers, 'success', 'log-rst');
+    auditLog('reset', 'Reset de contraseña enviado a ' + data.nombre, data.email + ' → ' + data.pers);
     showToast('Reset enviado a ' + data.nombre);
     clearForm('rst');
   } catch (err) {
@@ -1716,6 +1771,96 @@ function buildEmailReset(nombre, emailCorp, password) {
   + '</td></tr></table></td></tr></table></body></html>';
 }
 
+// ── Módulo Auditoría ──────────────────────────────────────────
+let allAuditEntradas = [];
+
+const AUDIT_TIPO_COLOR = {
+  email:   'var(--cyan)',
+  reset:   'var(--amber)',
+  usuario: 'var(--purple)',
+  ticket:  'var(--green)',
+};
+const AUDIT_TIPO_ICON = {
+  email: '✉️', reset: '🔑', usuario: '👤', ticket: '🎫',
+};
+
+async function loadAudit() {
+  const btn = document.getElementById('btn-load-audit');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>';
+  try {
+    const tipo = document.getElementById('audit-filter-tipo').value;
+    const q    = document.getElementById('audit-search').value.trim();
+    let endpoint = WORKER_URL + '/audit?limit=500';
+    if (tipo) endpoint += '&tipo=' + tipo;
+    if (q)    endpoint += '&q=' + encodeURIComponent(q);
+
+    const resp = await fetch(endpoint);
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || 'Error');
+    allAuditEntradas = data.entradas || [];
+    renderAudit(allAuditEntradas, data.total);
+  } catch(err) {
+    document.getElementById('audit-body').innerHTML =
+      '<div style="text-align:center;padding:32px;color:var(--red);font-family:var(--mono);font-size:12px;">Error: ' + err.message + '</div>';
+  }
+  btn.disabled = false;
+  btn.innerHTML = '↺ Actualizar';
+}
+
+function searchAudit() {
+  clearTimeout(window._auditSearchTimeout);
+  window._auditSearchTimeout = setTimeout(loadAudit, 400);
+}
+
+function renderAudit(entradas, total) {
+  const count = document.getElementById('audit-count');
+  count.textContent = entradas.length + (total > entradas.length ? ' de ' + total : '') + ' entrada' + (entradas.length !== 1 ? 's' : '');
+
+  const body = document.getElementById('audit-body');
+  if (!entradas.length) {
+    body.innerHTML = '<div class="log-empty"><div class="log-empty-icon">📭</div><div class="log-empty-text">Sin entradas con estos filtros</div></div>';
+    return;
+  }
+
+  body.innerHTML = entradas.map(e => {
+    const fecha = new Date(e.fecha).toLocaleString('es-MX', {
+      timeZone: 'America/New_York', month: 'short', day: 'numeric',
+      hour: '2-digit', minute: '2-digit', second: '2-digit'
+    });
+    const color = AUDIT_TIPO_COLOR[e.tipo] || 'var(--text2)';
+    const icon  = AUDIT_TIPO_ICON[e.tipo] || '●';
+    return '<div style="display:flex;gap:12px;align-items:flex-start;padding:10px 0;border-bottom:1px solid var(--border);">'
+      + '<span style="font-size:14px;flex-shrink:0;margin-top:2px;">' + icon + '</span>'
+      + '<div style="flex:1;min-width:0;">'
+      + '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">'
+      + '<span style="font-size:13px;color:var(--text);font-weight:500;">' + e.descripcion + '</span>'
+      + '<span style="font-family:var(--mono);font-size:10px;color:var(--text3);flex-shrink:0;">' + fecha + ' ET</span>'
+      + '</div>'
+      + (e.detalle ? '<div style="font-family:var(--mono);font-size:11px;color:var(--text3);margin-top:3px;">' + e.detalle + '</div>' : '')
+      + '<span style="font-family:var(--mono);font-size:10px;padding:1px 7px;border-radius:10px;background:rgba(0,0,0,0.2);color:' + color + ';margin-top:4px;display:inline-block;">' + e.tipo + '</span>'
+      + '</div>'
+      + '</div>';
+  }).join('');
+}
+
+function exportAuditCSV() {
+  if (!allAuditEntradas.length) { showToast('Carga el historial primero'); return; }
+  const header = 'Fecha ET,Tipo,Descripcion,Detalle,Usuario';
+  const rows = allAuditEntradas.map(e => {
+    const fecha = new Date(e.fecha).toLocaleString('es-MX', { timeZone:'America/New_York' });
+    return [fecha, e.tipo, e.descripcion, e.detalle || '', e.usuario || '']
+      .map(v => '"' + String(v).replace(/"/g,'""') + '"').join(',');
+  });
+  const csv = [header, ...rows].join('\n');
+  const blob = new Blob([csv], { type:'text/csv;charset=utf-8;' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'hero-auditoria-' + new Date().toISOString().slice(0,10) + '.csv';
+  a.click();
+  showToast('CSV exportado');
+}
+
 // ── Módulo Tickets de Soporte ─────────────────────────────────
 let allTickets = [];
 let currentTicketId = null;
@@ -1821,6 +1966,8 @@ async function guardarTicket() {
     const result = await resp.json();
     if (!resp.ok) throw new Error(result.error || 'Error');
     addLog('Ticket actualizado: ' + currentTicketId, 'success');
+    const t = allTickets.find(x => x.id === currentTicketId);
+    auditLog('ticket', 'Ticket ' + (t ? t.ticketId : '') + ' actualizado — estado: ' + document.getElementById('modal-estado').value, respuesta ? 'Respuesta enviada a ' + (t ? t.email : '') : null);
     showToast(respuesta ? 'Respuesta enviada al usuario' : 'Ticket actualizado');
     closeTicketModal();
     loadTickets();
@@ -1981,6 +2128,7 @@ async function crearUsuario() {
     nuevoUsuario = { nombre: nombre + ' ' + apellido, email: emailCorp, password, emailPersonal: emailPers };
 
     addLog('Usuario creado: ' + emailCorp, 'success', 'log-new');
+    auditLog('usuario', 'Usuario creado en Workspace: ' + nombre + ' ' + apellido, emailCorp);
     showToast('Usuario creado en Workspace');
 
     // Si viene de una solicitud de alta, marcarla como procesada
