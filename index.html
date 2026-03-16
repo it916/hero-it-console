@@ -766,7 +766,7 @@ html { scroll-behavior: smooth; }
           </div>
           <div class="card-title">Usuarios Workspace</div>
           <div class="card-desc">Consulta todos los usuarios activos de Google Workspace en tiempo real via Admin Directory API.</div>
-          <button class="btn btn-secondary" onclick="showPage('usuarios')">Próximamente →</button>
+          <button class="btn btn-primary" onclick="showPage('usuarios')">Ver usuarios →</button>
         </div>
 
       </div>
@@ -1011,12 +1011,41 @@ html { scroll-behavior: smooth; }
     <div class="page" id="page-usuarios">
       <div class="section-header">
         <div class="section-title"><span>//</span> Usuarios <span>Workspace</span></div>
-        <div class="section-desc">Próximamente — consulta en tiempo real de todos los usuarios activos vía Admin Directory API.</div>
+        <div class="section-desc">Lista de todos los usuarios activos en Google Workspace — Hero Insurance USA.</div>
       </div>
-      <div class="info-box" style="text-align:center; padding: 48px; border-style: dashed">
-        <div style="font-size:40px; margin-bottom:16px; opacity:0.4">👥</div>
-        <div style="font-family:var(--mono); font-size:13px; color:var(--text2); margin-bottom:8px">Módulo en desarrollo</div>
-        <div style="font-size:12px; color:var(--text3)">Requiere configurar Admin Directory API en el gateway de Apps Script.</div>
+
+      <div style="display:flex; gap:10px; margin-bottom:16px; flex-wrap:wrap; align-items:center;">
+        <input class="form-input" id="usr-search" type="text" placeholder="Buscar por nombre o email..."
+          oninput="filterUsers()" style="flex:1; min-width:200px; max-width:360px;"/>
+        <button class="btn btn-primary" onclick="loadUsers()" id="btn-load-users">
+          ↺ Cargar usuarios
+        </button>
+        <span id="usr-count" style="font-family:var(--mono); font-size:11px; color:var(--text3);"></span>
+      </div>
+
+      <!-- Tabla -->
+      <div style="background:var(--bg2); border:1px solid var(--border); border-radius:12px; overflow:hidden;">
+        <div style="overflow-x:auto;">
+          <table id="usr-table" style="width:100%; border-collapse:collapse; font-size:13px;">
+            <thead>
+              <tr style="border-bottom:1px solid var(--border); background:var(--bg3);">
+                <th style="padding:11px 16px; text-align:left; font-family:var(--mono); font-size:10px; letter-spacing:1px; color:var(--text3); font-weight:500; text-transform:uppercase;">Nombre</th>
+                <th style="padding:11px 16px; text-align:left; font-family:var(--mono); font-size:10px; letter-spacing:1px; color:var(--text3); font-weight:500; text-transform:uppercase;">Email</th>
+                <th style="padding:11px 16px; text-align:left; font-family:var(--mono); font-size:10px; letter-spacing:1px; color:var(--text3); font-weight:500; text-transform:uppercase;">Estado</th>
+                <th style="padding:11px 16px; text-align:left; font-family:var(--mono); font-size:10px; letter-spacing:1px; color:var(--text3); font-weight:500; text-transform:uppercase;">Creado</th>
+                <th style="padding:11px 16px; text-align:left; font-family:var(--mono); font-size:10px; letter-spacing:1px; color:var(--text3); font-weight:500; text-transform:uppercase;">Último login</th>
+                <th style="padding:11px 16px; text-align:center; font-family:var(--mono); font-size:10px; letter-spacing:1px; color:var(--text3); font-weight:500; text-transform:uppercase;">Copiar</th>
+              </tr>
+            </thead>
+            <tbody id="usr-tbody">
+              <tr>
+                <td colspan="6" style="padding:48px; text-align:center; color:var(--text3); font-family:var(--mono); font-size:12px;">
+                  Presiona "Cargar usuarios" para consultar Workspace
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
 
@@ -1443,6 +1472,87 @@ function buildEmailReset(nombre, emailCorp, password) {
   + '<tr><td style="padding:14px 40px;background:#f0f4f8;text-align:center;">'
   + '<p style="margin:0;font-size:10px;color:#a0aec0;">CONFIDENTIALITY NOTICE: This email is intended solely for the addressee. If you are not the intended recipient, please notify the sender immediately.</p>'
   + '</td></tr></table></td></tr></table></body></html>';
+}
+
+// ── Módulo Usuarios Workspace ─────────────────────────────────
+let allUsers = [];
+
+async function loadUsers() {
+  const btn = document.getElementById('btn-load-users');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Cargando...';
+  document.getElementById('usr-count').textContent = '';
+  addLog('Consultando usuarios de Google Workspace...', 'info');
+
+  try {
+    const resp = await fetch(WORKER_URL + '/users');
+    const data = await resp.json();
+
+    if (!resp.ok) throw new Error(data.error || 'Error del Worker');
+
+    allUsers = data.users || [];
+    addLog('Usuarios cargados: ' + allUsers.length, 'success');
+    renderUsers(allUsers);
+
+  } catch (err) {
+    addLog('Error al cargar usuarios: ' + err.message, 'error');
+    showToast('Error al cargar usuarios');
+    document.getElementById('usr-tbody').innerHTML =
+      '<tr><td colspan="6" style="padding:32px;text-align:center;color:var(--red);font-family:var(--mono);font-size:12px;">Error: ' + err.message + '</td></tr>';
+  }
+
+  btn.disabled = false;
+  btn.innerHTML = '↺ Cargar usuarios';
+}
+
+function renderUsers(users) {
+  const tbody = document.getElementById('usr-tbody');
+  document.getElementById('usr-count').textContent = users.length + ' usuario' + (users.length !== 1 ? 's' : '');
+
+  if (!users.length) {
+    tbody.innerHTML = '<tr><td colspan="6" style="padding:32px;text-align:center;color:var(--text3);font-family:var(--mono);font-size:12px;">Sin resultados</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = users.map((u, i) => {
+    const estadoColor = u.estado === 'activo' ? 'var(--green)' : 'var(--red)';
+    const estadoBg    = u.estado === 'activo' ? 'rgba(34,216,122,0.1)' : 'rgba(245,101,101,0.1)';
+    const creado      = u.creado ? new Date(u.creado).toLocaleDateString('es-MX', { year:'numeric', month:'short', day:'numeric' }) : '—';
+    const login       = u.ultimoLogin && u.ultimoLogin !== '1970-01-01T00:00:00.000Z'
+      ? new Date(u.ultimoLogin).toLocaleDateString('es-MX', { year:'numeric', month:'short', day:'numeric' })
+      : 'Nunca';
+    const rowBg = i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.02)';
+
+    return '<tr style="border-bottom:1px solid var(--border);background:' + rowBg + ';">' +
+      '<td style="padding:10px 16px;color:var(--text);">' + u.nombre + '</td>' +
+      '<td style="padding:10px 16px;font-family:var(--mono);font-size:12px;color:var(--cyan);">' + u.email + '</td>' +
+      '<td style="padding:10px 16px;">' +
+        '<span style="font-family:var(--mono);font-size:10px;padding:3px 8px;border-radius:20px;background:' + estadoBg + ';color:' + estadoColor + ';">' + u.estado + '</span>' +
+      '</td>' +
+      '<td style="padding:10px 16px;font-family:var(--mono);font-size:11px;color:var(--text2);">' + creado + '</td>' +
+      '<td style="padding:10px 16px;font-family:var(--mono);font-size:11px;color:var(--text2);">' + login + '</td>' +
+      '<td style="padding:10px 16px;text-align:center;">' +
+        '<button onclick="copyEmail(\'' + u.email + '\')" style="background:transparent;border:1px solid var(--border);color:var(--text2);padding:4px 10px;border-radius:6px;font-size:11px;cursor:pointer;" title="Copiar email">📋</button>' +
+      '</td>' +
+    '</tr>';
+  }).join('');
+}
+
+function filterUsers() {
+  const q = document.getElementById('usr-search').value.toLowerCase();
+  if (!allUsers.length) return;
+  const filtered = allUsers.filter(u =>
+    u.nombre.toLowerCase().includes(q) || u.email.toLowerCase().includes(q)
+  );
+  renderUsers(filtered);
+}
+
+function copyEmail(email) {
+  navigator.clipboard.writeText(email).then(() => {
+    showToast('Email copiado: ' + email);
+  }).catch(() => {
+    showToast('No se pudo copiar');
+  });
 }
 
 // ── Init ──────────────────────────────────────────────────────
