@@ -1061,7 +1061,7 @@ html { scroll-behavior: smooth; }
           <div class="url-notice-icon">💡</div>
           <div class="url-notice-text">
             Obtén tu API Key en <strong>resend.com → API Keys</strong>. Asegúrate de que tu dominio
-            <code>heroinsuranceusa.com</code> esté verificado en Resend para enviar desde <code>it@heroinsuranceusa.com</code>.
+            <code>heroinsuranceusa.com</code> esté verificado en Resend para enviar desde <code><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="254c51654d40574a4c4b565057444b46405056440b464a48">[email&#160;protected]</a></code>.
           </div>
         </div>
         <div class="form-group">
@@ -1083,7 +1083,7 @@ html { scroll-behavior: smooth; }
         </div>
         <div class="config-row">
           <span class="config-key">Remitente</span>
-          <span class="config-val">it@heroinsuranceusa.com</span>
+          <span class="config-val"><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="7c15083c14190e1315120f090e1d121f19090f1d521f1311">[email&#160;protected]</a></span>
         </div>
         <div class="config-row">
           <span class="config-key">Scripts integrados</span>
@@ -1106,7 +1106,7 @@ html { scroll-behavior: smooth; }
 <!-- Toast -->
 <div id="toast"></div>
 
-<script>
+<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
 // ── Logs globales ─────────────────────────────────────────────
 const sessionLogs = [];
 let sessionActionCount = 0;
@@ -1354,29 +1354,44 @@ async function testConexion() {
   const key = document.getElementById('cfg-api-key').value.trim();
   if (!key) { showToast('⚠️ Ingresa primero el API Key'); return; }
 
-  addLog('Probando conexión con Resend...', 'info');
+  addLog('Enviando email de prueba a it@heroinsuranceusa.com...', 'info');
+
   try {
-    const resp = await fetch('https://api.resend.com/domains', {
-      headers: { 'Authorization': 'Bearer ' + key }
+    const resp = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Bearer ' + key,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        from: 'onboarding@resend.dev',
+        to: ['it@heroinsuranceusa.com'],
+        subject: '✅ Hero IT Console — Conexión verificada',
+        html: '<p>Conexión con Resend verificada correctamente. El sistema está listo.</p>'
+      })
     });
+
     const result = await resp.json();
     const ts = new Date().toLocaleTimeString('es-MX');
     document.getElementById('cfg-last-test').textContent = ts;
 
     if (resp.ok) {
-      addLog('✓ API Key válida — Resend conectado correctamente', 'success');
-      showToast('✅ Conexión exitosa con Resend');
+      addLog('✓ Conexión exitosa — revisa tu correo it@heroinsuranceusa.com', 'success');
+      showToast('✅ Conexión exitosa — revisa tu correo');
       document.getElementById('global-status').textContent = '● RESEND OK';
       document.getElementById('global-status').style.color = 'var(--green)';
       localStorage.setItem('hero_resend_key', key);
       document.getElementById('cfg-status-key').textContent = key.substring(0, 12) + '••••••••••••';
-    } else {
-      addLog(`✗ API Key inválida: ${result.message || 'Error'}`, 'error');
+    } else if (resp.status === 401) {
+      addLog('✗ API Key inválida o expirada — verifica en resend.com', 'error');
       showToast('❌ API Key inválida');
+    } else {
+      addLog(`✗ Error ${resp.status}: ${result.message || JSON.stringify(result)}`, 'error');
+      showToast('❌ Error: ' + (result.message || resp.status));
     }
   } catch (e) {
-    addLog('✗ No se pudo conectar: ' + e.message, 'error');
-    showToast('❌ Sin conexión con Resend');
+    addLog('✗ Error de red: ' + e.message, 'error');
+    showToast('❌ Error de conexión — ver consola del navegador');
   }
 }
 
@@ -1767,18 +1782,4 @@ function buildEmailReset(nombre, emailCorp, password) {
   <tr>
     <td style="padding:14px 40px 20px;background:#f0f4f8;border-radius:0 0 16px 16px;">
       <p style="margin:0;font-family:Arial,sans-serif;font-size:10px;color:#a0aec0;line-height:1.55;text-align:center;">
-        <strong style="color:#718096;">CONFIDENTIALITY NOTICE:</strong> The contents of this e-mail message and any attachments are intended solely for the addressee(s) and may contain confidential and/or legally privileged information. If you are not the intended recipient, please notify the sender immediately and delete this message.
-      </p>
-    </td>
-  </tr>
-</table>
-</td></tr>
-</table>
-</body>
-</html>`;
-}
-
-
-</script>
-</body>
-</html>
+        <strong style="color:#718096;">CONFIDENTIALITY NOTICE:</strong> The contents
