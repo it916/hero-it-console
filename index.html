@@ -665,6 +665,9 @@ html { scroll-behavior: smooth; }
     <a class="nav-item" onclick="showPage('solicitudes')" href="#">
       <span class="nav-icon">📥</span> Solicitudes de Alta
     </a>
+    <a class="nav-item" onclick="showPage('tickets')" href="#">
+      <span class="nav-icon">🎫</span> Tickets de Soporte
+    </a>
 
     <div class="nav-section-label">Administración</div>
     <a class="nav-item" onclick="showPage('usuarios')" href="#">
@@ -1168,6 +1171,101 @@ html { scroll-behavior: smooth; }
         </div>
       </div>
     </div>
+
+    <!-- ══ TICKETS DE SOPORTE ══════════════════════════════ -->
+    <div class="page" id="page-tickets">
+      <div class="section-header">
+        <div class="section-title"><span>//</span> Tickets de <span>Soporte</span></div>
+        <div class="section-desc">Gestiona todas las solicitudes de soporte técnico del equipo.</div>
+      </div>
+
+      <div style="display:flex;gap:10px;margin-bottom:16px;align-items:center;flex-wrap:wrap;">
+        <button class="btn btn-primary" onclick="loadTickets()" id="btn-load-tickets">↺ Actualizar</button>
+        <select id="ticket-filter-estado" onchange="filterTickets()" style="background:var(--bg2);border:1px solid var(--border);color:var(--text2);padding:8px 12px;border-radius:8px;font-size:12px;font-family:var(--sans);">
+          <option value="">Todos los estados</option>
+          <option value="abierto">Abierto</option>
+          <option value="en progreso">En progreso</option>
+          <option value="resuelto">Resuelto</option>
+        </select>
+        <select id="ticket-filter-prioridad" onchange="filterTickets()" style="background:var(--bg2);border:1px solid var(--border);color:var(--text2);padding:8px 12px;border-radius:8px;font-size:12px;font-family:var(--sans);">
+          <option value="">Todas las prioridades</option>
+          <option value="Urgente">Urgente</option>
+          <option value="Alta">Alta</option>
+          <option value="Media">Media</option>
+          <option value="Baja">Baja</option>
+        </select>
+        <span id="tickets-count" style="font-family:var(--mono);font-size:11px;color:var(--text3);margin-left:auto;"></span>
+      </div>
+
+      <div id="tickets-list">
+        <div class="info-box" style="text-align:center;padding:48px;">
+          <div style="font-size:36px;opacity:0.3;margin-bottom:12px;">🎫</div>
+          <div style="font-family:var(--mono);font-size:12px;color:var(--text3);">Presiona "Actualizar" para cargar los tickets</div>
+        </div>
+      </div>
+
+      <!-- Modal de ticket -->
+      <div id="ticket-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:100;overflow-y:auto;padding:24px;">
+        <div style="background:var(--bg2);border:1px solid var(--border2);border-radius:16px;max-width:620px;margin:0 auto;padding:28px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+            <div>
+              <div id="modal-ticket-id" style="font-family:var(--mono);font-size:14px;color:var(--cyan);font-weight:700;"></div>
+              <div id="modal-asunto" style="font-size:16px;color:var(--text);font-weight:600;margin-top:4px;"></div>
+            </div>
+            <button onclick="closeTicketModal()" style="background:transparent;border:1px solid var(--border);color:var(--text2);width:32px;height:32px;border-radius:8px;cursor:pointer;font-size:16px;">✕</button>
+          </div>
+
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px;">
+            <div class="info-box" style="padding:14px;">
+              <div style="font-family:var(--mono);font-size:9px;letter-spacing:1px;color:var(--text3);text-transform:uppercase;margin-bottom:6px;">Usuario</div>
+              <div id="modal-nombre" style="font-size:13px;color:var(--text);font-weight:500;"></div>
+              <div id="modal-email" style="font-family:var(--mono);font-size:11px;color:var(--cyan);margin-top:2px;"></div>
+            </div>
+            <div class="info-box" style="padding:14px;">
+              <div style="font-family:var(--mono);font-size:9px;letter-spacing:1px;color:var(--text3);text-transform:uppercase;margin-bottom:6px;">Detalles</div>
+              <div id="modal-categoria" style="font-size:12px;color:var(--text2);"></div>
+              <div id="modal-fecha" style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-top:4px;"></div>
+            </div>
+          </div>
+
+          <div class="info-box" style="padding:16px;margin-bottom:16px;">
+            <div style="font-family:var(--mono);font-size:9px;letter-spacing:1px;color:var(--text3);text-transform:uppercase;margin-bottom:8px;">Descripción</div>
+            <div id="modal-descripcion" style="font-size:13px;color:var(--text2);line-height:1.7;white-space:pre-wrap;"></div>
+          </div>
+
+          <!-- Acciones -->
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;">
+            <div>
+              <label class="form-label">Estado</label>
+              <select id="modal-estado" style="width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:9px 12px;border-radius:8px;font-size:13px;font-family:var(--sans);">
+                <option value="abierto">Abierto</option>
+                <option value="en progreso">En progreso</option>
+                <option value="resuelto">Resuelto</option>
+              </select>
+            </div>
+            <div>
+              <label class="form-label">Prioridad</label>
+              <select id="modal-prioridad" style="width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:9px 12px;border-radius:8px;font-size:13px;font-family:var(--sans);">
+                <option value="Baja">Baja</option>
+                <option value="Media">Media</option>
+                <option value="Alta">Alta</option>
+                <option value="Urgente">Urgente</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Respuesta al usuario</label>
+            <textarea id="modal-respuesta" class="form-input" rows="4" placeholder="Escribe tu respuesta... Se enviará por email al usuario." style="resize:vertical;"></textarea>
+          </div>
+
+          <div style="display:flex;gap:10px;margin-top:16px;">
+            <button class="btn btn-primary" id="btn-guardar-ticket" onclick="guardarTicket()" style="flex:1;">💾 Guardar y enviar respuesta</button>
+            <button class="btn btn-secondary" onclick="closeTicketModal()">Cancelar</button>
+          </div>
+        </div>
+      </div>
+    </div>
     <div class="page" id="page-logs">
       <div class="section-header">
         <div class="section-title"><span>//</span> Historial de <span>Logs</span></div>
@@ -1266,6 +1364,7 @@ const pageLabels = {
   'logs': 'Historial de Logs',
   'config': 'Configuración',
   'solicitudes': 'Solicitudes de Alta',
+  'tickets': 'Tickets de Soporte',
   'crear-usuario': 'Crear Usuario'
 };
 
@@ -1615,6 +1714,122 @@ function buildEmailReset(nombre, emailCorp, password) {
   + '<tr><td style="padding:14px 40px;background:#f0f4f8;text-align:center;">'
   + '<p style="margin:0;font-size:10px;color:#a0aec0;">CONFIDENTIALITY NOTICE: This email is intended solely for the addressee. If you are not the intended recipient, please notify the sender immediately.</p>'
   + '</td></tr></table></td></tr></table></body></html>';
+}
+
+// ── Módulo Tickets de Soporte ─────────────────────────────────
+let allTickets = [];
+let currentTicketId = null;
+
+const PRIORIDAD_COLOR = { Baja:'var(--green)', Media:'var(--amber)', Alta:'#f97316', Urgente:'var(--red)' };
+const ESTADO_COLOR    = { 'abierto':'var(--red)', 'en progreso':'var(--amber)', 'resuelto':'var(--green)' };
+
+async function loadTickets() {
+  const btn = document.getElementById('btn-load-tickets');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Cargando...';
+  try {
+    const resp = await fetch(WORKER_URL + '/ticket');
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || 'Error');
+    allTickets = data.tickets || [];
+    filterTickets();
+    addLog('Tickets cargados: ' + allTickets.length, 'info');
+  } catch(err) {
+    document.getElementById('tickets-list').innerHTML =
+      '<div class="info-box" style="text-align:center;padding:32px;border-color:rgba(245,101,101,0.3);"><div style="color:var(--red);font-family:var(--mono);font-size:12px;">Error: ' + err.message + '</div></div>';
+  }
+  btn.disabled = false;
+  btn.innerHTML = '↺ Actualizar';
+}
+
+function filterTickets() {
+  const estado    = document.getElementById('ticket-filter-estado').value;
+  const prioridad = document.getElementById('ticket-filter-prioridad').value;
+  let filtered = allTickets;
+  if (estado)    filtered = filtered.filter(t => t.estado === estado);
+  if (prioridad) filtered = filtered.filter(t => t.prioridad === prioridad);
+  renderTickets(filtered);
+}
+
+function renderTickets(tickets) {
+  document.getElementById('tickets-count').textContent = tickets.length + ' ticket' + (tickets.length !== 1 ? 's' : '');
+  const container = document.getElementById('tickets-list');
+  if (!tickets.length) {
+    container.innerHTML = '<div class="info-box" style="text-align:center;padding:40px;"><div style="font-size:32px;opacity:0.3;margin-bottom:12px;">📭</div><div style="font-family:var(--mono);font-size:12px;color:var(--text3);">Sin tickets con estos filtros</div></div>';
+    return;
+  }
+  container.innerHTML = tickets.map(t => {
+    const fecha = new Date(t.fecha).toLocaleString('es-MX', { timeZone:'America/New_York', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' });
+    const pColor = PRIORIDAD_COLOR[t.prioridad] || 'var(--text2)';
+    const eColor = ESTADO_COLOR[t.estado] || 'var(--text2)';
+    const cardColor = t.estado === 'abierto' ? 'var(--red)' : t.estado === 'en progreso' ? 'var(--amber)' : 'var(--green)';
+    return '<div class="action-card" style="margin-bottom:10px;cursor:pointer;--card-color:' + cardColor + ';" onclick="openTicketModal(\'' + t.id + '\')">'
+      + '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">'
+      + '<div style="display:flex;align-items:center;gap:8px;">'
+      + '<span style="font-family:var(--mono);font-size:11px;color:var(--cyan);">' + t.ticketId + '</span>'
+      + '<span style="font-family:var(--mono);font-size:10px;padding:2px 8px;border-radius:20px;background:rgba(0,0,0,0.2);color:' + pColor + ';">● ' + t.prioridad + '</span>'
+      + '</div>'
+      + '<span style="font-family:var(--mono);font-size:10px;padding:2px 8px;border-radius:20px;background:rgba(0,0,0,0.2);color:' + eColor + ';">' + t.estado + '</span>'
+      + '</div>'
+      + '<div style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:4px;">' + t.asunto + '</div>'
+      + '<div style="font-size:12px;color:var(--text2);margin-bottom:10px;">' + t.nombre + ' · ' + t.categoria + '</div>'
+      + '<div style="display:flex;justify-content:space-between;align-items:center;">'
+      + '<span style="font-size:12px;color:var(--text3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:80%;">' + t.descripcion.substring(0,80) + (t.descripcion.length > 80 ? '...' : '') + '</span>'
+      + '<span style="font-family:var(--mono);font-size:10px;color:var(--text3);flex-shrink:0;margin-left:8px;">' + fecha + ' ET</span>'
+      + '</div>'
+      + '</div>';
+  }).join('');
+}
+
+function openTicketModal(id) {
+  const t = allTickets.find(x => x.id === id);
+  if (!t) return;
+  currentTicketId = id;
+  document.getElementById('modal-ticket-id').textContent = t.ticketId;
+  document.getElementById('modal-asunto').textContent = t.asunto;
+  document.getElementById('modal-nombre').textContent = t.nombre;
+  document.getElementById('modal-email').textContent = t.email;
+  document.getElementById('modal-categoria').textContent = t.categoria;
+  const fecha = new Date(t.fecha).toLocaleString('es-MX', { timeZone:'America/New_York', year:'numeric', month:'long', day:'numeric', hour:'2-digit', minute:'2-digit' });
+  document.getElementById('modal-fecha').textContent = fecha + ' ET';
+  document.getElementById('modal-descripcion').textContent = t.descripcion;
+  document.getElementById('modal-estado').value = t.estado;
+  document.getElementById('modal-prioridad').value = t.prioridad;
+  document.getElementById('modal-respuesta').value = t.respuesta || '';
+  document.getElementById('ticket-modal').style.display = 'block';
+}
+
+function closeTicketModal() {
+  document.getElementById('ticket-modal').style.display = 'none';
+  currentTicketId = null;
+}
+
+async function guardarTicket() {
+  if (!currentTicketId) return;
+  const btn = document.getElementById('btn-guardar-ticket');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Guardando...';
+  try {
+    const estado    = document.getElementById('modal-estado').value;
+    const prioridad = document.getElementById('modal-prioridad').value;
+    const respuesta = document.getElementById('modal-respuesta').value.trim();
+    const resp = await fetch(WORKER_URL + '/ticket/update', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: currentTicketId, estado, prioridad, respuesta: respuesta || null })
+    });
+    const result = await resp.json();
+    if (!resp.ok) throw new Error(result.error || 'Error');
+    addLog('Ticket actualizado: ' + currentTicketId, 'success');
+    showToast(respuesta ? 'Respuesta enviada al usuario' : 'Ticket actualizado');
+    closeTicketModal();
+    loadTickets();
+  } catch(err) {
+    addLog('Error: ' + err.message, 'error');
+    showToast('Error al guardar: ' + err.message);
+  }
+  btn.disabled = false;
+  btn.innerHTML = '💾 Guardar y enviar respuesta';
 }
 
 // ── Módulo Solicitudes de Alta ────────────────────────────────
