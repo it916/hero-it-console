@@ -817,7 +817,7 @@ html { scroll-behavior: smooth; }
           </div>
           <div class="form-group">
             <label class="form-label">Email corporativo</label>
-            <input class="form-input" id="emp-email" type="email" placeholder="lgarcia@heroinsuranceusa.com"/>
+            <input class="form-input" id="emp-email" type="email" placeholder="lgarcia&#64;heroinsuranceusa.com"/>
           </div>
           <div class="form-group">
             <label class="form-label">Contraseña temporal</label>
@@ -825,7 +825,7 @@ html { scroll-behavior: smooth; }
           </div>
           <div class="form-group">
             <label class="form-label">Email personal (destino)</label>
-            <input class="form-input" id="emp-email-personal" type="email" placeholder="luis.garcia@gmail.com"/>
+            <input class="form-input" id="emp-email-personal" type="email" placeholder="luis.garcia&#64;gmail.com"/>
           </div>
           <div style="display:flex; gap:10px; margin-top:18px">
             <button class="btn btn-primary" id="btn-send-emp" onclick="sendOnboarding('empleado')">
@@ -889,7 +889,7 @@ html { scroll-behavior: smooth; }
           </div>
           <div class="form-group">
             <label class="form-label">Email corporativo</label>
-            <input class="form-input" id="agt-email" type="email" placeholder="mlopez@heroinsuranceusa.com"/>
+            <input class="form-input" id="agt-email" type="email" placeholder="mlopez&#64;heroinsuranceusa.com"/>
           </div>
           <div class="form-group">
             <label class="form-label">Contraseña temporal</label>
@@ -897,7 +897,7 @@ html { scroll-behavior: smooth; }
           </div>
           <div class="form-group">
             <label class="form-label">Email personal (destino)</label>
-            <input class="form-input" id="agt-email-personal" type="email" placeholder="maria.lopez@gmail.com"/>
+            <input class="form-input" id="agt-email-personal" type="email" placeholder="maria.lopez&#64;gmail.com"/>
           </div>
           <div style="display:flex; gap:10px; margin-top:18px">
             <button class="btn btn-primary" id="btn-send-agt" onclick="sendOnboarding('agente')">
@@ -961,7 +961,7 @@ html { scroll-behavior: smooth; }
           </div>
           <div class="form-group">
             <label class="form-label">Email corporativo</label>
-            <input class="form-input" id="rst-email" type="email" placeholder="cmendoza@heroinsuranceusa.com"/>
+            <input class="form-input" id="rst-email" type="email" placeholder="cmendoza&#64;heroinsuranceusa.com"/>
           </div>
           <div class="form-group">
             <label class="form-label">Nueva contraseña temporal</label>
@@ -969,7 +969,7 @@ html { scroll-behavior: smooth; }
           </div>
           <div class="form-group">
             <label class="form-label">Email personal (destino)</label>
-            <input class="form-input" id="rst-email-personal" type="email" placeholder="carlos.mendoza@gmail.com"/>
+            <input class="form-input" id="rst-email-personal" type="email" placeholder="carlos.mendoza&#64;gmail.com"/>
           </div>
           <div style="display:flex; gap:10px; margin-top:18px">
             <button class="btn btn-danger" id="btn-send-rst" onclick="sendReset()">
@@ -1118,7 +1118,7 @@ html { scroll-behavior: smooth; }
               <input class="form-input" id="new-email-user" type="text" placeholder="lgarcia"
                 style="border-radius:8px 0 0 8px; border-right:none;"
                 oninput="previewEmail()"/>
-              <span style="background:var(--bg3); border:1px solid var(--border); border-left:none; padding:9px 12px; border-radius:0 8px 8px 0; font-size:13px; color:var(--text2); white-space:nowrap;">@heroinsuranceusa.com</span>
+              <span style="background:var(--bg3); border:1px solid var(--border); border-left:none; padding:9px 12px; border-radius:0 8px 8px 0; font-size:13px; color:var(--text2); white-space:nowrap;">&#64;heroinsuranceusa.com</span>
             </div>
           </div>
           <div class="form-group">
@@ -1130,7 +1130,7 @@ html { scroll-behavior: smooth; }
           </div>
           <div class="form-group">
             <label class="form-label">Email personal (para onboarding)</label>
-            <input class="form-input" id="new-email-personal" type="email" placeholder="luis.garcia@gmail.com"/>
+            <input class="form-input" id="new-email-personal" type="email" placeholder="luis.garcia&#64;gmail.com"/>
           </div>
 
           <button class="btn btn-primary" id="btn-crear-usuario" onclick="crearUsuario()" style="width:100%; margin-top:8px;">
@@ -1473,6 +1473,7 @@ updateClock();
 
 // ── Worker URL ────────────────────────────────────────────────
 const WORKER_URL = 'https://hero-email-worker.broad-fire-d2d6.workers.dev';
+const atSign = '@';
 
 // ── Auditoría persistente ─────────────────────────────────────
 async function auditLog(tipo, descripcion, detalle = null) {
@@ -1648,8 +1649,8 @@ async function testConexion() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        from: 'onboarding@resend.dev',
-        to: 'it@heroinsuranceusa.com',
+        from: 'onboarding' + atSign + 'resend.dev',
+        to: 'it' + atSign + 'heroinsuranceusa.com',
         subject: 'Hero IT Console - Conexion verificada',
         html: '<p><strong>Conexion con Resend verificada correctamente.</strong> El sistema esta listo para enviar emails.</p>',
         text: 'Conexion con Resend verificada. El sistema esta listo.'
@@ -1659,7 +1660,7 @@ async function testConexion() {
     const ts = new Date().toLocaleTimeString('es-MX');
     document.getElementById('cfg-last-test').textContent = ts;
     if (resp.ok) {
-      addLog('Conexion exitosa - revisa tu correo it@heroinsuranceusa.com', 'success');
+      addLog('Conexion exitosa - revisa tu correo it' + atSign + 'heroinsuranceusa.com', 'success');
       showToast('Conexion exitosa - revisa tu correo');
       document.getElementById('global-status').textContent = 'RESEND OK';
       document.getElementById('global-status').style.color = 'var(--green)';
@@ -2210,7 +2211,7 @@ function previewEmail() {
   const preview = document.getElementById('new-preview');
   if (user || nombre) {
     preview.innerHTML =
-      '<span style="color:var(--text2)">Email: </span><span style="color:var(--cyan)">' + (user || '...') + '@heroinsuranceusa.com</span><br>' +
+      '<span style="color:var(--text2)">Email: </span><span style="color:var(--cyan)">' + (user || '...') + atSign + 'heroinsuranceusa.com</span><br>' +
       '<span style="color:var(--text2)">Nombre: </span><span style="color:var(--text)">' + (nombre || '—') + ' ' + (apellido || '') + '</span>';
   }
 }
@@ -2236,7 +2237,7 @@ async function crearUsuario() {
   if (!emailUser) { showToast('Falta el usuario del email'); return; }
   if (!password)  { showToast('Falta la contraseña temporal'); return; }
 
-  const emailCorp = emailUser + '@heroinsuranceusa.com';
+  const emailCorp = emailUser + atSign + 'heroinsuranceusa.com';
   const btn = document.getElementById('btn-crear-usuario');
   btn.disabled = true;
   btn.innerHTML = '<span class="spinner"></span> Creando...';
