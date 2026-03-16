@@ -723,8 +723,7 @@ html { scroll-behavior: smooth; }
       <div class="url-notice">
         <div class="url-notice-icon">⚠️</div>
         <div class="url-notice-text">
-          <strong>Configuración pendiente:</strong> Antes de usar los botones de email, pega tu API Key de Resend en la sección
-          <strong>Configuración</strong> y presiona "Probar conexión".
+          <strong>Sistema listo:</strong> El Worker de Cloudflare gestiona el envío de emails de forma segura. Ve a <strong>Configuración</strong> y presiona "Probar conexión" para verificar.
         </div>
       </div>
 
@@ -1055,20 +1054,19 @@ html { scroll-behavior: smooth; }
         <div class="section-desc">Variables del sistema y URLs de conexión con Apps Script.</div>
       </div>
 
+
       <div class="info-box" style="margin-bottom:16px">
-        <div class="info-box-title">Resend · API Key</div>
+        <div class="info-box-title">Cloudflare Worker · Conexión con Resend</div>
         <div class="url-notice" style="margin-bottom:14px; margin-top:4px">
-          <div class="url-notice-icon">💡</div>
+          <div class="url-notice-icon">🔒</div>
           <div class="url-notice-text">
-            Obtén tu API Key en <strong>resend.com → API Keys</strong>. Asegúrate de que tu dominio
-            <code>heroinsuranceusa.com</code> esté verificado en Resend para enviar desde <code><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="254c51654d40574a4c4b565057444b46405056440b464a48">[email&#160;protected]</a></code>.
+            El API Key de Resend está guardado de forma segura en el Worker de Cloudflare.
+            No necesitas configurar nada aquí — solo verifica que la conexión funcione.
           </div>
         </div>
         <div class="form-group">
-          <label class="form-label">API Key de Resend</label>
-          <input class="form-input" id="cfg-api-key" type="password"
-            placeholder="re_••••••••••••••••••••••••••••••••"
-            oninput="saveConfig()"/>
+          <label class="form-label">Worker URL</label>
+          <input class="form-input" value="https://hero-email-worker.broad-fire-d2d6.workers.dev" readonly style="opacity:0.6;cursor:default;"/>
         </div>
         <div style="margin-top:4px">
           <button class="btn btn-primary" onclick="testConexion()">🔌 Probar conexión</button>
@@ -1090,8 +1088,8 @@ html { scroll-behavior: smooth; }
           <span class="config-val">3 activos</span>
         </div>
         <div class="config-row">
-          <span class="config-key">API Key</span>
-          <span class="config-val" id="cfg-status-key">No configurada</span>
+          <span class="config-key">Worker</span>
+          <span class="config-val" style="color:var(--green)">Configurado</span>
         </div>
         <div class="config-row">
           <span class="config-key">Último test de conexión</span>
@@ -1147,20 +1145,18 @@ function updateClock() {
 setInterval(updateClock, 1000);
 updateClock();
 
-// ── Resend API ────────────────────────────────────────────────
+// ── Worker URL ────────────────────────────────────────────────
+const WORKER_URL = 'https://hero-email-worker.broad-fire-d2d6.workers.dev';
+
+// ── Resend API via Worker ─────────────────────────────────────
 async function sendViaResend({ to, subject, html, text }) {
-  const apiKey = localStorage.getItem('hero_resend_key') || '';
-  if (!apiKey) throw new Error('API Key de Resend no configurada. Ve a Configuración.');
-  const resp = await fetch('https://api.resend.com/emails', {
+  const resp = await fetch(WORKER_URL, {
     method: 'POST',
-    headers: {
-      'Authorization': 'Bearer ' + apiKey,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({ from: 'Fernando Romero <it@heroinsuranceusa.com>', to: [to], subject, html, text })
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ to, subject, html, text })
   });
   const result = await resp.json();
-  if (!resp.ok) throw new Error(result.message || result.name || 'Error de Resend');
+  if (!resp.ok) throw new Error(result.message || result.error || 'Error del Worker');
   return result;
 }
 
@@ -1227,12 +1223,7 @@ function validateForm(prefix) {
 
 // ── Verificar API key ─────────────────────────────────────────
 function checkApiKey() {
-  if (!localStorage.getItem('hero_resend_key')) {
-    showToast('Configura primero el API Key en Configuracion');
-    addLog('ERROR: API Key no configurada. Ve a Configuracion.', 'error');
-    return false;
-  }
-  return true;
+  return true; // API Key vive segura en el Worker
 }
 
 // ── Onboarding ────────────────────────────────────────────────
@@ -1310,26 +1301,21 @@ async function sendReset() {
 
 // ── Config ────────────────────────────────────────────────────
 function saveConfig() {
-  const key = document.getElementById('cfg-api-key').value.trim();
-  if (key) {
-    localStorage.setItem('hero_resend_key', key);
-    document.getElementById('cfg-status-key').textContent = key.substring(0, 12) + '............';
-  }
+  // El API Key ya no se guarda aquí — vive seguro en el Worker
 }
 
 async function testConexion() {
-  const key = document.getElementById('cfg-api-key').value.trim();
-  if (!key) { showToast('Ingresa primero el API Key'); return; }
-  addLog('Enviando email de prueba...', 'info');
+  addLog('Enviando email de prueba via Worker...', 'info');
   try {
-    const resp = await fetch('https://api.resend.com/emails', {
+    const resp = await fetch(WORKER_URL, {
       method: 'POST',
-      headers: { 'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         from: 'onboarding@resend.dev',
-        to: ['it@heroinsuranceusa.com'],
+        to: 'it@heroinsuranceusa.com',
         subject: 'Hero IT Console - Conexion verificada',
-        html: '<p>Conexion con Resend verificada correctamente. El sistema esta listo.</p>'
+        html: '<p><strong>Conexion con Resend verificada correctamente.</strong> El sistema esta listo para enviar emails.</p>',
+        text: 'Conexion con Resend verificada. El sistema esta listo.'
       })
     });
     const result = await resp.json();
@@ -1340,14 +1326,9 @@ async function testConexion() {
       showToast('Conexion exitosa - revisa tu correo');
       document.getElementById('global-status').textContent = 'RESEND OK';
       document.getElementById('global-status').style.color = 'var(--green)';
-      localStorage.setItem('hero_resend_key', key);
-      document.getElementById('cfg-status-key').textContent = key.substring(0, 12) + '............';
-    } else if (resp.status === 401) {
-      addLog('API Key invalida o expirada', 'error');
-      showToast('API Key invalida');
     } else {
-      addLog('Error ' + resp.status + ': ' + (result.message || JSON.stringify(result)), 'error');
-      showToast('Error: ' + (result.message || resp.status));
+      addLog('Error ' + resp.status + ': ' + (result.message || result.error || JSON.stringify(result)), 'error');
+      showToast('Error: ' + (result.message || result.error || resp.status));
     }
   } catch (e) {
     addLog('Error de red: ' + e.message, 'error');
@@ -1466,13 +1447,8 @@ function buildEmailReset(nombre, emailCorp, password) {
 
 // ── Init ──────────────────────────────────────────────────────
 (function init() {
-  const savedKey = localStorage.getItem('hero_resend_key');
-  if (savedKey) {
-    document.getElementById('cfg-api-key').value = savedKey;
-    document.getElementById('cfg-status-key').textContent = savedKey.substring(0, 12) + '............';
-  }
   addLog('Hero IT Console iniciado. Fernando Romero - IT Admin', 'info');
-  addLog(savedKey ? 'API Key cargada - sistema listo' : 'Configura el API Key de Resend en Configuracion', savedKey ? 'success' : 'warn');
+  addLog('Sistema listo. Worker conectado a Resend.', 'success');
 })();
 </script>
 </body>
