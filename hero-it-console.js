@@ -719,13 +719,18 @@ async function loadSolicitudes() {
           '</div>' +
           '<span style="font-family:var(--mono);font-size:10px;padding:3px 10px;border-radius:20px;background:' + estadoBg + ';color:' + estadoColor + ';">' + s.estado + '</span>' +
         '</div>' +
+        '<div style="font-size:12px;color:var(--text2);margin-bottom:8px;">' +
+          '<span style="color:var(--text3);">Solicitado por: </span>' +
+          '<strong style="color:var(--text);">' + (s.solicitanteNombre || 'No especificado') + '</strong>' +
+          (s.solicitanteEmail ? ' &nbsp;<span style="font-family:var(--mono);font-size:11px;color:var(--cyan);">(' + s.solicitanteEmail + ')</span>' : '') +
+        '</div>' +
         '<div style="display:flex;gap:16px;font-size:12px;color:var(--text2);margin-bottom:14px;">' +
           '<span>📞 ' + s.telefono + '</span>' +
           '<span>🕐 ' + fecha + ' ET</span>' +
         '</div>' +
         (s.estado === 'pendiente' ?
           '<div style="display:flex;gap:8px;">' +
-            '<button class="btn btn-primary" onclick="procesarAlta(\'' + s.id + '\',\'' + s.nombre + '\',\'' + s.apellido + '\',\'' + s.correo + '\')" style="font-size:12px;">➕ Crear usuario</button>' +
+            '<button class="btn btn-primary" onclick="procesarAlta(\'' + s.id + '\',\'' + s.nombre + '\',\'' + s.apellido + '\',\'' + s.correo + '\',\'' + (s.solicitanteEmail||'') + '\',\'' + (s.solicitanteNombre||'') + '\')" style="font-size:12px;">➕ Crear usuario</button>' +
             '<button class="btn btn-secondary" onclick="resolverSolicitud(\'' + s.id + '\', \'procesada\')" style="font-size:12px;">✓ Marcar procesada</button>' +
           '</div>'
         : '') +
@@ -756,7 +761,7 @@ async function resolverSolicitud(id, estado) {
   }
 }
 
-function procesarAlta(id, nombre, apellido, correo) {
+function procesarAlta(id, nombre, apellido, correo, solicitanteEmail, solicitanteNombre) {
   // Pre-llenar el formulario de Crear Usuario con los datos de la solicitud
   showPage('crear-usuario');
   document.getElementById('new-nombre').value = nombre;
@@ -768,8 +773,10 @@ function procesarAlta(id, nombre, apellido, correo) {
   document.getElementById('new-email-user').value = sugerido;
   previewEmail();
   showToast('Datos cargados desde solicitud de alta');
-  // Guardar id para marcar como procesada al crear
+  // Guardar datos para usar al crear el usuario
   window._altaId = id;
+  window._altaSolicitanteEmail = solicitanteEmail || null;
+  window._altaSolicitanteNombre = solicitanteNombre || null;
 }
 
 // ── Módulo Crear Usuario ──────────────────────────────────────
@@ -818,7 +825,11 @@ async function crearUsuario() {
     const resp = await fetch(WORKER_URL + '/create-user', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ nombre, apellido, email: emailCorp, password })
+      body: JSON.stringify({
+        nombre, apellido, email: emailCorp, password,
+        solicitanteEmail: window._altaSolicitanteEmail || null,
+        solicitanteNombre: window._altaSolicitanteNombre || null,
+      })
     });
     const result = await resp.json();
 
