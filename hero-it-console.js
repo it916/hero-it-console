@@ -964,7 +964,7 @@ function renderUsers(users) {
       '<td style="padding:10px 16px;text-align:center;">' +
         '<div style="display:flex;gap:6px;justify-content:center;">' +
         '<button onclick="copyEmail(\'' + u.email + '\')" style="background:transparent;border:1px solid var(--border);color:var(--text2);padding:4px 8px;border-radius:6px;font-size:11px;cursor:pointer;" title="Copiar email">📋</button>' +
-        '<button onclick="openUserModal(\'' + u.email + '\',\'' + u.nombre.replace(/'/g,"\\\'\" ) + '\')" style="background:rgba(0,101,243,0.1);border:1px solid rgba(0,101,243,0.3);color:var(--cyan);padding:4px 8px;border-radius:6px;font-size:11px;cursor:pointer;" title="Gestionar">⚙️</button>' +
+        '<button onclick="openUserModal(\'' + u.email + '\',\'' + u.nombre + '\')" style="background:rgba(0,101,243,0.1);border:1px solid rgba(0,101,243,0.3);color:var(--cyan);padding:4px 8px;border-radius:6px;font-size:11px;cursor:pointer;" title="Gestionar">⚙️</button>' +
         '</div>' +
       '</td>' +
     '</tr>';
