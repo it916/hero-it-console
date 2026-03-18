@@ -1,3 +1,4 @@
+const atSign = '@';
 // ── Google OAuth ──────────────────────────────────────────────
 const ALLOWED_EMAIL = 'it' + atSign + 'heroinsuranceusa.com';
 
@@ -96,7 +97,6 @@ updateClock();
 
 // ── Worker URL ────────────────────────────────────────────────
 const WORKER_URL = 'https://hero-email-worker.broad-fire-d2d6.workers.dev';
-const atSign = '@';
 
 // ── Auditoría persistente ─────────────────────────────────────
 async function auditLog(tipo, descripcion, detalle = null) {
