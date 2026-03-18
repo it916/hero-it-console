@@ -37,7 +37,6 @@ body {
   background: var(--bg);
   color: var(--text);
   min-height: 100vh;
-  display: flex;
   overflow: hidden;
 }
 
@@ -690,7 +689,7 @@ html { scroll-behavior: smooth; }
   margin-top: 16px;
   line-height: 1.5;
 }
-#app-content { display: none; }
+#app-content { display: none; width: 100%; min-height: 100vh; flex-direction: row; }
 </style>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>

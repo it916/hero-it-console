@@ -28,7 +28,12 @@ function handleGoogleLogin(response) {
 
 function showApp(nombre, picture) {
   document.getElementById('login-screen').style.display = 'none';
-  document.getElementById('app-content').style.display = 'flex';
+  const appEl = document.getElementById('app-content');
+  appEl.style.display = 'flex';
+  appEl.style.width = '100%';
+  appEl.style.minHeight = '100vh';
+  appEl.style.overflow = 'hidden';
+  appEl.style.flexDirection = 'row';
   // Update sidebar user label
   const userLabel = document.querySelector('.user-label');
   if (userLabel) userLabel.textContent = nombre + ' · IT Admin';
