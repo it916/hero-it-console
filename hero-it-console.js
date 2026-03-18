@@ -1,3 +1,55 @@
+// ── Google OAuth ──────────────────────────────────────────────
+const ALLOWED_EMAIL = 'it' + atSign + 'heroinsuranceusa.com';
+
+function handleGoogleLogin(response) {
+  try {
+    // Decode JWT payload
+    const payload = JSON.parse(atob(response.credential.split('.')[1]));
+    const email = payload.email || '';
+    const nombre = payload.name || '';
+    const picture = payload.picture || '';
+
+    if (email.toLowerCase() !== ALLOWED_EMAIL.toLowerCase()) {
+      const errEl = document.getElementById('login-error');
+      errEl.style.display = 'block';
+      errEl.textContent = 'Acceso denegado. Esta consola es exclusiva para ' + ALLOWED_EMAIL + '. Iniciaste sesión como: ' + email;
+      return;
+    }
+
+    // Store session
+    sessionStorage.setItem('hero_auth', JSON.stringify({ email, nombre, picture, ts: Date.now() }));
+    showApp(nombre, picture);
+  } catch(e) {
+    document.getElementById('login-error').style.display = 'block';
+    document.getElementById('login-error').textContent = 'Error al verificar identidad: ' + e.message;
+  }
+}
+
+function showApp(nombre, picture) {
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('app-content').style.display = 'flex';
+  // Update sidebar user label
+  const userLabel = document.querySelector('.user-label');
+  if (userLabel) userLabel.textContent = nombre + ' · IT Admin';
+  addLog('Sesión iniciada como ' + nombre, 'success');
+}
+
+function checkExistingSession() {
+  try {
+    const stored = sessionStorage.getItem('hero_auth');
+    if (!stored) return false;
+    const { email, nombre, picture, ts } = JSON.parse(stored);
+    // Session valid for 8 hours
+    if (Date.now() - ts > 8 * 60 * 60 * 1000) {
+      sessionStorage.removeItem('hero_auth');
+      return false;
+    }
+    if (email.toLowerCase() !== ALLOWED_EMAIL.toLowerCase()) return false;
+    showApp(nombre, picture);
+    return true;
+  } catch(e) { return false; }
+}
+
 // ── Logs globales ─────────────────────────────────────────────
 const sessionLogs = [];
 let sessionActionCount = 0;
@@ -1001,6 +1053,12 @@ function copyEmail(email) {
 
 // ── Init ──────────────────────────────────────────────────────
 (function init() {
-  addLog('Hero IT Console iniciado. Fernando Romero - IT Admin', 'info');
-  addLog('Sistema listo. Worker conectado a Resend.', 'success');
+  // Check existing session first
+  if (!checkExistingSession()) {
+    // Show login screen - already visible by default
+    addLog('Hero IT Console cargado. Esperando autenticación...', 'info');
+  } else {
+    addLog('Hero IT Console iniciado. Fernando Romero - IT Admin', 'info');
+    addLog('Sistema listo. Worker conectado a Resend.', 'success');
+  }
 })();
