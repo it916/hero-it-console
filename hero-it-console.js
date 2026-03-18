@@ -86,6 +86,16 @@ function showPage(id) {
     }
   });
   document.getElementById('current-section-label').textContent = pageLabels[id] || id;
+
+  // Auto-cargar datos al navegar
+  const autoLoad = {
+    'usuarios':    () => loadUsers(),
+    'tickets':     () => loadTickets(),
+    'solicitudes': () => loadSolicitudes(),
+    'auditoria':   () => loadAudit(),
+  };
+  if (autoLoad[id]) autoLoad[id]();
+
   return false;
 }
 
