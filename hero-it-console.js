@@ -75,6 +75,25 @@ const pageLabels = {
   'crear-usuario': 'Crear Usuario'
 };
 
+// ── Sidebar móvil ─────────────────────────────────────────────
+function toggleSidebar() {
+  const sidebar  = document.getElementById('sidebar');
+  const overlay  = document.getElementById('sidebar-overlay');
+  const isOpen   = sidebar.classList.contains('open');
+  if (isOpen) {
+    sidebar.classList.remove('open');
+    overlay.classList.remove('show');
+  } else {
+    sidebar.classList.add('open');
+    overlay.classList.add('show');
+  }
+}
+
+function closeSidebar() {
+  document.getElementById('sidebar').classList.remove('open');
+  document.getElementById('sidebar-overlay').classList.remove('show');
+}
+
 function showPage(id) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
@@ -86,6 +105,9 @@ function showPage(id) {
     }
   });
   document.getElementById('current-section-label').textContent = pageLabels[id] || id;
+
+  // Cerrar sidebar en móvil al navegar
+  closeSidebar();
 
   // Auto-cargar datos al navegar
   const autoLoad = {

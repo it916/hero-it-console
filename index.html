@@ -724,6 +724,7 @@ html { scroll-behavior: smooth; }
 
 <!-- ══ APP CONTENT ══════════════════════════════════════════ -->
 <div id="app-content">
+<div class="sidebar-overlay" id="sidebar-overlay" onclick="closeSidebar()"></div>
 
 <!-- ══ SIDEBAR ══════════════════════════════════════════════ -->
 <aside id="sidebar">
@@ -795,7 +796,10 @@ html { scroll-behavior: smooth; }
 
   <!-- Top bar -->
   <div class="topbar">
-    <div class="topbar-title">Hero IT Console / <span id="current-section-label">Dashboard</span></div>
+    <div style="display:flex;align-items:center;gap:12px;">
+      <button class="btn-hamburger" onclick="toggleSidebar()">☰</button>
+      <div class="topbar-title">Hero IT Console / <span id="current-section-label">Dashboard</span></div>
+    </div>
     <div class="topbar-right">
       <div class="clock" id="clock"></div>
       <div id="global-status">● SISTEMA LISTO</div>
