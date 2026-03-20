@@ -802,42 +802,45 @@ html { scroll-behavior: smooth; }
       <span class="nav-icon">⬡</span> Dashboard
     </a>
 
-    <div class="nav-section-label">Emails</div>
-    <a class="nav-item" onclick="showPage('onboarding-empleados')" href="#">
-      <span class="nav-icon">👤</span> Onboarding Empleados
-    </a>
-    <a class="nav-item" onclick="showPage('onboarding-agentes')" href="#">
-      <span class="nav-icon">🤝</span> Onboarding Agentes
-    </a>
-    <a class="nav-item" onclick="showPage('reset')" href="#">
-      <span class="nav-icon">🔑</span> Reset de Contraseña
-    </a>
-
+    <div class="nav-section-label">Gestión IT</div>
     <a class="nav-item" onclick="showPage('solicitudes')" href="#">
       <span class="nav-icon">📥</span> Solicitudes de Alta
     </a>
     <a class="nav-item" onclick="showPage('tickets')" href="#">
       <span class="nav-icon">🎫</span> Tickets de Soporte
     </a>
+    <a class="nav-item" onclick="showPage('dispositivos')" href="#">
+      <span class="nav-icon">💻</span> Dispositivos
+    </a>
 
-    <div class="nav-section-label">Administración</div>
+    <div class="nav-section-label">Usuarios</div>
     <a class="nav-item" onclick="showPage('usuarios')" href="#">
       <span class="nav-icon">👥</span> Usuarios Workspace
     </a>
     <a class="nav-item" onclick="showPage('crear-usuario')" href="#">
       <span class="nav-icon">➕</span> Crear Usuario
     </a>
-    <a class="nav-item" onclick="showPage('logs')" href="#">
-      <span class="nav-icon">📋</span> Historial de Logs
+    <a class="nav-item" onclick="showPage('reset')" href="#">
+      <span class="nav-icon">🔑</span> Reset de Contraseña
     </a>
+
+    <div class="nav-section-label">Comunicaciones</div>
+    <a class="nav-item" onclick="showPage('onboarding-empleados')" href="#">
+      <span class="nav-icon">👤</span> Onboarding Empleados
+    </a>
+    <a class="nav-item" onclick="showPage('onboarding-agentes')" href="#">
+      <span class="nav-icon">🤝</span> Onboarding Agentes
+    </a>
+
+    <div class="nav-section-label">Registros</div>
     <a class="nav-item" onclick="showPage('auditoria')" href="#">
       <span class="nav-icon">🗂️</span> Auditoría
     </a>
+    <a class="nav-item" onclick="showPage('logs')" href="#">
+      <span class="nav-icon">📋</span> Historial de Logs
+    </a>
 
     <div class="nav-section-label">Sistema</div>
-    <a class="nav-item" onclick="showPage('config')" href="#">
-      <span class="nav-icon">💻</span> Dispositivos
-    </a>
     <a class="nav-item" onclick="showPage('config')" href="#">
       <span class="nav-icon">⚙️</span> Configuración
     </a>
@@ -897,34 +900,34 @@ html { scroll-behavior: smooth; }
 
       <div class="cards-grid">
 
-        <div class="action-card" style="--card-color: #19CDEB">
+        <div class="action-card" style="--card-color: #f56565">
           <div class="card-header">
-            <div class="card-icon">👤</div>
-            <span class="card-badge badge-manual">Manual</span>
+            <div class="card-icon">📥</div>
+            <span class="card-badge badge-manual">Gestión</span>
           </div>
-          <div class="card-title">Onboarding Empleados</div>
-          <div class="card-desc">Envía el email de bienvenida con cuenta corporativa, contraseña temporal y herramientas del equipo.</div>
-          <button class="btn btn-primary" onclick="showPage('onboarding-empleados')">Ir al módulo →</button>
-        </div>
-
-        <div class="action-card" style="--card-color: #22d87a">
-          <div class="card-header">
-            <div class="card-icon">🤝</div>
-            <span class="card-badge badge-manual">Manual</span>
-          </div>
-          <div class="card-title">Onboarding Agentes</div>
-          <div class="card-desc">Envía el email de bienvenida específico para agentes, con credenciales de acceso y políticas de seguridad.</div>
-          <button class="btn btn-primary" onclick="showPage('onboarding-agentes')">Ir al módulo →</button>
+          <div class="card-title">Solicitudes de Alta</div>
+          <div class="card-desc">Revisa y procesa las solicitudes de alta de nuevos agentes enviadas por el equipo de contratos.</div>
+          <button class="btn btn-primary" onclick="showPage('solicitudes')">Ver solicitudes →</button>
         </div>
 
         <div class="action-card" style="--card-color: #f0b429">
           <div class="card-header">
-            <div class="card-icon">🔑</div>
-            <span class="card-badge badge-manual">Manual</span>
+            <div class="card-icon">🎫</div>
+            <span class="card-badge badge-manual">Soporte</span>
           </div>
-          <div class="card-title">Reset de Contraseña</div>
-          <div class="card-desc">Envía el email de restablecimiento con nueva contraseña temporal al correo personal del usuario.</div>
-          <button class="btn btn-primary" onclick="showPage('reset')">Ir al módulo →</button>
+          <div class="card-title">Tickets de Soporte</div>
+          <div class="card-desc">Gestiona los tickets de soporte técnico del equipo — responde, cambia estado y prioridad.</div>
+          <button class="btn btn-primary" onclick="showPage('tickets')">Ver tickets →</button>
+        </div>
+
+        <div class="action-card" style="--card-color: #19CDEB">
+          <div class="card-header">
+            <div class="card-icon">💻</div>
+            <span class="card-badge badge-auto">Inventario</span>
+          </div>
+          <div class="card-title">Dispositivos</div>
+          <div class="card-desc">Inventario de equipos con historial de intervenciones, apps instaladas y estado de GCPW.</div>
+          <button class="btn btn-primary" onclick="showPage('dispositivos')">Ver dispositivos →</button>
         </div>
 
         <div class="action-card" style="--card-color: #a78bfa">
@@ -933,7 +936,7 @@ html { scroll-behavior: smooth; }
             <span class="card-badge badge-auto">Consulta</span>
           </div>
           <div class="card-title">Usuarios Workspace</div>
-          <div class="card-desc">Consulta todos los usuarios activos de Google Workspace en tiempo real via Admin Directory API.</div>
+          <div class="card-desc">Consulta, gestiona y crea usuarios de Google Workspace en tiempo real.</div>
           <button class="btn btn-primary" onclick="showPage('usuarios')">Ver usuarios →</button>
         </div>
 
