@@ -114,6 +114,7 @@ function showPage(id) {
     'solicitudes':  () => loadSolicitudes(),
     'auditoria':    () => loadAudit(),
     'dispositivos': () => loadDevices(),
+    'zoho':         () => loadZohoDevices(),
   };
   if (autoLoad[id]) autoLoad[id]();
 
@@ -1253,4 +1254,93 @@ function exportDeviceReport() {
   a.download = 'reporte-' + d.nombre.replace(/\s/g,'-') + '-' + new Date().toISOString().slice(0,10) + '.csv';
   a.click();
   showToast('Reporte exportado');
+}
+
+// ── Módulo Zoho Assist ────────────────────────────────────────
+let allZohoDevices = [];
+
+async function loadZohoDevices() {
+  const grid = document.getElementById('zoho-grid');
+  grid.innerHTML = '<div class="info-box" style="text-align:center;padding:40px;grid-column:1/-1;"><span class="spinner"></span></div>';
+  try {
+    const resp = await fetch(WORKER_URL + '/zoho/devices');
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || 'Error');
+    allZohoDevices = Array.isArray(data.devices) ? data.devices : [];
+    filterZohoDevices();
+    addLog('Zoho Assist: ' + allZohoDevices.length + ' dispositivos cargados', 'info');
+  } catch(err) {
+    grid.innerHTML = '<div class="info-box" style="text-align:center;padding:32px;grid-column:1/-1;border-color:rgba(245,101,101,0.3);"><div style="color:var(--red);font-family:var(--mono);font-size:12px;">Error: ' + err.message + '</div></div>';
+    addLog('Error Zoho: ' + err.message, 'error');
+  }
+}
+
+function filterZohoDevices() {
+  const q      = document.getElementById('zoho-search').value.toLowerCase();
+  const status = document.getElementById('zoho-filter-status').value;
+  let filtered = allZohoDevices;
+  if (status) filtered = filtered.filter(d => (d.status || d.computer_status || '').toLowerCase() === status);
+  if (q)      filtered = filtered.filter(d =>
+    (d.computer_name || d.name || '').toLowerCase().includes(q) ||
+    (d.group_name || '').toLowerCase().includes(q)
+  );
+  renderZohoGrid(filtered);
+}
+
+function renderZohoGrid(devices) {
+  const grid = document.getElementById('zoho-grid');
+  document.getElementById('zoho-count').textContent = devices.length + ' dispositivo' + (devices.length !== 1 ? 's' : '');
+
+  if (!devices.length) {
+    grid.innerHTML = '<div class="info-box" style="text-align:center;padding:40px;grid-column:1/-1;"><div style="font-size:32px;opacity:0.3;margin-bottom:12px;">📭</div><div style="font-family:var(--mono);font-size:12px;color:var(--text3);">Sin dispositivos</div></div>';
+    return;
+  }
+
+  grid.innerHTML = devices.map(d => {
+    const name     = d.computer_name || d.name || 'Sin nombre';
+    const status   = (d.status || d.computer_status || 'offline').toLowerCase();
+    const isOnline = status === 'online' || status === 'active';
+    const group    = d.group_name || d.group || '';
+    const os       = d.os_type || d.operating_system || '';
+    const id       = d.computer_id || d.id || '';
+    const dotColor = isOnline ? 'var(--green)' : 'var(--text3)';
+    const dotGlow  = isOnline ? '0 0 6px var(--green)' : 'none';
+
+    return '<div class="action-card" style="--card-color:' + (isOnline ? 'var(--green)' : 'var(--border)') + ';">'
+      + '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">'
+      + '<div style="display:flex;align-items:center;gap:8px;">'
+      + '<div style="width:8px;height:8px;border-radius:50%;background:' + dotColor + ';box-shadow:' + dotGlow + ';flex-shrink:0;"></div>'
+      + '<div style="font-size:14px;font-weight:600;color:var(--text);">' + name + '</div>'
+      + '</div>'
+      + '<span style="font-family:var(--mono);font-size:10px;padding:2px 8px;border-radius:20px;background:rgba(0,0,0,0.2);color:' + dotColor + ';">' + (isOnline ? 'online' : 'offline') + '</span>'
+      + '</div>'
+      + (group ? '<div style="font-size:12px;color:var(--text3);margin-bottom:4px;">📁 ' + group + '</div>' : '')
+      + (os    ? '<div style="font-size:12px;color:var(--text2);margin-bottom:12px;">' + os + '</div>' : '<div style="margin-bottom:12px;"></div>')
+      + (isOnline && id
+          ? '<button onclick="startZohoSession(\'' + id + '\',\'' + name + '\')" class="btn btn-primary" style="width:100%;font-size:12px;">🖥️ Iniciar sesión remota</button>'
+          : '<button class="btn btn-secondary" disabled style="width:100%;font-size:12px;opacity:0.4;">Dispositivo offline</button>'
+        )
+      + '</div>';
+  }).join('');
+}
+
+async function startZohoSession(computerId, name) {
+  showToast('Iniciando sesión remota con ' + name + '...');
+  addLog('Iniciando sesión Zoho Assist → ' + name, 'info');
+  try {
+    const resp = await fetch(WORKER_URL + '/zoho/session/' + computerId);
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || 'Error al iniciar sesión');
+    if (data.sessionUrl) {
+      window.open(data.sessionUrl, '_blank');
+      auditLog('zoho', 'Sesión remota iniciada: ' + name, computerId);
+    } else {
+      // Si no hay URL directa, abrir Zoho Assist directamente
+      window.open('https://assist.zoho.com', '_blank');
+      showToast('Abre Zoho Assist y conecta a ' + name);
+    }
+  } catch(err) {
+    addLog('Error Zoho: ' + err.message, 'error');
+    showToast('Error: ' + err.message);
+  }
 }
