@@ -111,10 +111,11 @@ function showPage(id) {
 
   // Auto-cargar datos al navegar
   const autoLoad = {
-    'usuarios':    () => loadUsers(),
-    'tickets':     () => loadTickets(),
-    'solicitudes': () => loadSolicitudes(),
-    'auditoria':   () => loadAudit(),
+    'usuarios':     () => loadUsers(),
+    'tickets':      () => loadTickets(),
+    'solicitudes':  () => loadSolicitudes(),
+    'auditoria':    () => loadAudit(),
+    'dispositivos': () => loadDevices(),
   };
   if (autoLoad[id]) autoLoad[id]();
 
@@ -1099,3 +1100,288 @@ function copyEmail(email) {
     addLog('Sistema listo. Worker conectado a Resend.', 'success');
   }
 })();
+
+// ── Módulo Dispositivos ───────────────────────────────────────
+let allDevices = [];
+let currentDeviceId = null;
+let currentDevice = null;
+let editingDeviceId = null;
+
+const DEV_ESTADO_COLOR = {
+  'activo':        'var(--green)',
+  'en reparación': 'var(--amber)',
+  'dado de baja':  'var(--red)',
+};
+const DEV_TIPO_ICON = { laptop: '💻', desktop: '🖥️', 'teléfono': '📱' };
+const INT_TIPO_COLOR = {
+  'Instalación de software': 'var(--cyan)',
+  'Reparación o diagnóstico': 'var(--amber)',
+  'Soporte remoto': 'var(--purple)',
+};
+
+async function loadDevices() {
+  try {
+    const resp = await fetch(WORKER_URL + '/device');
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || 'Error');
+    allDevices = data.devices || [];
+    filterDevices();
+  } catch(err) {
+    document.getElementById('dev-grid').innerHTML =
+      '<div class="info-box" style="text-align:center;padding:32px;grid-column:1/-1;border-color:rgba(245,101,101,0.3);"><div style="color:var(--red);font-family:var(--mono);font-size:12px;">Error: ' + err.message + '</div></div>';
+  }
+}
+
+function filterDevices() {
+  const q      = document.getElementById('dev-search').value.toLowerCase();
+  const estado = document.getElementById('dev-filter-estado').value;
+  const tipo   = document.getElementById('dev-filter-tipo').value;
+  let filtered = allDevices;
+  if (estado) filtered = filtered.filter(d => d.estado === estado);
+  if (tipo)   filtered = filtered.filter(d => d.tipo === tipo);
+  if (q)      filtered = filtered.filter(d =>
+    d.nombre.toLowerCase().includes(q) || (d.usuario || '').toLowerCase().includes(q)
+  );
+  renderDeviceGrid(filtered);
+}
+
+function renderDeviceGrid(devices) {
+  document.getElementById('dev-count').textContent = devices.length + ' dispositivo' + (devices.length !== 1 ? 's' : '');
+  const grid = document.getElementById('dev-grid');
+  if (!devices.length) {
+    grid.innerHTML = '<div class="info-box" style="text-align:center;padding:40px;grid-column:1/-1;"><div style="font-size:32px;opacity:0.3;margin-bottom:12px;">💻</div><div style="font-family:var(--mono);font-size:12px;color:var(--text3);">Sin dispositivos con estos filtros</div></div>';
+    return;
+  }
+  grid.innerHTML = devices.map(d => {
+    const eColor = DEV_ESTADO_COLOR[d.estado] || 'var(--text2)';
+    const icon   = DEV_TIPO_ICON[d.tipo] || '💻';
+    const intCount = (d.intervenciones || []).length;
+    return '<div class="action-card" style="cursor:pointer;" onclick="openDeviceDetail(\'' + d.id + '\')">'
+      + '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">'
+      + '<span style="font-size:24px;">' + icon + '</span>'
+      + '<span style="font-family:var(--mono);font-size:10px;padding:2px 8px;border-radius:20px;background:rgba(0,0,0,0.2);color:' + eColor + ';">' + d.estado + '</span>'
+      + '</div>'
+      + '<div style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:3px;">' + d.nombre + '</div>'
+      + '<div style="font-size:12px;color:var(--text2);margin-bottom:8px;">' + (d.usuario || 'Sin usuario asignado') + '</div>'
+      + '<div style="display:flex;gap:12px;font-size:11px;color:var(--text3);">'
+      + '<span>' + (d.so || 'SO no especificado') + '</span>'
+      + '<span style="margin-left:auto;">' + intCount + ' intervenci' + (intCount !== 1 ? 'ones' : 'ón') + '</span>'
+      + '</div>'
+      + '<div style="margin-top:8px;display:flex;gap:6px;">'
+      + (d.gcpw ? '<span style="font-family:var(--mono);font-size:9px;padding:2px 6px;border-radius:4px;background:rgba(25,205,235,0.1);color:var(--cyan);">GCPW</span>' : '')
+      + '<span style="font-family:var(--mono);font-size:9px;padding:2px 6px;border-radius:4px;background:rgba(255,255,255,0.05);color:var(--text3);">' + d.tipo + '</span>'
+      + '</div>'
+      + '</div>';
+  }).join('');
+}
+
+async function openDeviceDetail(id) {
+  const device = allDevices.find(d => d.id === id);
+  if (!device) return;
+  currentDeviceId = id;
+  currentDevice = device;
+
+  document.getElementById('dev-list-view').style.display = 'none';
+  document.getElementById('dev-detail-view').style.display = 'block';
+  document.getElementById('dev-detail-title').textContent = (DEV_TIPO_ICON[device.tipo] || '💻') + '  ' + device.nombre;
+
+  // Info
+  const eColor = DEV_ESTADO_COLOR[device.estado] || 'var(--text2)';
+  document.getElementById('dev-detail-info').innerHTML =
+    '<div style="display:grid;gap:6px;">'
+    + row('Usuario', device.usuario || '—')
+    + row('Tipo', device.tipo)
+    + row('Sistema operativo', device.so || '—')
+    + row('GCPW', device.gcpw ? '<span style="color:var(--cyan);">✓ Activado</span>' : '<span style="color:var(--text3);">✗ No activado</span>')
+    + row('Estado', '<span style="color:' + eColor + ';">' + device.estado + '</span>')
+    + '</div>';
+
+  // Apps
+  const apps = device.apps || [];
+  document.getElementById('dev-detail-apps').innerHTML = apps.length
+    ? '<div style="display:flex;flex-wrap:wrap;gap:6px;">' + apps.map(a =>
+        '<span style="font-size:12px;padding:4px 10px;background:rgba(255,255,255,0.05);border:1px solid var(--border);border-radius:6px;color:var(--text2);">' + a + '</span>'
+      ).join('') + '</div>'
+    : '<span style="color:var(--text3);font-size:12px;">Sin aplicaciones registradas</span>';
+
+  renderHistorial(device.intervenciones || []);
+}
+
+function row(label, val) {
+  return '<div style="display:flex;gap:8px;align-items:baseline;">'
+    + '<span style="font-size:11px;color:var(--text3);min-width:130px;">' + label + '</span>'
+    + '<span style="font-size:13px;color:var(--text);">' + val + '</span>'
+    + '</div>';
+}
+
+function renderHistorial(intervenciones) {
+  const el = document.getElementById('dev-historial');
+  if (!intervenciones.length) {
+    el.innerHTML = '<div class="log-empty"><div class="log-empty-icon">📋</div><div class="log-empty-text">Sin intervenciones registradas</div></div>';
+    return;
+  }
+  el.innerHTML = intervenciones.map(i => {
+    const fecha = new Date(i.fecha).toLocaleString('es-MX', {
+      timeZone:'America/New_York', month:'short', day:'numeric',
+      year:'numeric', hour:'2-digit', minute:'2-digit'
+    });
+    const color = INT_TIPO_COLOR[i.tipo] || 'var(--text2)';
+    return '<div style="padding:12px 0;border-bottom:1px solid var(--border);">'
+      + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">'
+      + '<span style="font-family:var(--mono);font-size:10px;padding:2px 8px;border-radius:10px;background:rgba(0,0,0,0.2);color:' + color + ';">' + i.tipo + '</span>'
+      + '<span style="font-family:var(--mono);font-size:10px;color:var(--text3);">' + fecha + ' ET</span>'
+      + '</div>'
+      + '<div style="font-size:13px;color:var(--text);font-weight:500;margin-bottom:2px;">' + i.descripcion + '</div>'
+      + (i.notas ? '<div style="font-size:12px;color:var(--text2);line-height:1.5;">' + i.notas + '</div>' : '')
+      + '</div>';
+  }).join('');
+}
+
+function closeDeviceDetail() {
+  document.getElementById('dev-detail-view').style.display = 'none';
+  document.getElementById('dev-list-view').style.display = 'block';
+  currentDeviceId = null;
+  currentDevice = null;
+}
+
+async function registrarIntervencion() {
+  if (!currentDeviceId) return;
+  const tipo        = document.getElementById('int-tipo').value;
+  const descripcion = document.getElementById('int-descripcion').value.trim();
+  const notas       = document.getElementById('int-notas').value.trim();
+  if (!descripcion) { showToast('Escribe una descripción de la intervención'); return; }
+
+  const btn = document.getElementById('btn-int');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Guardando...';
+
+  try {
+    const resp = await fetch(WORKER_URL + '/device/intervencion', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: currentDeviceId, tipo, descripcion, notas })
+    });
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || 'Error');
+
+    // Update local device
+    currentDevice.intervenciones = currentDevice.intervenciones || [];
+    currentDevice.intervenciones.unshift(data.intervencion);
+    renderHistorial(currentDevice.intervenciones);
+
+    // Update allDevices
+    const idx = allDevices.findIndex(d => d.id === currentDeviceId);
+    if (idx >= 0) allDevices[idx] = currentDevice;
+
+    document.getElementById('int-descripcion').value = '';
+    document.getElementById('int-notas').value = '';
+    showToast('Intervención registrada');
+    auditLog('dispositivo', tipo + ' en ' + currentDevice.nombre, descripcion);
+  } catch(err) {
+    showToast('Error: ' + err.message);
+  }
+  btn.disabled = false;
+  btn.innerHTML = '✓ Registrar intervención';
+}
+
+// ── Formulario nuevo/editar ───────────────────────────────────
+function showDeviceForm(device = null) {
+  editingDeviceId = device ? device.id : null;
+  document.getElementById('dev-modal-title').textContent = device ? 'Editar dispositivo' : 'Nuevo dispositivo';
+  document.getElementById('dev-f-nombre').value  = device ? device.nombre  : '';
+  document.getElementById('dev-f-tipo').value    = device ? device.tipo    : 'laptop';
+  document.getElementById('dev-f-usuario').value = device ? device.usuario : '';
+  document.getElementById('dev-f-so').value      = device ? device.so      : '';
+  document.getElementById('dev-f-estado').value  = device ? device.estado  : 'activo';
+  document.getElementById('dev-f-gcpw').checked  = device ? device.gcpw    : false;
+  document.getElementById('dev-f-apps').value    = device ? (device.apps || []).join('\n') : '';
+  document.getElementById('dev-modal').style.display = 'block';
+}
+
+function showEditDevice() {
+  if (currentDevice) showDeviceForm(currentDevice);
+}
+
+function closeDeviceModal() {
+  document.getElementById('dev-modal').style.display = 'none';
+  editingDeviceId = null;
+}
+
+async function saveDevice() {
+  const nombre  = document.getElementById('dev-f-nombre').value.trim();
+  const tipo    = document.getElementById('dev-f-tipo').value;
+  const usuario = document.getElementById('dev-f-usuario').value.trim();
+  const so      = document.getElementById('dev-f-so').value.trim();
+  const estado  = document.getElementById('dev-f-estado').value;
+  const gcpw    = document.getElementById('dev-f-gcpw').checked;
+  const appsRaw = document.getElementById('dev-f-apps').value;
+  const apps    = appsRaw.split('\n').map(a => a.trim()).filter(Boolean);
+
+  if (!nombre) { showToast('El nombre del dispositivo es obligatorio'); return; }
+
+  const btn = document.getElementById('btn-dev-save');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Guardando...';
+
+  try {
+    const endpoint = editingDeviceId ? '/device/update' : '/device';
+    const body = editingDeviceId
+      ? { id: editingDeviceId, nombre, tipo, usuario, so, gcpw, apps, estado }
+      : { nombre, tipo, usuario, so, gcpw, apps, estado };
+
+    const resp = await fetch(WORKER_URL + endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || 'Error');
+
+    showToast(editingDeviceId ? 'Dispositivo actualizado' : 'Dispositivo agregado');
+    auditLog('dispositivo', (editingDeviceId ? 'Dispositivo actualizado: ' : 'Dispositivo agregado: ') + nombre, tipo + ' · ' + usuario);
+    closeDeviceModal();
+    await loadDevices();
+
+    // If editing, refresh detail view
+    if (editingDeviceId && currentDeviceId === editingDeviceId) {
+      const updated = allDevices.find(d => d.id === editingDeviceId);
+      if (updated) { currentDevice = updated; openDeviceDetail(editingDeviceId); }
+    }
+  } catch(err) {
+    showToast('Error: ' + err.message);
+  }
+  btn.disabled = false;
+  btn.innerHTML = '💾 Guardar dispositivo';
+}
+
+// ── Exportar reporte CSV ──────────────────────────────────────
+function exportDeviceReport() {
+  if (!currentDevice) return;
+  const d = currentDevice;
+  const fecha = new Date(d.fecha).toLocaleDateString('es-MX', { timeZone:'America/New_York' });
+
+  let csv = 'REPORTE DE DISPOSITIVO\n';
+  csv += '"Campo","Valor"\n';
+  csv += '"Nombre","' + d.nombre + '"\n';
+  csv += '"Tipo","' + d.tipo + '"\n';
+  csv += '"Usuario asignado","' + (d.usuario || '') + '"\n';
+  csv += '"Sistema operativo","' + (d.so || '') + '"\n';
+  csv += '"GCPW","' + (d.gcpw ? 'Activado' : 'No activado') + '"\n';
+  csv += '"Estado","' + d.estado + '"\n';
+  csv += '"Fecha de registro","' + fecha + '"\n';
+  csv += '"Aplicaciones instaladas","' + (d.apps || []).join(', ') + '"\n\n';
+
+  csv += 'HISTORIAL DE INTERVENCIONES\n';
+  csv += '"Fecha","Tipo","Descripcion","Notas"\n';
+  (d.intervenciones || []).forEach(i => {
+    const f = new Date(i.fecha).toLocaleString('es-MX', { timeZone:'America/New_York' });
+    csv += '"' + f + '","' + i.tipo + '","' + i.descripcion.replace(/"/g,'""') + '","' + (i.notas || '').replace(/"/g,'""') + '"\n';
+  });
+
+  const blob = new Blob([csv], { type:'text/csv;charset=utf-8;' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'reporte-' + d.nombre.replace(/\s/g,'-') + '-' + new Date().toISOString().slice(0,10) + '.csv';
+  a.click();
+  showToast('Reporte exportado');
+}

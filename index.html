@@ -836,6 +836,9 @@ html { scroll-behavior: smooth; }
 
     <div class="nav-section-label">Sistema</div>
     <a class="nav-item" onclick="showPage('config')" href="#">
+      <span class="nav-icon">💻</span> Dispositivos
+    </a>
+    <a class="nav-item" onclick="showPage('config')" href="#">
       <span class="nav-icon">⚙️</span> Configuración
     </a>
   </nav>
@@ -1518,6 +1521,161 @@ html { scroll-behavior: smooth; }
           <div class="log-empty">
             <div class="log-empty-icon">📋</div>
             <div class="log-empty-text">Sin actividad registrada en esta sesión</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+
+    <!-- ══ DISPOSITIVOS ════════════════════════════════════ -->
+    <div class="page" id="page-dispositivos">
+      <div class="section-header">
+        <div class="section-title"><span>//</span> Dispositivos</div>
+        <div class="section-desc">Inventario de equipos y registro de intervenciones de soporte técnico.</div>
+      </div>
+
+      <!-- Vista lista / ficha -->
+      <div id="dev-list-view">
+        <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;align-items:center;">
+          <input class="form-input" id="dev-search" type="text" placeholder="Buscar dispositivo o usuario..."
+            oninput="filterDevices()" style="flex:1;min-width:180px;max-width:280px;"/>
+          <select id="dev-filter-estado" onchange="filterDevices()" style="background:var(--bg2);border:1px solid var(--border);color:var(--text2);padding:8px 12px;border-radius:8px;font-size:12px;font-family:var(--sans);">
+            <option value="">Todos los estados</option>
+            <option value="activo">Activo</option>
+            <option value="en reparación">En reparación</option>
+            <option value="dado de baja">Dado de baja</option>
+          </select>
+          <select id="dev-filter-tipo" onchange="filterDevices()" style="background:var(--bg2);border:1px solid var(--border);color:var(--text2);padding:8px 12px;border-radius:8px;font-size:12px;font-family:var(--sans);">
+            <option value="">Todos los tipos</option>
+            <option value="laptop">Laptop</option>
+            <option value="desktop">Desktop</option>
+            <option value="teléfono">Teléfono</option>
+          </select>
+          <button class="btn btn-primary" onclick="showDeviceForm()">➕ Nuevo dispositivo</button>
+          <span id="dev-count" style="font-family:var(--mono);font-size:11px;color:var(--text3);margin-left:auto;"></span>
+        </div>
+        <div id="dev-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px;">
+          <div class="info-box" style="text-align:center;padding:40px;grid-column:1/-1;">
+            <div style="font-size:36px;opacity:0.3;margin-bottom:12px;">💻</div>
+            <div style="font-family:var(--mono);font-size:12px;color:var(--text3);">Cargando dispositivos...</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Ficha de dispositivo -->
+      <div id="dev-detail-view" style="display:none;">
+        <div style="display:flex;gap:10px;align-items:center;margin-bottom:20px;">
+          <button class="btn btn-secondary" onclick="closeDeviceDetail()">← Volver</button>
+          <div id="dev-detail-title" style="font-size:16px;font-weight:600;color:var(--text);"></div>
+          <button class="btn btn-secondary" onclick="exportDeviceReport()" style="margin-left:auto;">⬇ Exportar reporte</button>
+        </div>
+
+        <div class="panel-grid" style="margin-bottom:16px;">
+          <!-- Info del dispositivo -->
+          <div class="info-box">
+            <div class="info-box-title">Información del equipo</div>
+            <div id="dev-detail-info" style="font-size:13px;color:var(--text2);line-height:2;"></div>
+            <button class="btn btn-secondary" onclick="showEditDevice()" style="margin-top:14px;font-size:12px;">✏️ Editar</button>
+          </div>
+          <!-- Apps instaladas -->
+          <div class="info-box">
+            <div class="info-box-title">Aplicaciones instaladas</div>
+            <div id="dev-detail-apps" style="font-size:13px;color:var(--text2);"></div>
+          </div>
+        </div>
+
+        <!-- Registrar intervención -->
+        <div class="info-box" style="margin-bottom:16px;">
+          <div class="info-box-title">Registrar intervención</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:10px;">
+            <div class="form-group">
+              <label class="form-label">Tipo</label>
+              <select id="int-tipo" style="width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:9px 12px;border-radius:8px;font-size:13px;font-family:var(--sans);">
+                <option value="Instalación de software">Instalación de software</option>
+                <option value="Reparación o diagnóstico">Reparación o diagnóstico</option>
+                <option value="Soporte remoto">Soporte remoto</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Descripción breve</label>
+              <input class="form-input" id="int-descripcion" type="text" placeholder="ej: Instalé Chrome, reparé teclado..."/>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Notas adicionales (opcional)</label>
+            <textarea class="form-input" id="int-notas" rows="2" placeholder="Detalles, observaciones, próximos pasos..." style="resize:vertical;"></textarea>
+          </div>
+          <button class="btn btn-primary" onclick="registrarIntervencion()" id="btn-int" style="margin-top:4px;">
+            ✓ Registrar intervención
+          </button>
+        </div>
+
+        <!-- Historial -->
+        <div class="log-console">
+          <div class="log-console-header">
+            <span class="log-console-title">HISTORIAL DE INTERVENCIONES</span>
+            <div class="log-console-dots">
+              <div class="log-dot" style="background:#f56565"></div>
+              <div class="log-dot" style="background:#f0b429"></div>
+              <div class="log-dot" style="background:#22d87a"></div>
+            </div>
+          </div>
+          <div id="dev-historial" style="padding:14px 16px;min-height:120px;max-height:400px;overflow-y:auto;">
+            <div class="log-empty"><div class="log-empty-icon">📋</div><div class="log-empty-text">Sin intervenciones registradas</div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Modal nuevo/editar dispositivo -->
+      <div id="dev-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:100;overflow-y:auto;padding:24px;">
+        <div style="background:var(--bg2);border:1px solid var(--border2);border-radius:16px;max-width:540px;margin:0 auto;padding:28px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+            <div id="dev-modal-title" style="font-size:15px;font-weight:600;color:var(--text);">Nuevo dispositivo</div>
+            <button onclick="closeDeviceModal()" style="background:transparent;border:1px solid var(--border);color:var(--text2);width:32px;height:32px;border-radius:8px;cursor:pointer;font-size:16px;">✕</button>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+            <div class="form-group">
+              <label class="form-label">Nombre / Hostname *</label>
+              <input class="form-input" id="dev-f-nombre" type="text" placeholder="ej: HERO-LAPTOP-01"/>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Tipo *</label>
+              <select id="dev-f-tipo" style="width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:9px 12px;border-radius:8px;font-size:13px;font-family:var(--sans);">
+                <option value="laptop">Laptop</option>
+                <option value="desktop">Desktop</option>
+                <option value="teléfono">Teléfono</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Usuario asignado</label>
+              <input class="form-input" id="dev-f-usuario" type="text" placeholder="ej: Luis García"/>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Sistema operativo</label>
+              <input class="form-input" id="dev-f-so" type="text" placeholder="ej: Windows 11 Pro 23H2"/>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Estado</label>
+              <select id="dev-f-estado" style="width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:9px 12px;border-radius:8px;font-size:13px;font-family:var(--sans);">
+                <option value="activo">Activo</option>
+                <option value="en reparación">En reparación</option>
+                <option value="dado de baja">Dado de baja</option>
+              </select>
+            </div>
+            <div class="form-group" style="display:flex;align-items:center;gap:10px;padding-top:24px;">
+              <input type="checkbox" id="dev-f-gcpw" style="width:18px;height:18px;accent-color:var(--cyan);cursor:pointer;"/>
+              <label for="dev-f-gcpw" style="font-size:13px;color:var(--text2);cursor:pointer;font-family:var(--sans);text-transform:none;letter-spacing:0;">GCPW activado</label>
+            </div>
+          </div>
+          <div class="form-group" style="margin-top:4px;">
+            <label class="form-label">Aplicaciones instaladas</label>
+            <textarea class="form-input" id="dev-f-apps" rows="3"
+              placeholder="Una app por línea:&#10;Google Chrome&#10;Zoom&#10;ExpressVPN" style="resize:vertical;"></textarea>
+            <div style="font-size:11px;color:var(--text3);margin-top:4px;">Escribe una aplicación por línea</div>
+          </div>
+          <div style="display:flex;gap:10px;margin-top:16px;">
+            <button class="btn btn-primary" id="btn-dev-save" onclick="saveDevice()" style="flex:1;">💾 Guardar dispositivo</button>
+            <button class="btn btn-secondary" onclick="closeDeviceModal()">Cancelar</button>
           </div>
         </div>
       </div>
