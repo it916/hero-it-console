@@ -63,8 +63,6 @@ let sessionActionCount = 0;
 // ── Navegación ────────────────────────────────────────────────
 const pageLabels = {
   'dashboard': 'Dashboard',
-  'onboarding-empleados': 'Onboarding Empleados',
-  'onboarding-agentes': 'Onboarding Agentes',
   'reset': 'Reset de Contraseña',
   'usuarios': 'Usuarios Workspace',
   'logs': 'Historial de Logs',
@@ -223,50 +221,6 @@ function checkApiKey() {
   return true; // API Key vive segura en el Worker
 }
 
-// ── Onboarding ────────────────────────────────────────────────
-async function sendOnboarding(tipo) {
-  const prefix   = tipo === 'empleado' ? 'emp' : 'agt';
-  const logId    = tipo === 'empleado' ? 'log-emp' : 'log-agt';
-  const btnId    = tipo === 'empleado' ? 'btn-send-emp' : 'btn-send-agt';
-  const statusId = tipo === 'empleado' ? 'emp-status' : 'agt-status';
-  const label    = tipo === 'empleado' ? 'Onboarding Empleados' : 'Onboarding Agentes';
-
-  const data = validateForm(prefix);
-  if (!data) return;
-  if (!checkApiKey()) return;
-
-  const password = document.getElementById(prefix + '-password').value.trim();
-  const btn = document.getElementById(btnId);
-  btn.disabled = true;
-  btn.innerHTML = '<span class="spinner"></span> Enviando...';
-  addLog('Iniciando envio de ' + label + ' a ' + data.pers, 'info', logId);
-
-  try {
-    const htmlBody = tipo === 'empleado'
-      ? buildEmailEmpleado(data.nombre, data.email, password)
-      : buildEmailAgente(data.nombre, data.email, password);
-    const asunto = tipo === 'empleado'
-      ? 'Bienvenido(a) a Hero Insurance USA - Informacion de acceso'
-      : 'Bienvenido(a) a Hero Insurance USA - Acceso de Agente';
-
-    await sendViaResend({ to: data.pers, subject: asunto, html: htmlBody,
-      text: 'Hola ' + data.nombre + ', bienvenido a Hero Insurance USA. Correo: ' + data.email + ' / Contrasena: ' + password });
-
-    addLog('Email enviado a ' + data.nombre + ' -> ' + data.pers, 'success', logId);
-    auditLog('email', 'Onboarding ' + (tipo === 'empleado' ? 'Empleado' : 'Agente') + ' enviado a ' + data.nombre, data.email + ' → ' + data.pers);
-    document.getElementById(statusId).innerHTML =
-      '<span style="color:var(--green)">Enviado a ' + data.nombre + '</span><br>' +
-      '<span style="font-size:10px;color:var(--text3)">' + new Date().toLocaleString('es-MX') + '</span>';
-    showToast('Email enviado a ' + data.nombre);
-    clearForm(prefix);
-  } catch (err) {
-    addLog('Error: ' + err.message, 'error', logId);
-    showToast('Error al enviar. Revisa el log.');
-  }
-  btn.disabled = false;
-  btn.innerHTML = 'Enviar email de bienvenida';
-}
-
 // ── Reset Password ────────────────────────────────────────────
 async function sendReset() {
   const data = validateForm('rst');
@@ -337,97 +291,12 @@ async function testConexion() {
 
 // ── Email templates ───────────────────────────────────────────
 function buildEmailEmpleado(nombre, email, password) {
-  var tools = [
-    ['https://i.imgur.com/CcVDV8K.png','Gather Town','Nuestra oficina virtual interactiva donde el equipo se reune y colabora en tiempo real.','https://app.v2.gather.town/app/hero-insurance-usa-2e9e375c-6dcb-40c4-b607-d0791d5dfb78'],
-    ['https://cdn-1.webcatalog.io/catalog/fathom-video/fathom-video-icon-filled-256.png','Fathom','Graba, transcribe y resume automaticamente tus reuniones de Google Meet.','https://fathom.video'],
-    ['https://i.imgur.com/7d0c77c.png','Scribe','Crea guias y procedimientos paso a paso de forma automatica desde tu pantalla.','https://scribehow.com'],
-    ['https://img.icons8.com/color/1200/express-vpn.jpg','ExpressVPN','Conexion segura que protege tu navegacion y el acceso a informacion corporativa.','https://www.expressvpn.com'],
-    ['https://i.imgur.com/4WZmKFm.png','ClickUp','Plataforma de gestion de tareas y proyectos donde organizamos actividades y fechas.','https://app.clickup.com']
-  ];
-  var toolsHtml = tools.map(function(t, i) {
-    return '<table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin-bottom:' + (i < tools.length-1 ? '10px' : '0') + ';">'
-      + '<tr><td width="48" valign="top" style="padding-right:12px;">'
-      + '<img src="' + t[0] + '" alt="' + t[1] + '" width="40" height="40" style="width:40px;height:40px;border-radius:10px;display:block;"/>'
-      + '</td><td valign="top">'
-      + '<p style="margin:0 0 2px;font-family:Arial,sans-serif;font-size:13px;font-weight:700;color:#1a202c;">' + t[1] + ' &nbsp;<a href="' + t[3] + '" target="_blank" style="font-size:11px;font-weight:600;color:#0065F3;text-decoration:none;">Acceder &rarr;</a></p>'
-      + '<p style="margin:0;font-family:Arial,sans-serif;font-size:12px;color:#718096;line-height:1.5;">' + t[2] + '</p>'
-      + '</td></tr></table>';
-  }).join('');
-
-  return '<!DOCTYPE html><html lang="es"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"/><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>'
-  + '<style>body,table,td,a{-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%;}body{margin:0;padding:0;background-color:#f0f4f8;}a{color:#0065F3;}</style></head>'
-  + '<body style="margin:0;padding:0;background-color:#f0f4f8;">'
-  + '<table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color:#f0f4f8;"><tr><td style="padding:32px 16px;">'
-  + '<table role="presentation" cellspacing="0" cellpadding="0" border="0" width="600" align="center" style="background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.10);">'
-  + '<tr><td style="background:linear-gradient(135deg,#0065F3 0%,#0097CC 60%,#19CDEB 100%);padding:0;">'
-  + '<table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%"><tr><td style="height:4px;background:linear-gradient(90deg,#19CDEB,rgba(255,255,255,.35),#19CDEB);"></td></tr></table>'
-  + '<table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%"><tr><td style="padding:36px 40px 28px;text-align:center;">'
-  + '<img src="https://i.imgur.com/mZDIi6V.png" alt="Hero Insurance USA" width="180" style="width:180px;max-width:180px;height:auto;display:block;margin:0 auto 20px;"/>'
-  + '<h1 style="margin:0 0 8px;font-family:Arial,sans-serif;font-size:28px;font-weight:900;color:#ffffff;letter-spacing:-0.5px;line-height:1.1;">Bienvenido al equipo,<br/><span style="opacity:0.85;">' + nombre + '!</span></h1>'
-  + '<p style="margin:0;font-family:Arial,sans-serif;font-size:14px;color:rgba(255,255,255,0.82);line-height:1.5;">Nos alegra que te unas a nuestra familia. Estamos emocionados de tenerte con nosotros.</p>'
-  + '</td></tr></table></td></tr>'
-  + '<tr><td style="padding:36px 40px;background:#ffffff;">'
-  + '<p style="margin:0 0 24px;font-family:Arial,sans-serif;font-size:15px;color:#2d3748;line-height:1.6;">Hola <strong>' + nombre + '</strong>, a continuacion te compartimos todo lo que necesitas para comenzar tu primera semana con nosotros.</p>'
-  + '<table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin-bottom:24px;background:#f7faff;border-radius:12px;border:1px solid #e2eaf8;">'
-  + '<tr><td style="padding:0;">'
-  + '<table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%"><tr><td style="padding:14px 20px;background:#eef4ff;border-radius:12px 12px 0 0;border-bottom:1px solid #d8e6ff;"><span style="font-family:Arial,sans-serif;font-size:11px;font-weight:900;letter-spacing:2px;text-transform:uppercase;color:#0065F3;">&#x2709; &nbsp;Cuenta Corporativa</span></td></tr></table>'
-  + '<table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%"><tr><td style="padding:18px 20px;">'
-  + '<table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin-bottom:12px;"><tr><td style="padding:12px 16px;background:#ffffff;border-radius:8px;border:1px solid #dde8ff;"><p style="margin:0 0 3px;font-family:Arial,sans-serif;font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:#8fa6cc;">Correo corporativo</p><p style="margin:0;font-family:\'Courier New\',monospace;font-size:14px;font-weight:700;color:#0065F3;">' + email + '</p></td></tr></table>'
-  + '<table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin-bottom:14px;"><tr><td style="padding:12px 16px;background:#fff8e6;border-radius:8px;border:1px solid #f5d87a;"><p style="margin:0 0 3px;font-family:Arial,sans-serif;font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:#b08a00;">CONTRASE&Ntilde;A TEMPORAL</p><p style="margin:0;font-family:\'Courier New\',monospace;font-size:14px;font-weight:700;color:#7a5f00;">' + (password||'(sin contrasena asignada)') + '</p></td></tr></table>'
-  + '<p style="margin:0;font-family:Arial,sans-serif;font-size:13px;color:#4a5568;line-height:1.55;">Todas las herramientas de trabajo se gestionan a traves de <strong style="color:#0065F3;">Google Workspace</strong> &mdash; Gmail, Drive, Calendar, Meet y mas.</p>'
-  + '</td></tr></table></td></tr></table>'
-  + '<table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin-bottom:24px;background:#f7faff;border-radius:12px;border:1px solid #e2eaf8;">'
-  + '<tr><td style="padding:0;">'
-  + '<table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%"><tr><td style="padding:14px 20px;background:#eef4ff;border-radius:12px 12px 0 0;border-bottom:1px solid #d8e6ff;"><span style="font-family:Arial,sans-serif;font-size:11px;font-weight:900;letter-spacing:2px;text-transform:uppercase;color:#0065F3;">HERRAMIENTAS A TU DISPOSICI&Oacute;N</span></td></tr></table>'
-  + '<table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%"><tr><td style="padding:18px 20px;">'
-  + '<p style="margin:0 0 16px;font-family:Arial,sans-serif;font-size:13px;color:#4a5568;">Durante tu primer dia recibiras acceso a las plataformas necesarias para tu rol:</p>'
-  + toolsHtml
-  + '</td></tr></table></td></tr></table>'
-  + '<table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin-bottom:24px;"><tr valign="top">'
-  + '<td width="48%" style="padding-right:8px;"><table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background:#f7faff;border-radius:12px;border:1px solid #e2eaf8;"><tr><td style="padding:14px 18px 18px;"><p style="margin:0 0 10px;font-family:Arial,sans-serif;font-size:11px;font-weight:900;letter-spacing:2px;text-transform:uppercase;color:#0065F3;">ARCHIVOS</p><p style="margin:0;font-family:Arial,sans-serif;font-size:13px;color:#4a5568;line-height:1.55;">Todos los archivos corporativos deben gestionarse desde <strong style="color:#0065F3;">Google Drive</strong>.</p></td></tr></table></td>'
-  + '<td width="52%" style="padding-left:8px;"><table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background:#fff8f8;border-radius:12px;border:1px solid #ffd4d4;"><tr><td style="padding:14px 18px 18px;"><p style="margin:0 0 10px;font-family:Arial,sans-serif;font-size:11px;font-weight:900;letter-spacing:2px;text-transform:uppercase;color:#cc3333;">SEGURIDAD</p><ul style="margin:0;padding:0 0 0 16px;font-family:Arial,sans-serif;font-size:13px;color:#4a5568;line-height:1.7;"><li>Tu cuenta es de <strong>uso personal</strong></li><li>No compartas tu contrasena</li><li>Toda la informacion es <strong>confidencial</strong></li></ul></td></tr></table></td>'
-  + '</tr></table>'
-  + '<table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin-bottom:28px;background:linear-gradient(135deg,#eef4ff,#e6f7ff);border-radius:12px;border:1px solid #c5deff;"><tr><td style="padding:18px 20px;"><p style="margin:0 0 3px;font-family:Arial,sans-serif;font-size:13px;font-weight:700;color:#1a202c;">Tienes algun inconveniente?</p><p style="margin:0 0 10px;font-family:Arial,sans-serif;font-size:12px;color:#4a5568;line-height:1.5;">Si presentas cualquier problema con tu cuenta, accesos o equipo, nuestro equipo de IT esta disponible para ayudarte.</p><a href="https://forms.gle/8dkvmbgAFwqVx2Mj9" target="_blank" style="display:inline-block;padding:10px 22px;background:linear-gradient(135deg,#0065F3,#0097CC);color:#ffffff;font-family:Arial,sans-serif;font-size:12px;font-weight:700;text-decoration:none;border-radius:8px;letter-spacing:0.5px;">Solicitar soporte IT &rarr;</a></td></tr></table>'
-  + '<table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%"><tr><td style="padding:20px;text-align:center;background:#f7faff;border-radius:12px;"><p style="margin:0;font-family:Arial,sans-serif;font-size:15px;font-weight:700;color:#1a202c;">Bienvenido(a) al equipo!</p><p style="margin:6px 0 0;font-family:Arial,sans-serif;font-size:13px;color:#718096;line-height:1.5;">Te deseamos mucho exito en esta nueva etapa con nosotros.</p></td></tr></table>'
-  + '</td></tr>'
-  + '<tr><td style="padding:14px 40px 20px;background:#f0f4f8;border-radius:0 0 16px 16px;"><p style="margin:0;font-family:Arial,sans-serif;font-size:10px;color:#a0aec0;line-height:1.55;text-align:center;"><strong style="color:#718096;">CONFIDENTIALITY NOTICE:</strong> The contents of this e-mail message and any attachments are intended solely for the addressee(s) and may contain confidential and/or legally privileged information. If you are not the intended recipient, please notify the sender immediately and delete this message. Any unauthorized use, disclosure, or distribution is strictly prohibited.</p></td></tr>'
-  + '</table></td></tr></table></body></html>';
+  var t=['https://i.imgur.com/CcVDV8K.png|Gather Town|Oficina virtual.|https://app.v2.gather.town/app/hero-insurance-usa-2e9e375c-6dcb-40c4-b607-d0791d5dfb78','https://cdn-1.webcatalog.io/catalog/fathom-video/fathom-video-icon-filled-256.png|Fathom|Graba reuniones.|https://fathom.video','https://i.imgur.com/7d0c77c.png|Scribe|Guias automaticas.|https://scribehow.com','https://img.icons8.com/color/1200/express-vpn.jpg|ExpressVPN|Conexion segura.|https://www.expressvpn.com','https://i.imgur.com/4WZmKFm.png|ClickUp|Gestion de tareas.|https://app.clickup.com'].map(function(x){var p=x.split('|');return '<table cellspacing="0" cellpadding="0" border="0" width="100%" style="margin-bottom:8px"><tr><td width="48" valign="top" style="padding-right:12px"><img src="'+p[0]+'" width="40" height="40" style="width:40px;height:40px;border-radius:10px;display:block"/></td><td valign="top"><p style="margin:0 0 2px;font-family:Arial,sans-serif;font-size:13px;font-weight:700;color:#1a202c">'+p[1]+'</p><p style="margin:0;font-family:Arial,sans-serif;font-size:12px;color:#718096">'+p[2]+'</p></td></tr></table>';}).join('');
+  return '<!DOCTYPE html><html><head><meta charset="UTF-8"/></head><body style="margin:0;padding:0;background:#f0f4f8"><table cellspacing="0" cellpadding="0" border="0" width="100%"><tr><td style="padding:32px 16px"><table cellspacing="0" cellpadding="0" border="0" width="600" align="center" style="background:#fff;border-radius:16px;overflow:hidden"><tr><td style="background:linear-gradient(135deg,#0065F3,#19CDEB);padding:36px 40px;text-align:center"><img src="https://i.imgur.com/mZDIi6V.png" width="160" style="display:block;margin:0 auto 16px"/><h1 style="margin:0;font-family:Arial,sans-serif;font-size:26px;font-weight:900;color:#fff">Bienvenido, '+nombre+'!</h1></td></tr><tr><td style="padding:32px 40px;background:#fff"><p style="margin:0 0 20px;font-family:Arial,sans-serif;font-size:14px;color:#2d3748">Hola <strong>'+nombre+'</strong>, aqui estan tus credenciales de acceso:</p><div style="background:#f7faff;border-radius:12px;border:1px solid #e2eaf8;margin-bottom:20px"><div style="padding:12px 20px;background:#eef4ff;border-radius:12px 12px 0 0;font-family:Arial,sans-serif;font-size:11px;font-weight:900;letter-spacing:2px;text-transform:uppercase;color:#0065F3">Cuenta Corporativa</div><div style="padding:16px 20px"><div style="padding:12px;background:#fff;border-radius:8px;border:1px solid #dde8ff;margin-bottom:10px"><p style="margin:0 0 3px;font-family:Arial,sans-serif;font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:#8fa6cc">Correo corporativo</p><p style="margin:0;font-family:Courier New,monospace;font-size:14px;font-weight:700;color:#0065F3">'+email+'</p></div><div style="padding:12px;background:#fff8e6;border-radius:8px;border:1px solid #f5d87a"><p style="margin:0 0 3px;font-family:Arial,sans-serif;font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:#b08a00">Contrasena Temporal</p><p style="margin:0;font-family:Courier New,monospace;font-size:14px;font-weight:700;color:#7a5f00">'+(password||'(asignada al iniciar sesion)')+'</p></div></div></div><div style="background:#f7faff;border-radius:12px;border:1px solid #e2eaf8;margin-bottom:20px"><div style="padding:12px 20px;background:#eef4ff;border-radius:12px 12px 0 0;font-family:Arial,sans-serif;font-size:11px;font-weight:900;letter-spacing:2px;text-transform:uppercase;color:#0065F3">Herramientas</div><div style="padding:16px 20px">'+t+'</div></div><div style="background:#fff8f8;border-radius:12px;border:1px solid #ffd4d4;padding:14px 20px;margin-bottom:20px"><p style="margin:0 0 8px;font-family:Arial,sans-serif;font-size:11px;font-weight:900;letter-spacing:2px;text-transform:uppercase;color:#cc3333">Seguridad</p><ul style="margin:0;padding:0 0 0 16px;font-family:Arial,sans-serif;font-size:13px;color:#4a5568;line-height:1.8"><li>Tu cuenta es personal</li><li>No compartas tu contrasena</li><li>La informacion es confidencial</li></ul></div><div style="background:linear-gradient(135deg,#eef4ff,#e6f7ff);border-radius:12px;border:1px solid #c5deff;padding:18px 20px"><p style="margin:0 0 4px;font-family:Arial,sans-serif;font-size:13px;font-weight:700;color:#1a202c">Tienes algun inconveniente?</p><p style="margin:0 0 10px;font-family:Arial,sans-serif;font-size:12px;color:#4a5568">Nuestro equipo de IT esta disponible.</p><a href="https://forms.gle/8dkvmbgAFwqVx2Mj9" style="display:inline-block;padding:10px 20px;background:#0065F3;color:#fff;font-family:Arial,sans-serif;font-size:12px;font-weight:700;text-decoration:none;border-radius:8px">Solicitar soporte IT</a></div></td></tr><tr><td style="padding:14px 40px 20px;background:#f0f4f8;text-align:center"><p style="margin:0;font-family:Arial,sans-serif;font-size:10px;color:#a0aec0">CONFIDENTIALITY NOTICE: This email is intended solely for the addressee.</p></td></tr></table></td></tr></table></body></html>';
 }
 
 function buildEmailAgente(nombre, email, password) {
-  return '<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"/><style>body{margin:0;padding:0;background:#f0f4f8;font-family:Arial,sans-serif;}a{color:#0065F3;}</style></head><body style="margin:0;padding:0;background:#f0f4f8;">'
-  + '<table cellspacing="0" cellpadding="0" border="0" width="100%" style="background:#f0f4f8;"><tr><td style="padding:32px 16px;">'
-  + '<table cellspacing="0" cellpadding="0" border="0" width="600" align="center" style="background:#fff;border-radius:16px;overflow:hidden;">'
-  + '<tr><td style="background:linear-gradient(135deg,#0065F3,#19CDEB);padding:36px 40px;text-align:center;">'
-  + '<img src="https://i.imgur.com/mZDIi6V.png" width="160" style="display:block;margin:0 auto 20px;"/>'
-  + '<h1 style="margin:0;font-size:26px;font-weight:900;color:#fff;">Bienvenido(a) al equipo, ' + nombre + '!</h1>'
-  + '<p style="margin:8px 0 0;font-size:14px;color:rgba(255,255,255,0.85);">Nos alegra que te unas a nuestra familia.</p></td></tr>'
-  + '<tr><td style="padding:36px 40px;">'
-  + '<p style="margin:0 0 24px;font-size:15px;color:#2d3748;">Hola <strong>' + nombre + '</strong>, aqui estan tus credenciales de acceso:</p>'
-  + '<div style="background:#f7faff;border-radius:12px;border:1px solid #e2eaf8;margin-bottom:20px;">'
-  + '<div style="padding:12px 20px;background:#eef4ff;border-radius:12px 12px 0 0;font-size:11px;font-weight:900;letter-spacing:2px;color:#0065F3;text-transform:uppercase;">Cuenta Corporativa</div>'
-  + '<div style="padding:18px 20px;">'
-  + '<div style="padding:12px;background:#fff;border-radius:8px;border:1px solid #dde8ff;margin-bottom:10px;">'
-  + '<div style="font-size:10px;font-weight:700;color:#8fa6cc;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;">Correo corporativo</div>'
-  + '<div style="font-family:monospace;font-size:14px;font-weight:700;color:#0065F3;">' + email + '</div></div>'
-  + '<div style="padding:12px;background:#fff8e6;border-radius:8px;border:1px solid #f5d87a;">'
-  + '<div style="font-size:10px;font-weight:700;color:#b08a00;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;">Contrasena temporal</div>'
-  + '<div style="font-family:monospace;font-size:14px;font-weight:700;color:#7a5f00;">' + (password || '(sin contrasena asignada)') + '</div></div>'
-  + '</div></div>'
-  + '<div style="background:#fff8f8;border-radius:12px;border:1px solid #ffd4d4;padding:14px 18px;margin-bottom:20px;">'
-  + '<p style="margin:0 0 6px;font-size:11px;font-weight:900;color:#cc3333;text-transform:uppercase;letter-spacing:1px;">Seguridad</p>'
-  + '<p style="margin:0;font-size:13px;color:#4a5568;">Tu cuenta es de uso personal. No compartas tu contrasena. Toda la informacion de clientes es confidencial.</p></div>'
-  + '<div style="background:#eef4ff;border-radius:12px;border:1px solid #c5deff;padding:18px 20px;margin-bottom:20px;">'
-  + '<p style="margin:0 0 4px;font-size:13px;font-weight:700;color:#1a202c;">Necesitas ayuda?</p>'
-  + '<p style="margin:0 0 10px;font-size:12px;color:#4a5568;">Nuestro equipo de IT esta disponible para ayudarte.</p>'
-  + '<a href="https://forms.gle/8dkvmbgAFwqVx2Mj9" style="display:inline-block;padding:10px 20px;background:#0065F3;color:#fff;font-size:12px;font-weight:700;text-decoration:none;border-radius:8px;">Solicitar soporte IT</a></div>'
-  + '<div style="text-align:center;padding:16px;background:#f7faff;border-radius:12px;">'
-  + '<p style="margin:0;font-size:15px;font-weight:700;color:#1a202c;">Bienvenido(a) al equipo!</p>'
-  + '<p style="margin:6px 0 0;font-size:13px;color:#718096;">Te deseamos mucho exito en esta nueva etapa.</p></div>'
-  + '</td></tr>'
-  + '<tr><td style="padding:14px 40px;background:#f0f4f8;text-align:center;">'
-  + '<p style="margin:0;font-size:10px;color:#a0aec0;">CONFIDENTIALITY NOTICE: This email is intended solely for the addressee. If you are not the intended recipient, please notify the sender immediately.</p>'
-  + '</td></tr></table></td></tr></table></body></html>';
+  return '<!DOCTYPE html><html><head><meta charset="UTF-8"/></head><body style="margin:0;padding:0;background:#f0f4f8"><table cellspacing="0" cellpadding="0" border="0" width="100%"><tr><td style="padding:32px 16px"><table cellspacing="0" cellpadding="0" border="0" width="600" align="center" style="background:#fff;border-radius:16px;overflow:hidden"><tr><td style="background:linear-gradient(135deg,#0065F3,#19CDEB);padding:36px 40px;text-align:center"><img src="https://i.imgur.com/mZDIi6V.png" width="160" style="display:block;margin:0 auto 16px"/><h1 style="margin:0;font-family:Arial,sans-serif;font-size:26px;font-weight:900;color:#fff">Bienvenido, '+nombre+'!</h1></td></tr><tr><td style="padding:32px 40px;background:#fff"><p style="margin:0 0 20px;font-family:Arial,sans-serif;font-size:14px;color:#2d3748">Hola <strong>'+nombre+'</strong>, aqui estan tus credenciales de acceso:</p><div style="background:#f7faff;border-radius:12px;border:1px solid #e2eaf8;margin-bottom:20px"><div style="padding:12px 20px;background:#eef4ff;border-radius:12px 12px 0 0;font-family:Arial,sans-serif;font-size:11px;font-weight:900;letter-spacing:2px;text-transform:uppercase;color:#0065F3">Cuenta Corporativa</div><div style="padding:16px 20px"><div style="padding:12px;background:#fff;border-radius:8px;border:1px solid #dde8ff;margin-bottom:10px"><p style="margin:0 0 3px;font-family:Arial,sans-serif;font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:#8fa6cc">Correo corporativo</p><p style="margin:0;font-family:Courier New,monospace;font-size:14px;font-weight:700;color:#0065F3">'+email+'</p></div><div style="padding:12px;background:#fff8e6;border-radius:8px;border:1px solid #f5d87a"><p style="margin:0 0 3px;font-family:Arial,sans-serif;font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:#b08a00">Contrasena Temporal</p><p style="margin:0;font-family:Courier New,monospace;font-size:14px;font-weight:700;color:#7a5f00">'+(password||'(asignada al iniciar sesion)')+'</p></div></div></div><div style="background:#fff8f8;border-radius:12px;border:1px solid #ffd4d4;padding:14px 20px;margin-bottom:20px"><p style="margin:0 0 8px;font-family:Arial,sans-serif;font-size:11px;font-weight:900;letter-spacing:2px;text-transform:uppercase;color:#cc3333">Seguridad</p><ul style="margin:0;padding:0 0 0 16px;font-family:Arial,sans-serif;font-size:13px;color:#4a5568;line-height:1.8"><li>Tu cuenta es personal</li><li>No compartas tu contrasena</li><li>La informacion es confidencial</li></ul></div><div style="background:linear-gradient(135deg,#eef4ff,#e6f7ff);border-radius:12px;border:1px solid #c5deff;padding:18px 20px"><p style="margin:0 0 4px;font-family:Arial,sans-serif;font-size:13px;font-weight:700;color:#1a202c">Tienes algun inconveniente?</p><p style="margin:0 0 10px;font-family:Arial,sans-serif;font-size:12px;color:#4a5568">Nuestro equipo de IT esta disponible.</p><a href="https://forms.gle/8dkvmbgAFwqVx2Mj9" style="display:inline-block;padding:10px 20px;background:#0065F3;color:#fff;font-family:Arial,sans-serif;font-size:12px;font-weight:700;text-decoration:none;border-radius:8px">Solicitar soporte IT</a></div></td></tr><tr><td style="padding:14px 40px 20px;background:#f0f4f8;text-align:center"><p style="margin:0;font-family:Arial,sans-serif;font-size:10px;color:#a0aec0">CONFIDENTIALITY NOTICE: This email is intended solely for the addressee.</p></td></tr></table></td></tr></table></body></html>';
 }
 
 function buildEmailReset(nombre, emailCorp, password) {
