@@ -279,7 +279,7 @@ async function testConexion() {
       addLog('Conexion exitosa - revisa tu correo it' + atSign + 'heroinsuranceusa.com', 'success');
       showToast('Conexion exitosa - revisa tu correo');
       document.getElementById('global-status').textContent = 'RESEND OK';
-      document.getElementById('global-status').style.color = 'var(--green)';
+      document.getElementById('global-status').style.color = 'var(--hero-success)';
     } else {
       addLog('Error ' + resp.status + ': ' + (result.message || result.error || JSON.stringify(result)), 'error');
       showToast('Error: ' + (result.message || result.error || resp.status));
@@ -434,10 +434,10 @@ async function confirmDeleteUser() {
 let allAuditEntradas = [];
 
 const AUDIT_TIPO_COLOR = {
-  email:   'var(--cyan)',
-  reset:   'var(--amber)',
-  usuario: 'var(--purple)',
-  ticket:  'var(--green)',
+  email:   'var(--hero-primary)',
+  reset:   '#e67e22',
+  usuario: '#8e44ad',
+  ticket:  'var(--hero-success)',
 };
 const AUDIT_TIPO_ICON = {
   email: '✉️', reset: '🔑', usuario: '👤', ticket: '🎫',
@@ -461,7 +461,7 @@ async function loadAudit() {
     renderAudit(allAuditEntradas, data.total);
   } catch(err) {
     document.getElementById('audit-body').innerHTML =
-      '<div style="text-align:center;padding:32px;color:var(--red);font-family:var(--mono);font-size:12px;">Error: ' + err.message + '</div>';
+      '<div style="text-align:center;padding:32px;color:var(--hero-error);font-family:var(--mono);font-size:12px;">Error: ' + err.message + '</div>';
   }
   btn.disabled = false;
   btn.innerHTML = '↺ Actualizar';
@@ -487,17 +487,17 @@ function renderAudit(entradas, total) {
       timeZone: 'America/New_York', month: 'short', day: 'numeric',
       hour: '2-digit', minute: '2-digit', second: '2-digit'
     });
-    const color = AUDIT_TIPO_COLOR[e.tipo] || 'var(--text2)';
+    const color = AUDIT_TIPO_COLOR[e.tipo] || 'var(--hero-text-body)';
     const icon  = AUDIT_TIPO_ICON[e.tipo] || '●';
-    return '<div style="display:flex;gap:12px;align-items:flex-start;padding:10px 0;border-bottom:1px solid var(--border);">'
+    return '<div style="display:flex;gap:12px;align-items:flex-start;padding:10px 0;border-bottom:1px solid var(--hero-border-card);">'
       + '<span style="font-size:14px;flex-shrink:0;margin-top:2px;">' + icon + '</span>'
       + '<div style="flex:1;min-width:0;">'
       + '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">'
-      + '<span style="font-size:13px;color:var(--text);font-weight:500;">' + e.descripcion + '</span>'
-      + '<span style="font-family:var(--mono);font-size:10px;color:var(--text3);flex-shrink:0;">' + fecha + ' ET</span>'
+      + '<span style="font-size:13px;color:var(--hero-text-primary);font-weight:500;">' + e.descripcion + '</span>'
+      + '<span style="font-family:var(--mono);font-size:10px;color:var(--hero-text-muted);flex-shrink:0;">' + fecha + ' ET</span>'
       + '</div>'
-      + (e.detalle ? '<div style="font-family:var(--mono);font-size:11px;color:var(--text3);margin-top:3px;">' + e.detalle + '</div>' : '')
-      + '<span style="font-family:var(--mono);font-size:10px;padding:1px 7px;border-radius:10px;background:rgba(0,0,0,0.2);color:' + color + ';margin-top:4px;display:inline-block;">' + e.tipo + '</span>'
+      + (e.detalle ? '<div style="font-family:var(--mono);font-size:11px;color:var(--hero-text-muted);margin-top:3px;">' + e.detalle + '</div>' : '')
+      + '<span style="font-family:var(--mono);font-size:10px;padding:1px 7px;border-radius:10px;background:rgba(0,0,0,0.06);color:' + color + ';margin-top:4px;display:inline-block;">' + e.tipo + '</span>'
       + '</div>'
       + '</div>';
   }).join('');
@@ -524,8 +524,8 @@ function exportAuditCSV() {
 let allTickets = [];
 let currentTicketId = null;
 
-const PRIORIDAD_COLOR = { Baja:'var(--green)', Media:'var(--amber)', Alta:'#f97316', Urgente:'var(--red)' };
-const ESTADO_COLOR    = { 'abierto':'var(--red)', 'en progreso':'var(--amber)', 'resuelto':'var(--green)' };
+const PRIORIDAD_COLOR = { Baja:'var(--hero-success)', Media:'#e67e22', Alta:'#f97316', Urgente:'var(--hero-error)' };
+const ESTADO_COLOR    = { 'abierto':'var(--hero-error)', 'en progreso':'#e67e22', 'resuelto':'var(--hero-success)' };
 
 async function loadTickets() {
   const btn = document.getElementById('btn-load-tickets');
@@ -540,7 +540,7 @@ async function loadTickets() {
     addLog('Tickets cargados: ' + allTickets.length, 'info');
   } catch(err) {
     document.getElementById('tickets-list').innerHTML =
-      '<div class="info-box" style="text-align:center;padding:32px;border-color:rgba(245,101,101,0.3);"><div style="color:var(--red);font-family:var(--mono);font-size:12px;">Error: ' + err.message + '</div></div>';
+      '<div class="info-box" style="text-align:center;padding:32px;border-color:rgba(245,101,101,0.3);"><div style="color:var(--hero-error);font-family:var(--mono);font-size:12px;">Error: ' + err.message + '</div></div>';
   }
   btn.disabled = false;
   btn.innerHTML = '↺ Actualizar';
@@ -559,27 +559,27 @@ function renderTickets(tickets) {
   document.getElementById('tickets-count').textContent = tickets.length + ' ticket' + (tickets.length !== 1 ? 's' : '');
   const container = document.getElementById('tickets-list');
   if (!tickets.length) {
-    container.innerHTML = '<div class="info-box" style="text-align:center;padding:40px;"><div style="font-size:32px;opacity:0.3;margin-bottom:12px;">📭</div><div style="font-family:var(--mono);font-size:12px;color:var(--text3);">Sin tickets con estos filtros</div></div>';
+    container.innerHTML = '<div class="info-box" style="text-align:center;padding:40px;"><div style="font-size:32px;opacity:0.3;margin-bottom:12px;">📭</div><div style="font-family:var(--mono);font-size:12px;color:var(--hero-text-muted);">Sin tickets con estos filtros</div></div>';
     return;
   }
   container.innerHTML = tickets.map(t => {
     const fecha = new Date(t.fecha).toLocaleString('es-MX', { timeZone:'America/New_York', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' });
-    const pColor = PRIORIDAD_COLOR[t.prioridad] || 'var(--text2)';
-    const eColor = ESTADO_COLOR[t.estado] || 'var(--text2)';
-    const cardColor = t.estado === 'abierto' ? 'var(--red)' : t.estado === 'en progreso' ? 'var(--amber)' : 'var(--green)';
+    const pColor = PRIORIDAD_COLOR[t.prioridad] || 'var(--hero-text-body)';
+    const eColor = ESTADO_COLOR[t.estado] || 'var(--hero-text-body)';
+    const cardColor = t.estado === 'abierto' ? 'var(--hero-error)' : t.estado === 'en progreso' ? '#e67e22' : 'var(--hero-success)';
     return '<div class="action-card" style="margin-bottom:10px;cursor:pointer;--card-color:' + cardColor + ';" onclick="openTicketModal(\'' + t.id + '\')">'
       + '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">'
       + '<div style="display:flex;align-items:center;gap:8px;">'
-      + '<span style="font-family:var(--mono);font-size:11px;color:var(--cyan);">' + t.ticketId + '</span>'
-      + '<span style="font-family:var(--mono);font-size:10px;padding:2px 8px;border-radius:20px;background:rgba(0,0,0,0.2);color:' + pColor + ';">● ' + t.prioridad + '</span>'
+      + '<span style="font-family:var(--mono);font-size:11px;color:var(--hero-primary);">' + t.ticketId + '</span>'
+      + '<span style="font-family:var(--mono);font-size:10px;padding:2px 8px;border-radius:20px;background:rgba(0,0,0,0.06);color:' + pColor + ';">● ' + t.prioridad + '</span>'
       + '</div>'
-      + '<span style="font-family:var(--mono);font-size:10px;padding:2px 8px;border-radius:20px;background:rgba(0,0,0,0.2);color:' + eColor + ';">' + t.estado + '</span>'
+      + '<span style="font-family:var(--mono);font-size:10px;padding:2px 8px;border-radius:20px;background:rgba(0,0,0,0.06);color:' + eColor + ';">' + t.estado + '</span>'
       + '</div>'
-      + '<div style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:4px;">' + t.asunto + '</div>'
-      + '<div style="font-size:12px;color:var(--text2);margin-bottom:10px;">' + t.nombre + ' · ' + t.categoria + '</div>'
+      + '<div style="font-size:14px;font-weight:600;color:var(--hero-text-primary);margin-bottom:4px;">' + t.asunto + '</div>'
+      + '<div style="font-size:12px;color:var(--hero-text-body);margin-bottom:10px;">' + t.nombre + ' · ' + t.categoria + '</div>'
       + '<div style="display:flex;justify-content:space-between;align-items:center;">'
-      + '<span style="font-size:12px;color:var(--text3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:80%;">' + t.descripcion.substring(0,80) + (t.descripcion.length > 80 ? '...' : '') + '</span>'
-      + '<span style="font-family:var(--mono);font-size:10px;color:var(--text3);flex-shrink:0;margin-left:8px;">' + fecha + ' ET</span>'
+      + '<span style="font-size:12px;color:var(--hero-text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:80%;">' + t.descripcion.substring(0,80) + (t.descripcion.length > 80 ? '...' : '') + '</span>'
+      + '<span style="font-family:var(--mono);font-size:10px;color:var(--hero-text-muted);flex-shrink:0;margin-left:8px;">' + fecha + ' ET</span>'
       + '</div>'
       + '</div>';
   }).join('');
@@ -658,7 +658,7 @@ async function loadSolicitudes() {
     if (!solicitudes.length) {
       container.innerHTML = '<div class="info-box" style="text-align:center;padding:40px;">' +
         '<div style="font-size:32px;opacity:0.3;margin-bottom:12px;">📭</div>' +
-        '<div style="font-family:var(--mono);font-size:12px;color:var(--text3);">Sin solicitudes pendientes</div></div>';
+        '<div style="font-family:var(--mono);font-size:12px;color:var(--hero-text-muted);">Sin solicitudes pendientes</div></div>';
       return;
     }
 
@@ -667,24 +667,24 @@ async function loadSolicitudes() {
         timeZone: 'America/New_York', year:'numeric', month:'short',
         day:'numeric', hour:'2-digit', minute:'2-digit'
       });
-      const estadoColor = s.estado === 'pendiente' ? 'var(--amber)' : 'var(--green)';
+      const estadoColor = s.estado === 'pendiente' ? '#e67e22' : 'var(--hero-success)';
       const estadoBg    = s.estado === 'pendiente' ? 'rgba(240,180,41,0.1)' : 'rgba(34,216,122,0.1)';
 
       return '<div class="action-card" style="margin-bottom:12px; --card-color:' +
-        (s.estado === 'pendiente' ? 'var(--amber)' : 'var(--green)') + '">' +
+        (s.estado === 'pendiente' ? '#e67e22' : 'var(--hero-success)') + '">' +
         '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">' +
           '<div>' +
-            '<div style="font-size:14px;font-weight:600;color:var(--text);">' + s.nombre + ' ' + s.apellido + '</div>' +
-            '<div style="font-family:var(--mono);font-size:11px;color:var(--cyan);margin-top:2px;">' + s.correo + '</div>' +
+            '<div style="font-size:14px;font-weight:600;color:var(--hero-text-primary);">' + s.nombre + ' ' + s.apellido + '</div>' +
+            '<div style="font-family:var(--mono);font-size:11px;color:var(--hero-primary);margin-top:2px;">' + s.correo + '</div>' +
           '</div>' +
           '<span style="font-family:var(--mono);font-size:10px;padding:3px 10px;border-radius:20px;background:' + estadoBg + ';color:' + estadoColor + ';">' + s.estado + '</span>' +
         '</div>' +
-        '<div style="font-size:12px;color:var(--text2);margin-bottom:8px;">' +
-          '<span style="color:var(--text3);">Solicitado por: </span>' +
-          '<strong style="color:var(--text);">' + (s.solicitanteNombre || 'No especificado') + '</strong>' +
-          (s.solicitanteEmail ? ' &nbsp;<span style="font-family:var(--mono);font-size:11px;color:var(--cyan);">(' + s.solicitanteEmail + ')</span>' : '') +
+        '<div style="font-size:12px;color:var(--hero-text-body);margin-bottom:8px;">' +
+          '<span style="color:var(--hero-text-muted);">Solicitado por: </span>' +
+          '<strong style="color:var(--hero-text-primary);">' + (s.solicitanteNombre || 'No especificado') + '</strong>' +
+          (s.solicitanteEmail ? ' &nbsp;<span style="font-family:var(--mono);font-size:11px;color:var(--hero-primary);">(' + s.solicitanteEmail + ')</span>' : '') +
         '</div>' +
-        '<div style="display:flex;gap:16px;font-size:12px;color:var(--text2);margin-bottom:14px;">' +
+        '<div style="display:flex;gap:16px;font-size:12px;color:var(--hero-text-body);margin-bottom:14px;">' +
           '<span>📞 ' + s.telefono + '</span>' +
           '<span>🕐 ' + fecha + ' ET</span>' +
         '</div>' +
@@ -700,7 +700,7 @@ async function loadSolicitudes() {
   } catch (err) {
     document.getElementById('sol-list').innerHTML =
       '<div class="info-box" style="text-align:center;padding:32px;border-color:rgba(245,101,101,0.3);">' +
-      '<div style="color:var(--red);font-family:var(--mono);font-size:12px;">Error: ' + err.message + '</div></div>';
+      '<div style="color:var(--hero-error);font-family:var(--mono);font-size:12px;">Error: ' + err.message + '</div></div>';
   }
 
   btn.disabled = false;
@@ -749,8 +749,8 @@ function previewEmail() {
   const preview = document.getElementById('new-preview');
   if (user || nombre) {
     preview.innerHTML =
-      '<span style="color:var(--text2)">Email: </span><span style="color:var(--cyan)">' + (user || '...') + atSign + 'heroinsuranceusa.com</span><br>' +
-      '<span style="color:var(--text2)">Nombre: </span><span style="color:var(--text)">' + (nombre || '—') + ' ' + (apellido || '') + '</span>';
+      '<span style="color:var(--hero-text-body)">Email: </span><span style="color:var(--hero-primary)">' + (user || '...') + atSign + 'heroinsuranceusa.com</span><br>' +
+      '<span style="color:var(--hero-text-body)">Nombre: </span><span style="color:var(--hero-text-primary)">' + (nombre || '—') + ' ' + (apellido || '') + '</span>';
   }
 }
 
@@ -810,8 +810,8 @@ async function crearUsuario() {
     const statusBox = document.getElementById('new-status-box');
     statusBox.style.display = 'block';
     document.getElementById('new-status').innerHTML =
-      '<span style="color:var(--green); font-family:var(--mono); font-size:12px;">Usuario creado correctamente</span><br>' +
-      '<span style="font-family:var(--mono); font-size:11px; color:var(--text2);">' + emailCorp + '</span>';
+      '<span style="color:var(--hero-success); font-family:var(--mono); font-size:12px;">Usuario creado correctamente</span><br>' +
+      '<span style="font-family:var(--mono); font-size:11px; color:var(--hero-text-body);">' + emailCorp + '</span>';
 
     // Mostrar opciones de onboarding si hay email personal
     if (emailPers) {
@@ -899,7 +899,7 @@ async function loadUsers() {
     addLog('Error al cargar usuarios: ' + err.message, 'error');
     showToast('Error al cargar usuarios');
     document.getElementById('usr-tbody').innerHTML =
-      '<tr><td colspan="6" style="padding:32px;text-align:center;color:var(--red);font-family:var(--mono);font-size:12px;">Error: ' + err.message + '</td></tr>';
+      '<tr><td colspan="6" style="padding:32px;text-align:center;color:var(--hero-error);font-family:var(--mono);font-size:12px;">Error: ' + err.message + '</td></tr>';
   }
 
   btn.disabled = false;
@@ -911,12 +911,12 @@ function renderUsers(users) {
   document.getElementById('usr-count').textContent = users.length + ' usuario' + (users.length !== 1 ? 's' : '');
 
   if (!users.length) {
-    tbody.innerHTML = '<tr><td colspan="6" style="padding:32px;text-align:center;color:var(--text3);font-family:var(--mono);font-size:12px;">Sin resultados</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="6" style="padding:32px;text-align:center;color:var(--hero-text-muted);font-family:var(--mono);font-size:12px;">Sin resultados</td></tr>';
     return;
   }
 
   tbody.innerHTML = users.map((u, i) => {
-    const estadoColor = u.estado === 'activo' ? 'var(--green)' : 'var(--red)';
+    const estadoColor = u.estado === 'activo' ? 'var(--hero-success)' : 'var(--hero-error)';
     const estadoBg    = u.estado === 'activo' ? 'rgba(34,216,122,0.1)' : 'rgba(245,101,101,0.1)';
     const creado      = u.creado ? new Date(u.creado).toLocaleDateString('es-MX', { year:'numeric', month:'short', day:'numeric' }) : '—';
     const login       = u.ultimoLogin && u.ultimoLogin !== '1970-01-01T00:00:00.000Z'
@@ -924,18 +924,18 @@ function renderUsers(users) {
       : 'Nunca';
     const rowBg = i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.02)';
 
-    return '<tr style="border-bottom:1px solid var(--border);background:' + rowBg + ';">' +
-      '<td style="padding:10px 16px;color:var(--text);">' + u.nombre + '</td>' +
-      '<td style="padding:10px 16px;font-family:var(--mono);font-size:12px;color:var(--cyan);">' + u.email + '</td>' +
+    return '<tr style="border-bottom:1px solid var(--hero-border-card);background:' + rowBg + ';">' +
+      '<td style="padding:10px 16px;color:var(--hero-text-primary);">' + u.nombre + '</td>' +
+      '<td style="padding:10px 16px;font-family:var(--mono);font-size:12px;color:var(--hero-primary);">' + u.email + '</td>' +
       '<td style="padding:10px 16px;">' +
         '<span style="font-family:var(--mono);font-size:10px;padding:3px 8px;border-radius:20px;background:' + estadoBg + ';color:' + estadoColor + ';">' + u.estado + '</span>' +
       '</td>' +
-      '<td style="padding:10px 16px;font-family:var(--mono);font-size:11px;color:var(--text2);">' + creado + '</td>' +
-      '<td style="padding:10px 16px;font-family:var(--mono);font-size:11px;color:var(--text2);">' + login + '</td>' +
+      '<td style="padding:10px 16px;font-family:var(--mono);font-size:11px;color:var(--hero-text-body);">' + creado + '</td>' +
+      '<td style="padding:10px 16px;font-family:var(--mono);font-size:11px;color:var(--hero-text-body);">' + login + '</td>' +
       '<td style="padding:10px 16px;text-align:center;">' +
         '<div style="display:flex;gap:6px;justify-content:center;">' +
-        '<button onclick="copyEmail(\'' + u.email + '\')" style="background:transparent;border:1px solid var(--border);color:var(--text2);padding:4px 8px;border-radius:6px;font-size:11px;cursor:pointer;" title="Copiar email">📋</button>' +
-        '<button onclick="openUserModal(\'' + u.email + '\',\'' + u.nombre + '\')" style="background:rgba(0,101,243,0.1);border:1px solid rgba(0,101,243,0.3);color:var(--cyan);padding:4px 8px;border-radius:6px;font-size:11px;cursor:pointer;" title="Gestionar">⚙️</button>' +
+        '<button onclick="copyEmail(\'' + u.email + '\')" style="background:transparent;border:1px solid var(--hero-border-card);color:var(--hero-text-body);padding:4px 8px;border-radius:6px;font-size:11px;cursor:pointer;" title="Copiar email">📋</button>' +
+        '<button onclick="openUserModal(\'' + u.email + '\',\'' + u.nombre + '\')" style="background:rgba(0,101,243,0.1);border:1px solid rgba(0,101,243,0.3);color:var(--hero-primary);padding:4px 8px;border-radius:6px;font-size:11px;cursor:pointer;" title="Gestionar">⚙️</button>' +
         '</div>' +
       '</td>' +
     '</tr>';
@@ -978,15 +978,15 @@ let currentDevice = null;
 let editingDeviceId = null;
 
 const DEV_ESTADO_COLOR = {
-  'activo':        'var(--green)',
-  'en reparación': 'var(--amber)',
-  'dado de baja':  'var(--red)',
+  'activo':        'var(--hero-success)',
+  'en reparación': '#e67e22',
+  'dado de baja':  'var(--hero-error)',
 };
 const DEV_TIPO_ICON = { laptop: '💻', desktop: '🖥️', 'teléfono': '📱' };
 const INT_TIPO_COLOR = {
-  'Instalación de software': 'var(--cyan)',
-  'Reparación o diagnóstico': 'var(--amber)',
-  'Soporte remoto': 'var(--purple)',
+  'Instalación de software': 'var(--hero-primary)',
+  'Reparación o diagnóstico': '#e67e22',
+  'Soporte remoto': '#8e44ad',
 };
 
 async function loadDevices() {
@@ -998,7 +998,7 @@ async function loadDevices() {
     filterDevices();
   } catch(err) {
     document.getElementById('dev-grid').innerHTML =
-      '<div class="info-box" style="text-align:center;padding:32px;grid-column:1/-1;border-color:rgba(245,101,101,0.3);"><div style="color:var(--red);font-family:var(--mono);font-size:12px;">Error: ' + err.message + '</div></div>';
+      '<div class="info-box" style="text-align:center;padding:32px;grid-column:1/-1;border-color:rgba(245,101,101,0.3);"><div style="color:var(--hero-error);font-family:var(--mono);font-size:12px;">Error: ' + err.message + '</div></div>';
   }
 }
 
@@ -1019,27 +1019,27 @@ function renderDeviceGrid(devices) {
   document.getElementById('dev-count').textContent = devices.length + ' dispositivo' + (devices.length !== 1 ? 's' : '');
   const grid = document.getElementById('dev-grid');
   if (!devices.length) {
-    grid.innerHTML = '<div class="info-box" style="text-align:center;padding:40px;grid-column:1/-1;"><div style="font-size:32px;opacity:0.3;margin-bottom:12px;">💻</div><div style="font-family:var(--mono);font-size:12px;color:var(--text3);">Sin dispositivos con estos filtros</div></div>';
+    grid.innerHTML = '<div class="info-box" style="text-align:center;padding:40px;grid-column:1/-1;"><div style="font-size:32px;opacity:0.3;margin-bottom:12px;">💻</div><div style="font-family:var(--mono);font-size:12px;color:var(--hero-text-muted);">Sin dispositivos con estos filtros</div></div>';
     return;
   }
   grid.innerHTML = devices.map(d => {
-    const eColor = DEV_ESTADO_COLOR[d.estado] || 'var(--text2)';
+    const eColor = DEV_ESTADO_COLOR[d.estado] || 'var(--hero-text-body)';
     const icon   = DEV_TIPO_ICON[d.tipo] || '💻';
     const intCount = (d.intervenciones || []).length;
     return '<div class="action-card" style="cursor:pointer;" onclick="openDeviceDetail(\'' + d.id + '\')">'
       + '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">'
       + '<span style="font-size:24px;">' + icon + '</span>'
-      + '<span style="font-family:var(--mono);font-size:10px;padding:2px 8px;border-radius:20px;background:rgba(0,0,0,0.2);color:' + eColor + ';">' + d.estado + '</span>'
+      + '<span style="font-family:var(--mono);font-size:10px;padding:2px 8px;border-radius:20px;background:rgba(0,0,0,0.06);color:' + eColor + ';">' + d.estado + '</span>'
       + '</div>'
-      + '<div style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:3px;">' + d.nombre + '</div>'
-      + '<div style="font-size:12px;color:var(--text2);margin-bottom:8px;">' + (d.usuario || 'Sin usuario asignado') + '</div>'
-      + '<div style="display:flex;gap:12px;font-size:11px;color:var(--text3);">'
+      + '<div style="font-size:14px;font-weight:600;color:var(--hero-text-primary);margin-bottom:3px;">' + d.nombre + '</div>'
+      + '<div style="font-size:12px;color:var(--hero-text-body);margin-bottom:8px;">' + (d.usuario || 'Sin usuario asignado') + '</div>'
+      + '<div style="display:flex;gap:12px;font-size:11px;color:var(--hero-text-muted);">'
       + '<span>' + (d.so || 'SO no especificado') + '</span>'
       + '<span style="margin-left:auto;">' + intCount + ' intervenci' + (intCount !== 1 ? 'ones' : 'ón') + '</span>'
       + '</div>'
       + '<div style="margin-top:8px;display:flex;gap:6px;">'
-      + (d.gcpw ? '<span style="font-family:var(--mono);font-size:9px;padding:2px 6px;border-radius:4px;background:rgba(25,205,235,0.1);color:var(--cyan);">GCPW</span>' : '')
-      + '<span style="font-family:var(--mono);font-size:9px;padding:2px 6px;border-radius:4px;background:rgba(255,255,255,0.05);color:var(--text3);">' + d.tipo + '</span>'
+      + (d.gcpw ? '<span style="font-family:var(--mono);font-size:9px;padding:2px 6px;border-radius:4px;background:rgba(25,205,235,0.1);color:var(--hero-primary);">GCPW</span>' : '')
+      + '<span style="font-family:var(--mono);font-size:9px;padding:2px 6px;border-radius:4px;background:rgba(255,255,255,0.05);color:var(--hero-text-muted);">' + d.tipo + '</span>'
       + '</div>'
       + '</div>';
   }).join('');
@@ -1056,13 +1056,13 @@ async function openDeviceDetail(id) {
   document.getElementById('dev-detail-title').textContent = (DEV_TIPO_ICON[device.tipo] || '💻') + '  ' + device.nombre;
 
   // Info
-  const eColor = DEV_ESTADO_COLOR[device.estado] || 'var(--text2)';
+  const eColor = DEV_ESTADO_COLOR[device.estado] || 'var(--hero-text-body)';
   document.getElementById('dev-detail-info').innerHTML =
     '<div style="display:grid;gap:6px;">'
     + row('Usuario', device.usuario || '—')
     + row('Tipo', device.tipo)
     + row('Sistema operativo', device.so || '—')
-    + row('GCPW', device.gcpw ? '<span style="color:var(--cyan);">✓ Activado</span>' : '<span style="color:var(--text3);">✗ No activado</span>')
+    + row('GCPW', device.gcpw ? '<span style="color:var(--hero-primary);">✓ Activado</span>' : '<span style="color:var(--hero-text-muted);">✗ No activado</span>')
     + row('Estado', '<span style="color:' + eColor + ';">' + device.estado + '</span>')
     + '</div>';
 
@@ -1070,17 +1070,17 @@ async function openDeviceDetail(id) {
   const apps = device.apps || [];
   document.getElementById('dev-detail-apps').innerHTML = apps.length
     ? '<div style="display:flex;flex-wrap:wrap;gap:6px;">' + apps.map(a =>
-        '<span style="font-size:12px;padding:4px 10px;background:rgba(255,255,255,0.05);border:1px solid var(--border);border-radius:6px;color:var(--text2);">' + a + '</span>'
+        '<span style="font-size:12px;padding:4px 10px;background:rgba(255,255,255,0.05);border:1px solid var(--hero-border-card);border-radius:6px;color:var(--hero-text-body);">' + a + '</span>'
       ).join('') + '</div>'
-    : '<span style="color:var(--text3);font-size:12px;">Sin aplicaciones registradas</span>';
+    : '<span style="color:var(--hero-text-muted);font-size:12px;">Sin aplicaciones registradas</span>';
 
   renderHistorial(device.intervenciones || []);
 }
 
 function row(label, val) {
   return '<div style="display:flex;gap:8px;align-items:baseline;">'
-    + '<span style="font-size:11px;color:var(--text3);min-width:130px;">' + label + '</span>'
-    + '<span style="font-size:13px;color:var(--text);">' + val + '</span>'
+    + '<span style="font-size:11px;color:var(--hero-text-muted);min-width:130px;">' + label + '</span>'
+    + '<span style="font-size:13px;color:var(--hero-text-primary);">' + val + '</span>'
     + '</div>';
 }
 
@@ -1095,14 +1095,14 @@ function renderHistorial(intervenciones) {
       timeZone:'America/New_York', month:'short', day:'numeric',
       year:'numeric', hour:'2-digit', minute:'2-digit'
     });
-    const color = INT_TIPO_COLOR[i.tipo] || 'var(--text2)';
-    return '<div style="padding:12px 0;border-bottom:1px solid var(--border);">'
+    const color = INT_TIPO_COLOR[i.tipo] || 'var(--hero-text-body)';
+    return '<div style="padding:12px 0;border-bottom:1px solid var(--hero-border-card);">'
       + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">'
-      + '<span style="font-family:var(--mono);font-size:10px;padding:2px 8px;border-radius:10px;background:rgba(0,0,0,0.2);color:' + color + ';">' + i.tipo + '</span>'
-      + '<span style="font-family:var(--mono);font-size:10px;color:var(--text3);">' + fecha + ' ET</span>'
+      + '<span style="font-family:var(--mono);font-size:10px;padding:2px 8px;border-radius:10px;background:rgba(0,0,0,0.06);color:' + color + ';">' + i.tipo + '</span>'
+      + '<span style="font-family:var(--mono);font-size:10px;color:var(--hero-text-muted);">' + fecha + ' ET</span>'
       + '</div>'
-      + '<div style="font-size:13px;color:var(--text);font-weight:500;margin-bottom:2px;">' + i.descripcion + '</div>'
-      + (i.notas ? '<div style="font-size:12px;color:var(--text2);line-height:1.5;">' + i.notas + '</div>' : '')
+      + '<div style="font-size:13px;color:var(--hero-text-primary);font-weight:500;margin-bottom:2px;">' + i.descripcion + '</div>'
+      + (i.notas ? '<div style="font-size:12px;color:var(--hero-text-body);line-height:1.5;">' + i.notas + '</div>' : '')
       + '</div>';
   }).join('');
 }
@@ -1270,7 +1270,7 @@ async function loadZohoDevices() {
     filterZohoDevices();
     addLog('Zoho Assist: ' + allZohoDevices.length + ' dispositivos cargados', 'info');
   } catch(err) {
-    grid.innerHTML = '<div class="info-box" style="text-align:center;padding:32px;grid-column:1/-1;border-color:rgba(245,101,101,0.3);"><div style="color:var(--red);font-family:var(--mono);font-size:12px;">Error: ' + err.message + '</div></div>';
+    grid.innerHTML = '<div class="info-box" style="text-align:center;padding:32px;grid-column:1/-1;border-color:rgba(245,101,101,0.3);"><div style="color:var(--hero-error);font-family:var(--mono);font-size:12px;">Error: ' + err.message + '</div></div>';
     addLog('Error Zoho: ' + err.message, 'error');
   }
 }
@@ -1292,7 +1292,7 @@ function renderZohoGrid(devices) {
   document.getElementById('zoho-count').textContent = devices.length + ' dispositivo' + (devices.length !== 1 ? 's' : '');
 
   if (!devices.length) {
-    grid.innerHTML = '<div class="info-box" style="text-align:center;padding:40px;grid-column:1/-1;"><div style="font-size:32px;opacity:0.3;margin-bottom:12px;">📭</div><div style="font-family:var(--mono);font-size:12px;color:var(--text3);">Sin dispositivos</div></div>';
+    grid.innerHTML = '<div class="info-box" style="text-align:center;padding:40px;grid-column:1/-1;"><div style="font-size:32px;opacity:0.3;margin-bottom:12px;">📭</div><div style="font-family:var(--mono);font-size:12px;color:var(--hero-text-muted);">Sin dispositivos</div></div>';
     return;
   }
 
@@ -1303,19 +1303,19 @@ function renderZohoGrid(devices) {
     const group    = d.group_name || d.group || '';
     const os       = d.os_type || d.operating_system || '';
     const id       = d.computer_id || d.id || '';
-    const dotColor = isOnline ? 'var(--green)' : 'var(--text3)';
-    const dotGlow  = isOnline ? '0 0 6px var(--green)' : 'none';
+    const dotColor = isOnline ? 'var(--hero-success)' : 'var(--hero-text-muted)';
+    const dotGlow  = isOnline ? '0 0 6px var(--hero-success)' : 'none';
 
-    return '<div class="action-card" style="--card-color:' + (isOnline ? 'var(--green)' : 'var(--border)') + ';">'
+    return '<div class="action-card" style="--card-color:' + (isOnline ? 'var(--hero-success)' : 'var(--hero-border-card)') + ';">'
       + '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">'
       + '<div style="display:flex;align-items:center;gap:8px;">'
       + '<div style="width:8px;height:8px;border-radius:50%;background:' + dotColor + ';box-shadow:' + dotGlow + ';flex-shrink:0;"></div>'
-      + '<div style="font-size:14px;font-weight:600;color:var(--text);">' + name + '</div>'
+      + '<div style="font-size:14px;font-weight:600;color:var(--hero-text-primary);">' + name + '</div>'
       + '</div>'
-      + '<span style="font-family:var(--mono);font-size:10px;padding:2px 8px;border-radius:20px;background:rgba(0,0,0,0.2);color:' + dotColor + ';">' + (isOnline ? 'online' : 'offline') + '</span>'
+      + '<span style="font-family:var(--mono);font-size:10px;padding:2px 8px;border-radius:20px;background:rgba(0,0,0,0.06);color:' + dotColor + ';">' + (isOnline ? 'online' : 'offline') + '</span>'
       + '</div>'
-      + (group ? '<div style="font-size:12px;color:var(--text3);margin-bottom:4px;">📁 ' + group + '</div>' : '')
-      + (os    ? '<div style="font-size:12px;color:var(--text2);margin-bottom:12px;">' + os + '</div>' : '<div style="margin-bottom:12px;"></div>')
+      + (group ? '<div style="font-size:12px;color:var(--hero-text-muted);margin-bottom:4px;">📁 ' + group + '</div>' : '')
+      + (os    ? '<div style="font-size:12px;color:var(--hero-text-body);margin-bottom:12px;">' + os + '</div>' : '<div style="margin-bottom:12px;"></div>')
       + (isOnline && id
           ? '<button onclick="startZohoSession(\'' + id + '\',\'' + name + '\')" class="btn btn-primary" style="width:100%;font-size:12px;">🖥️ Iniciar sesión remota</button>'
           : '<button class="btn btn-secondary" disabled style="width:100%;font-size:12px;opacity:0.4;">Dispositivo offline</button>'
