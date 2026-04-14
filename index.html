@@ -344,7 +344,7 @@ nav { padding: 12px; flex: 1; }
 .log-msg         { color: var(--hero-text-muted); }
 .log-msg.success { color: var(--hero-success); }
 .log-msg.error   { color: var(--hero-error); }
-.log-msg.warn    { color: var(--amber); }
+.log-msg.warn    { color: var(--hero-warning); }
 .log-msg.info    { color: var(--hero-primary); }
 .log-empty { display:flex; flex-direction:column; align-items:center; justify-content:center; height:120px; gap:8px; }
 .log-empty-icon { font-size:24px; opacity:0.3; }
@@ -516,6 +516,23 @@ nav { padding: 12px; flex: 1; }
 }
 
 html { scroll-behavior: smooth; }
+
+/* ── Last updated indicator ─────────────────────────────── */
+.last-updated {
+  font-size: 11px;
+  color: var(--hero-text-muted);
+  font-family: var(--mono, 'Courier New', monospace);
+  margin-bottom: 14px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.last-updated::before {
+  content: '↻';
+  color: var(--hero-primary);
+  font-size: 12px;
+}
+
 </style>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
@@ -776,7 +793,7 @@ html { scroll-behavior: smooth; }
             </div>
           </div>
           <div class="info-box" style="border-color: rgba(245,101,101,0.2); background: rgba(245,101,101,0.04)">
-            <div class="info-box-title" style="color:var(--red)">⚠️ Importante</div>
+            <div class="info-box-title" style="color:var(--hero-danger)">⚠️ Importante</div>
             <div style="font-size:12px; color:var(--hero-text-body); line-height:1.6">
               Asegúrate de haber cambiado ya la contraseña en la consola de Google Workspace <strong style="color:var(--hero-text-primary)">antes</strong> de enviar este email, o de indicar al usuario que el sistema le asignará una al iniciar sesión.
             </div>
@@ -823,7 +840,7 @@ html { scroll-behavior: smooth; }
         <div style="overflow-x:auto;">
           <table id="usr-table" style="width:100%; border-collapse:collapse; font-size:13px;">
             <thead>
-              <tr style="border-bottom:1px solid var(--border); background:var(--hero-bg-page);">
+              <tr style="border-bottom:1px solid var(--hero-border); background:var(--hero-bg-page);">
                 <th style="padding:11px 16px; text-align:left; font-family:var(--mono); font-size:10px; letter-spacing:1px; color:var(--hero-text-muted); font-weight:500; text-transform:uppercase;">Nombre</th>
                 <th style="padding:11px 16px; text-align:left; font-family:var(--mono); font-size:10px; letter-spacing:1px; color:var(--hero-text-muted); font-weight:500; text-transform:uppercase;">Email</th>
                 <th style="padding:11px 16px; text-align:left; font-family:var(--mono); font-size:10px; letter-spacing:1px; color:var(--hero-text-muted); font-weight:500; text-transform:uppercase;">Estado</th>
@@ -847,7 +864,7 @@ html { scroll-behavior: smooth; }
     <!-- ══ CREAR USUARIO ══════════════════════════════════ -->
 
       <!-- Modal gestión de usuario -->
-      <div id="user-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:100;overflow-y:auto;padding:24px;">
+      <div id="user-modal" style="display:none;position:fixed;inset:0;background:rgba(26,39,51,0.5);z-index:100;overflow-y:auto;padding:24px;">
         <div style="background:var(--hero-bg-card);border:1px solid rgba(6,163,182,0.3);border-radius:16px;max-width:480px;margin:0 auto;padding:28px;">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
             <div>
@@ -872,7 +889,7 @@ html { scroll-behavior: smooth; }
             </div>
           </div>
           <div class="info-box" style="border-color:rgba(245,101,101,0.3);background:rgba(245,101,101,0.04);">
-            <div class="info-box-title" style="color:var(--red);">⚠️ Eliminar usuario</div>
+            <div class="info-box-title" style="color:var(--hero-danger);">⚠️ Eliminar usuario</div>
             <p style="font-size:12px;color:var(--hero-text-body);margin:8px 0 10px;line-height:1.6;">Esta acción es permanente. El usuario perderá acceso a todos los servicios de Google Workspace.</p>
             <button class="btn btn-danger" onclick="confirmDeleteUser()" style="width:100%;font-size:13px;">🗑 Eliminar usuario permanentemente</button>
           </div>
@@ -1015,6 +1032,7 @@ html { scroll-behavior: smooth; }
           <option value="Media">Media</option>
           <option value="Baja">Baja</option>
         </select>
+        <span <span id="tickets-last-updated" class="last-updated" style="margin-left:8px;margin-bottom:0;"></span>
         <span id="tickets-count" style="font-family:var(--mono);font-size:11px;color:var(--hero-text-muted);margin-left:auto;"></span>
       </div>
 
@@ -1026,7 +1044,7 @@ html { scroll-behavior: smooth; }
       </div>
 
       <!-- Modal de ticket -->
-      <div id="ticket-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:100;overflow-y:auto;padding:24px;">
+      <div id="ticket-modal" style="display:none;position:fixed;inset:0;background:rgba(26,39,51,0.5);z-index:100;overflow-y:auto;padding:24px;">
         <div style="background:var(--hero-bg-card);border:1px solid rgba(6,163,182,0.3);border-radius:16px;max-width:620px;margin:0 auto;padding:28px;">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
             <div>
@@ -1107,6 +1125,7 @@ html { scroll-behavior: smooth; }
         </select>
         <button class="btn btn-primary" onclick="loadAudit()" id="btn-load-audit">↺ Actualizar</button>
         <button class="btn btn-secondary" onclick="exportAuditCSV()">⬇ Exportar CSV</button>
+        <span <span id="audit-last-updated" class="last-updated" style="margin-left:8px;margin-bottom:0;"></span>
         <span id="audit-count" style="font-family:var(--mono);font-size:11px;color:var(--hero-text-muted);margin-left:auto;"></span>
       </div>
 
@@ -1179,7 +1198,8 @@ html { scroll-behavior: smooth; }
             <option value="teléfono">Teléfono</option>
           </select>
           <button class="btn btn-primary" onclick="showDeviceForm()">➕ Nuevo dispositivo</button>
-          <span id="dev-count" style="font-family:var(--mono);font-size:11px;color:var(--hero-text-muted);margin-left:auto;"></span>
+          <span <span id="devices-last-updated" class="last-updated" style="margin-left:8px;margin-bottom:0;"></span>
+        <span id="dev-count" style="font-family:var(--mono);font-size:11px;color:var(--hero-text-muted);margin-left:auto;"></span>
         </div>
         <div id="dev-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px;">
           <div class="info-box" style="text-align:center;padding:40px;grid-column:1/-1;">
@@ -1254,7 +1274,7 @@ html { scroll-behavior: smooth; }
       </div>
 
       <!-- Modal nuevo/editar dispositivo -->
-      <div id="dev-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:100;overflow-y:auto;padding:24px;">
+      <div id="dev-modal" style="display:none;position:fixed;inset:0;background:rgba(26,39,51,0.5);z-index:100;overflow-y:auto;padding:24px;">
         <div style="background:var(--hero-bg-card);border:1px solid rgba(6,163,182,0.3);border-radius:16px;max-width:540px;margin:0 auto;padding:28px;">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
             <div id="dev-modal-title" style="font-size:15px;font-weight:600;color:var(--hero-text-primary);">Nuevo dispositivo</div>
@@ -1324,6 +1344,7 @@ html { scroll-behavior: smooth; }
           <option value="online">Online</option>
           <option value="offline">Offline</option>
         </select>
+        <span <span id="zoho-last-updated" class="last-updated" style="margin-left:8px;margin-bottom:0;"></span>
         <span id="zoho-count" style="font-family:var(--mono);font-size:11px;color:var(--hero-text-muted);margin-left:auto;"></span>
       </div>
 

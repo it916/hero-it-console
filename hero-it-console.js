@@ -115,6 +115,7 @@ function showPage(id) {
     'auditoria':    () => loadAudit(),
     'dispositivos': () => loadDevices(),
     'zoho':         () => loadZohoDevices(),
+    'logs':         () => renderSessionLogs(),
   };
   if (autoLoad[id]) autoLoad[id]();
 
@@ -188,6 +189,18 @@ function showToast(msg) {
   t.textContent = msg;
   t.classList.add('show');
   setTimeout(() => t.classList.remove('show'), 3200);
+}
+
+
+// ── Last updated indicator ────────────────────────────────
+function setLastUpdated(elementId) {
+  const el = document.getElementById(elementId);
+  if (!el) return;
+  const now = new Date().toLocaleString('es-MX', {
+    timeZone: 'America/New_York', month: 'short', day: 'numeric',
+    hour: '2-digit', minute: '2-digit'
+  });
+  el.textContent = 'Actualizado: ' + now + ' ET';
 }
 
 // ── Clear form ────────────────────────────────────────────────
@@ -435,8 +448,8 @@ let allAuditEntradas = [];
 
 const AUDIT_TIPO_COLOR = {
   email:   'var(--hero-primary)',
-  reset:   '#e67e22',
-  usuario: '#8e44ad',
+  reset:   'var(--hero-warning)',
+  usuario: 'var(--hero-primary-dark)',
   ticket:  'var(--hero-success)',
 };
 const AUDIT_TIPO_ICON = {
@@ -459,6 +472,7 @@ async function loadAudit() {
     if (!resp.ok) throw new Error(data.error || 'Error');
     allAuditEntradas = data.entradas || [];
     renderAudit(allAuditEntradas, data.total);
+    setLastUpdated('audit-last-updated');
   } catch(err) {
     document.getElementById('audit-body').innerHTML =
       '<div style="text-align:center;padding:32px;color:var(--hero-error);font-family:var(--mono);font-size:12px;">Error: ' + err.message + '</div>';
@@ -524,8 +538,8 @@ function exportAuditCSV() {
 let allTickets = [];
 let currentTicketId = null;
 
-const PRIORIDAD_COLOR = { Baja:'var(--hero-success)', Media:'#e67e22', Alta:'#f97316', Urgente:'var(--hero-error)' };
-const ESTADO_COLOR    = { 'abierto':'var(--hero-error)', 'en progreso':'#e67e22', 'resuelto':'var(--hero-success)' };
+const PRIORIDAD_COLOR = { Baja:'var(--hero-success)', Media:'var(--hero-warning)', Alta:'var(--hero-warning)', Urgente:'var(--hero-error)' };
+const ESTADO_COLOR    = { 'abierto':'var(--hero-error)', 'en progreso':'var(--hero-warning)', 'resuelto':'var(--hero-success)' };
 
 async function loadTickets() {
   const btn = document.getElementById('btn-load-tickets');
@@ -537,10 +551,11 @@ async function loadTickets() {
     if (!resp.ok) throw new Error(data.error || 'Error');
     allTickets = data.tickets || [];
     filterTickets();
+    setLastUpdated('tickets-last-updated');
     addLog('Tickets cargados: ' + allTickets.length, 'info');
   } catch(err) {
     document.getElementById('tickets-list').innerHTML =
-      '<div class="info-box" style="text-align:center;padding:32px;border-color:rgba(245,101,101,0.3);"><div style="color:var(--hero-error);font-family:var(--mono);font-size:12px;">Error: ' + err.message + '</div></div>';
+      '<div class="info-box" style="text-align:center;padding:32px;border-color:rgba(214,69,69,0.3);"><div style="color:var(--hero-error);font-family:var(--mono);font-size:12px;">Error: ' + err.message + '</div></div>';
   }
   btn.disabled = false;
   btn.innerHTML = '↺ Actualizar';
@@ -566,7 +581,7 @@ function renderTickets(tickets) {
     const fecha = new Date(t.fecha).toLocaleString('es-MX', { timeZone:'America/New_York', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' });
     const pColor = PRIORIDAD_COLOR[t.prioridad] || 'var(--hero-text-body)';
     const eColor = ESTADO_COLOR[t.estado] || 'var(--hero-text-body)';
-    const cardColor = t.estado === 'abierto' ? 'var(--hero-error)' : t.estado === 'en progreso' ? '#e67e22' : 'var(--hero-success)';
+    const cardColor = t.estado === 'abierto' ? 'var(--hero-error)' : t.estado === 'en progreso' ? 'var(--hero-warning)' : 'var(--hero-success)';
     return '<div class="action-card" style="margin-bottom:10px;cursor:pointer;--card-color:' + cardColor + ';" onclick="openTicketModal(\'' + t.id + '\')">'
       + '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">'
       + '<div style="display:flex;align-items:center;gap:8px;">'
@@ -667,11 +682,11 @@ async function loadSolicitudes() {
         timeZone: 'America/New_York', year:'numeric', month:'short',
         day:'numeric', hour:'2-digit', minute:'2-digit'
       });
-      const estadoColor = s.estado === 'pendiente' ? '#e67e22' : 'var(--hero-success)';
-      const estadoBg    = s.estado === 'pendiente' ? 'rgba(240,180,41,0.1)' : 'rgba(34,216,122,0.1)';
+      const estadoColor = s.estado === 'pendiente' ? 'var(--hero-warning)' : 'var(--hero-success)';
+      const estadoBg    = s.estado === 'pendiente' ? 'rgba(232,163,23,0.1)' : 'rgba(34,160,107,0.1)';
 
       return '<div class="action-card" style="margin-bottom:12px; --card-color:' +
-        (s.estado === 'pendiente' ? '#e67e22' : 'var(--hero-success)') + '">' +
+        (s.estado === 'pendiente' ? 'var(--hero-warning)' : 'var(--hero-success)') + '">' +
         '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">' +
           '<div>' +
             '<div style="font-size:14px;font-weight:600;color:var(--hero-text-primary);">' + s.nombre + ' ' + s.apellido + '</div>' +
@@ -699,7 +714,7 @@ async function loadSolicitudes() {
 
   } catch (err) {
     document.getElementById('sol-list').innerHTML =
-      '<div class="info-box" style="text-align:center;padding:32px;border-color:rgba(245,101,101,0.3);">' +
+      '<div class="info-box" style="text-align:center;padding:32px;border-color:rgba(214,69,69,0.3);">' +
       '<div style="color:var(--hero-error);font-family:var(--mono);font-size:12px;">Error: ' + err.message + '</div></div>';
   }
 
@@ -917,7 +932,7 @@ function renderUsers(users) {
 
   tbody.innerHTML = users.map((u, i) => {
     const estadoColor = u.estado === 'activo' ? 'var(--hero-success)' : 'var(--hero-error)';
-    const estadoBg    = u.estado === 'activo' ? 'rgba(34,216,122,0.1)' : 'rgba(245,101,101,0.1)';
+    const estadoBg    = u.estado === 'activo' ? 'rgba(34,160,107,0.1)' : 'rgba(214,69,69,0.1)';
     const creado      = u.creado ? new Date(u.creado).toLocaleDateString('es-MX', { year:'numeric', month:'short', day:'numeric' }) : '—';
     const login       = u.ultimoLogin && u.ultimoLogin !== '1970-01-01T00:00:00.000Z'
       ? new Date(u.ultimoLogin).toLocaleDateString('es-MX', { year:'numeric', month:'short', day:'numeric' })
@@ -959,18 +974,6 @@ function copyEmail(email) {
   });
 }
 
-// ── Init ──────────────────────────────────────────────────────
-(function init() {
-  // Check existing session first
-  if (!checkExistingSession()) {
-    // Show login screen - already visible by default
-    addLog('Hero IT Console cargado. Esperando autenticación...', 'info');
-  } else {
-    addLog('Hero IT Console iniciado. Fernando Romero - IT Admin', 'info');
-    addLog('Sistema listo. Worker conectado a Resend.', 'success');
-  }
-})();
-
 // ── Módulo Dispositivos ───────────────────────────────────────
 let allDevices = [];
 let currentDeviceId = null;
@@ -979,14 +982,14 @@ let editingDeviceId = null;
 
 const DEV_ESTADO_COLOR = {
   'activo':        'var(--hero-success)',
-  'en reparación': '#e67e22',
+  'en reparación': 'var(--hero-warning)',
   'dado de baja':  'var(--hero-error)',
 };
 const DEV_TIPO_ICON = { laptop: '💻', desktop: '🖥️', 'teléfono': '📱' };
 const INT_TIPO_COLOR = {
   'Instalación de software': 'var(--hero-primary)',
-  'Reparación o diagnóstico': '#e67e22',
-  'Soporte remoto': '#8e44ad',
+  'Reparación o diagnóstico': 'var(--hero-warning)',
+  'Soporte remoto': 'var(--hero-primary-dark)',
 };
 
 async function loadDevices() {
@@ -996,9 +999,10 @@ async function loadDevices() {
     if (!resp.ok) throw new Error(data.error || 'Error');
     allDevices = data.devices || [];
     filterDevices();
+    setLastUpdated('devices-last-updated');
   } catch(err) {
     document.getElementById('dev-grid').innerHTML =
-      '<div class="info-box" style="text-align:center;padding:32px;grid-column:1/-1;border-color:rgba(245,101,101,0.3);"><div style="color:var(--hero-error);font-family:var(--mono);font-size:12px;">Error: ' + err.message + '</div></div>';
+      '<div class="info-box" style="text-align:center;padding:32px;grid-column:1/-1;border-color:rgba(214,69,69,0.3);"><div style="color:var(--hero-error);font-family:var(--mono);font-size:12px;">Error: ' + err.message + '</div></div>';
   }
 }
 
@@ -1268,9 +1272,10 @@ async function loadZohoDevices() {
     if (!resp.ok) throw new Error(data.error || 'Error');
     allZohoDevices = Array.isArray(data.devices) ? data.devices : [];
     filterZohoDevices();
+    setLastUpdated('zoho-last-updated');
     addLog('Zoho Assist: ' + allZohoDevices.length + ' dispositivos cargados', 'info');
   } catch(err) {
-    grid.innerHTML = '<div class="info-box" style="text-align:center;padding:32px;grid-column:1/-1;border-color:rgba(245,101,101,0.3);"><div style="color:var(--hero-error);font-family:var(--mono);font-size:12px;">Error: ' + err.message + '</div></div>';
+    grid.innerHTML = '<div class="info-box" style="text-align:center;padding:32px;grid-column:1/-1;border-color:rgba(214,69,69,0.3);"><div style="color:var(--hero-error);font-family:var(--mono);font-size:12px;">Error: ' + err.message + '</div></div>';
     addLog('Error Zoho: ' + err.message, 'error');
   }
 }
@@ -1344,3 +1349,29 @@ async function startZohoSession(computerId, name) {
     showToast('Error: ' + err.message);
   }
 }
+// ── Render session logs on demand ───────────────────────────
+function renderSessionLogs() {
+  const body = document.getElementById('log-body');
+  if (!body) return;
+  if (!sessionLogs.length) {
+    body.innerHTML = '<div class="log-empty"><div class="log-empty-icon">📋</div><div class="log-empty-text">Sin actividad en esta sesión</div></div>';
+    return;
+  }
+  body.innerHTML = sessionLogs.map(l =>
+    '<div class="log-line"><span class="log-time">' + l.time + '</span>' +
+    '<span class="log-msg ' + l.type + '">' + l.msg + '</span></div>'
+  ).join('');
+  body.scrollTop = body.scrollHeight;
+}
+
+// ── Init ──────────────────────────────────────────────────────
+(function init() {
+  // Check existing session first
+  if (!checkExistingSession()) {
+    // Show login screen - already visible by default
+    addLog('Hero IT Console cargado. Esperando autenticación...', 'info');
+  } else {
+    addLog('Hero IT Console iniciado. Fernando Romero - IT Admin', 'info');
+    addLog('Sistema listo. Worker conectado a Resend.', 'success');
+  }
+})();
