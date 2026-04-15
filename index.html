@@ -515,6 +515,55 @@ nav { padding: 12px; flex: 1; }
   .sidebar-overlay { display: none !important; }
 }
 
+
+/* ── System status ───────────────────────────────────────── */
+.status-service {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: var(--hero-bg);
+  border-radius: var(--hero-radius-sm);
+  border: 1px solid var(--hero-border);
+}
+.status-dot {
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  background: var(--hero-border);
+  flex-shrink: 0;
+  transition: background 0.3s;
+}
+.status-dot.ok      { background: var(--hero-success); box-shadow: 0 0 6px rgba(34,160,107,0.4); }
+.status-dot.error   { background: var(--hero-danger); }
+.status-dot.loading { background: var(--hero-warning); animation: pulse-dot 1s ease-in-out infinite; }
+.status-name   { font-size: 12px; font-weight: 600; color: var(--hero-text-primary); }
+.status-detail { font-size: 10px; color: var(--hero-text-muted); margin-top: 2px; }
+
+/* ── Global search ───────────────────────────────────────── */
+#global-search-overlay {
+  display: none;
+  position: fixed; inset: 0;
+  background: rgba(26,39,51,0.5);
+  z-index: 500;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 80px;
+}
+#global-search-box {
+  background: var(--hero-card-bg);
+  border: 1px solid rgba(6,163,182,0.3);
+  border-radius: var(--hero-radius-lg);
+  width: 90%; max-width: 580px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+  overflow: hidden;
+}
+#global-search-input {
+  width: 100%; padding: 16px 20px;
+  border: none; border-bottom: 1px solid var(--hero-border);
+  font-size: 15px; font-family: var(--hero-font);
+  color: var(--hero-text-primary); background: transparent; outline: none;
+}
+#global-search-results { max-height: 380px; overflow-y: auto; }
 html { scroll-behavior: smooth; }
 
 /* ── Last updated indicator ─────────────────────────────── */
@@ -626,6 +675,12 @@ html { scroll-behavior: smooth; }
     </a>
 
     <div class="nav-section-label">Sistema</div>
+    <a class="nav-item" onclick="showPage('offboarding')" href="#">
+      <span class="nav-icon">🚪</span> Offboarding
+    </a>
+    <a class="nav-item" onclick="showPage('licencias')" href="#">
+      <span class="nav-icon">🔑</span> Licencias
+    </a>
     <a class="nav-item" onclick="showPage('config')" href="#">
       <span class="nav-icon">⚙️</span> Configuración
     </a>
@@ -646,6 +701,7 @@ html { scroll-behavior: smooth; }
       <div class="topbar-title">Hero IT Console / <span id="current-section-label">Dashboard</span></div>
     </div>
     <div class="topbar-right">
+        <button onclick="openGlobalSearch()" style="background:var(--hero-bg);border:1px solid var(--hero-border);color:var(--hero-text-muted);padding:6px 12px;border-radius:var(--hero-radius-sm);cursor:pointer;font-size:12px;font-family:var(--hero-font);display:flex;align-items:center;gap:6px;">🔍 <span style="color:var(--hero-text-muted)">Buscar...</span></button>
       <div class="clock" id="clock"></div>
       <div id="global-status">● SISTEMA LISTO</div>
     </div>
@@ -660,26 +716,61 @@ html { scroll-behavior: smooth; }
         <div class="section-desc">Acceso rápido a todas las herramientas de IT.</div>
       </div>
 
+      <!-- Stats row -->
       <div class="stats-row">
         <div class="stat-chip">
-          <div class="stat-value" style="color:var(--hero-primary)">3</div>
-          <div class="stat-label">Scripts activos</div>
-        </div>
-        <div class="stat-chip">
-          <div class="stat-value" id="stat-logs">0</div>
+          <div class="stat-value" id="stat-logs" style="color:var(--hero-primary)">0</div>
           <div class="stat-label">Acciones en sesión</div>
         </div>
         <div class="stat-chip">
-          <div class="stat-value" style="color:var(--hero-success)">●</div>
-          <div class="stat-label">Gateway conectado</div>
+          <div class="stat-value" id="stat-tickets-open">—</div>
+          <div class="stat-label">Tickets abiertos</div>
+        </div>
+        <div class="stat-chip">
+          <div class="stat-value" id="stat-solicitudes-pending">—</div>
+          <div class="stat-label">Solicitudes pendientes</div>
+        </div>
+        <div class="stat-chip">
+          <div class="stat-value" id="stat-devices-count">—</div>
+          <div class="stat-label">Dispositivos registrados</div>
         </div>
       </div>
 
-      <!-- URL notice -->
-      <div class="url-notice">
-        <div class="url-notice-icon">⚠️</div>
-        <div class="url-notice-text">
-          <strong>Sistema listo:</strong> El Worker de Cloudflare gestiona el envío de emails de forma segura. Ve a <strong>Configuración</strong> y presiona "Probar conexión" para verificar.
+      <!-- System status panel -->
+      <div class="info-box" style="margin-bottom:20px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+          <div class="info-box-title" style="margin-bottom:0;">Estado del ecosistema</div>
+          <button class="btn btn-secondary" onclick="checkSystemStatus()" id="btn-check-status" style="font-size:11px;padding:5px 10px;">↺ Verificar</button>
+        </div>
+        <div id="system-status-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;">
+          <div class="status-service" data-service="worker">
+            <div class="status-dot" id="dot-worker"></div>
+            <div>
+              <div class="status-name">Cloudflare Worker</div>
+              <div class="status-detail" id="detail-worker">Sin verificar</div>
+            </div>
+          </div>
+          <div class="status-service" data-service="google">
+            <div class="status-dot" id="dot-google"></div>
+            <div>
+              <div class="status-name">Google Workspace</div>
+              <div class="status-detail" id="detail-google">Sin verificar</div>
+            </div>
+          </div>
+          <div class="status-service" data-service="zoho">
+            <div class="status-dot" id="dot-zoho"></div>
+            <div>
+              <div class="status-name">Zoho Assist</div>
+              <div class="status-detail" id="detail-zoho">Sin verificar</div>
+            </div>
+          </div>
+          <div class="status-service" data-service="resend">
+            <div class="status-dot" id="dot-resend"></div>
+            <div>
+              <div class="status-name">Resend Email</div>
+              <div class="status-detail" id="detail-resend">Sin verificar</div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -725,6 +816,31 @@ html { scroll-behavior: smooth; }
           <button class="btn btn-primary" onclick="showPage('usuarios')">Ver usuarios →</button>
         </div>
 
+      </div>
+
+      <!-- Office Manager + Reporte panel -->
+      <div class="panel-grid" style="margin-bottom:20px;">
+        <div class="info-box">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+            <div class="info-box-title" style="margin-bottom:0;">🏢 Asistencia hoy</div>
+            <button class="btn btn-secondary" onclick="loadOfficeStatus()" style="font-size:11px;padding:5px 10px;">↺</button>
+          </div>
+          <div id="office-status-card">
+            <div style="font-size:12px;color:var(--hero-text-muted);text-align:center;padding:16px;">Presiona ↺ para cargar</div>
+          </div>
+          <a href="https://it916.github.io/office-manager-app/" target="_blank" style="display:block;margin-top:12px;font-size:11px;color:var(--hero-primary);text-align:center;">Abrir Office Manager →</a>
+        </div>
+        <div class="info-box">
+          <div class="info-box-title">📊 Reporte mensual IT</div>
+          <p style="font-size:12px;color:var(--hero-text-muted);margin-bottom:16px;line-height:1.6;">Genera un reporte completo del mes con tickets resueltos, usuarios creados, intervenciones de dispositivos y acciones registradas en Auditoría.</p>
+          <div class="form-group">
+            <label class="form-label">Mes del reporte</label>
+            <input class="form-input" type="month" id="report-month" style="background:var(--hero-card-bg);"/>
+          </div>
+          <button class="btn btn-primary" onclick="generateMonthlyReport()" style="width:100%;margin-top:8px;">
+            ⬇ Generar reporte CSV
+          </button>
+        </div>
       </div>
 
       <!-- Recent log mini -->
@@ -1356,6 +1472,136 @@ html { scroll-behavior: smooth; }
       </div>
     </div>
 
+
+    <!-- ══ OFFBOARDING ═════════════════════════════════════ -->
+    <div class="page" id="page-offboarding">
+      <div class="section-header">
+        <div class="section-title"><span>//</span> <span>Offboarding</span></div>
+        <div class="section-desc">Proceso de baja de un empleado o agente. Cada paso queda registrado en Auditoría.</div>
+      </div>
+
+      <!-- Seleccionar usuario -->
+      <div class="info-box" style="margin-bottom:16px;">
+        <div class="info-box-title">👤 Usuario a dar de baja</div>
+        <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-top:10px;">
+          <div style="flex:1;min-width:200px;">
+            <label class="form-label">Buscar en Google Workspace</label>
+            <input class="form-input" id="ob-search" type="text" placeholder="Nombre o email..."
+              oninput="filterOffboardingUsers()" autocomplete="off"/>
+            <div id="ob-user-suggestions" style="position:absolute;background:var(--hero-card-bg);border:1px solid rgba(6,163,182,0.3);border-radius:var(--hero-radius-sm);z-index:50;min-width:280px;max-height:200px;overflow-y:auto;display:none;box-shadow:0 4px 16px rgba(0,0,0,0.1);"></div>
+          </div>
+          <div style="flex:1;min-width:200px;">
+            <label class="form-label">Tipo de baja</label>
+            <select id="ob-tipo" class="form-input" style="background:var(--hero-card-bg);">
+              <option value="Empleado">Empleado</option>
+              <option value="Agente">Agente</option>
+            </select>
+          </div>
+        </div>
+        <div id="ob-selected-user" style="display:none;margin-top:12px;padding:12px;background:var(--hero-bg);border-radius:var(--hero-radius-sm);border:1px solid var(--hero-border);">
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <div>
+              <div id="ob-user-name" style="font-size:14px;font-weight:600;color:var(--hero-text-primary);"></div>
+              <div id="ob-user-email" style="font-size:12px;color:var(--hero-primary);font-family:var(--mono);margin-top:2px;"></div>
+            </div>
+            <button onclick="clearOffboardingUser()" style="background:transparent;border:none;color:var(--hero-text-muted);cursor:pointer;font-size:18px;">✕</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Checklist -->
+      <div class="info-box" style="margin-bottom:16px;" id="ob-checklist-box">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+          <div class="info-box-title" style="margin-bottom:0;">✅ Checklist de offboarding</div>
+          <div id="ob-progress-label" style="font-family:var(--mono);font-size:11px;color:var(--hero-text-muted);">0 / 8 completados</div>
+        </div>
+        <div id="ob-steps" style="display:flex;flex-direction:column;gap:8px;">
+          <!-- Steps rendered by JS -->
+        </div>
+      </div>
+
+      <!-- Notas y confirmar -->
+      <div class="info-box">
+        <div class="info-box-title">📋 Notas del proceso</div>
+        <textarea class="form-input" id="ob-notas" rows="3" placeholder="Motivo de la baja, observaciones, fecha efectiva..." style="resize:vertical;margin-top:10px;"></textarea>
+        <div style="display:flex;gap:10px;margin-top:14px;">
+          <button class="btn btn-primary" onclick="executeOffboarding()" id="btn-ob-execute" style="flex:1;">
+            🚪 Ejecutar offboarding
+          </button>
+          <button class="btn btn-secondary" onclick="resetOffboarding()">Limpiar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ LICENCIAS & SOFTWARE ════════════════════════════ -->
+    <div class="page" id="page-licencias">
+      <div class="section-header">
+        <div class="section-title"><span>//</span> Licencias & <span>Software</span></div>
+        <div class="section-desc">Registro de licencias activas, fechas de vencimiento y costos.</div>
+      </div>
+
+      <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;align-items:center;">
+        <button class="btn btn-primary" onclick="showLicenciaForm()">➕ Nueva licencia</button>
+        <span id="lic-count" style="font-family:var(--mono);font-size:11px;color:var(--hero-text-muted);margin-left:auto;"></span>
+      </div>
+
+      <div id="lic-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px;">
+        <div class="info-box" style="text-align:center;padding:40px;grid-column:1/-1;">
+          <div style="font-size:36px;opacity:0.3;margin-bottom:12px;">🔑</div>
+          <div style="font-family:var(--mono);font-size:12px;color:var(--hero-text-muted);">Cargando licencias...</div>
+        </div>
+      </div>
+
+      <!-- Modal licencia -->
+      <div id="lic-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:100;overflow-y:auto;padding:24px;">
+        <div style="background:var(--hero-card-bg);border:1px solid rgba(6,163,182,0.3);border-radius:16px;max-width:500px;margin:0 auto;padding:28px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+            <div id="lic-modal-title" style="font-size:15px;font-weight:600;color:var(--hero-text-primary);">Nueva licencia</div>
+            <button onclick="closeLicenciaModal()" style="background:transparent;border:1px solid var(--hero-border);color:var(--hero-text-muted);width:32px;height:32px;border-radius:8px;cursor:pointer;font-size:16px;">✕</button>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+            <div class="form-group" style="grid-column:1/-1;">
+              <label class="form-label">Nombre del software *</label>
+              <input class="form-input" id="lic-f-nombre" type="text" placeholder="ej: Zoho Assist, ClickUp, Canva..."/>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Plan / Tier</label>
+              <input class="form-input" id="lic-f-plan" type="text" placeholder="ej: Professional, Team..."/>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Costo mensual (USD)</label>
+              <input class="form-input" id="lic-f-costo" type="number" placeholder="0.00" step="0.01"/>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Usuarios incluidos</label>
+              <input class="form-input" id="lic-f-usuarios" type="number" placeholder="ej: 5"/>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Fecha de vencimiento</label>
+              <input class="form-input" id="lic-f-vencimiento" type="date"/>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Estado</label>
+              <select id="lic-f-estado" class="form-input" style="background:var(--hero-card-bg);">
+                <option value="activa">Activa</option>
+                <option value="trial">Trial</option>
+                <option value="vencida">Vencida</option>
+                <option value="cancelada">Cancelada</option>
+              </select>
+            </div>
+            <div class="form-group" style="grid-column:1/-1;">
+              <label class="form-label">Notas</label>
+              <input class="form-input" id="lic-f-notas" type="text" placeholder="Cuenta asociada, contacto, etc."/>
+            </div>
+          </div>
+          <div style="display:flex;gap:10px;margin-top:16px;">
+            <button class="btn btn-primary" onclick="saveLicencia()" id="btn-lic-save" style="flex:1;">💾 Guardar</button>
+            <button class="btn btn-secondary" onclick="closeLicenciaModal()">Cancelar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- ══ CONFIG ══════════════════════════════════════════ -->
     <div class="page" id="page-config">
       <div class="section-header">
@@ -1410,6 +1656,18 @@ html { scroll-behavior: smooth; }
   </div><!-- /content -->
 </div><!-- /main -->
 
+
+  <!-- ══ BÚSQUEDA GLOBAL ══════════════════════════════════════ -->
+  <div id="global-search-overlay" onclick="if(event.target===this)closeGlobalSearch()">
+    <div id="global-search-box">
+      <input id="global-search-input" type="text" placeholder="Buscar tickets, solicitudes, dispositivos, usuarios..."
+        oninput="onGlobalSearch()" onkeydown="if(event.key==='Escape')closeGlobalSearch()"/>
+      <div id="global-search-results"></div>
+      <div style="padding:10px 16px;background:var(--hero-bg);border-top:1px solid var(--hero-border);font-size:10px;color:var(--hero-text-muted);">
+        ESC para cerrar · Enter para navegar
+      </div>
+    </div>
+  </div>
 </div><!-- /app-content -->
 
 <!-- Toast -->

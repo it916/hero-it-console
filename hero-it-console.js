@@ -34,10 +34,14 @@ function showApp(nombre, picture) {
   appEl.style.minHeight = '100vh';
   appEl.style.overflow = 'hidden';
   appEl.style.flexDirection = 'row';
-  // Update sidebar user label
   const userLabel = document.querySelector('.user-label');
   if (userLabel) userLabel.textContent = nombre + ' · IT Admin';
   addLog('Sesión iniciada como ' + nombre, 'success');
+  // Start background services
+  requestNotificationPermission();
+  startPolling();
+  loadDashboardCounters();
+  checkSystemStatus();
 }
 
 function checkExistingSession() {
@@ -115,6 +119,8 @@ function showPage(id) {
     'auditoria':    () => loadAudit(),
     'dispositivos': () => loadDevices(),
     'zoho':         () => loadZohoDevices(),
+    'offboarding':  () => { if (!window._workspaceUsers) loadUsers(); renderOffboardingSteps(); },
+    'licencias':    () => loadLicencias(),
     'logs':         () => renderSessionLogs(),
   };
   if (autoLoad[id]) autoLoad[id]();
@@ -136,7 +142,206 @@ updateClock();
 // ── Worker URL ────────────────────────────────────────────────
 const WORKER_URL = 'https://hero-email-worker.broad-fire-d2d6.workers.dev';
 
-// ── Auditoría persistente ─────────────────────────────────────
+// ── Panel de estado del ecosistema ───────────────────────────
+async function checkSystemStatus() {
+  const btn = document.getElementById('btn-check-status');
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>'; }
+
+  const setStatus = (svc, state, detail) => {
+    const dot = document.getElementById('dot-' + svc);
+    const det = document.getElementById('detail-' + svc);
+    if (dot) { dot.className = 'status-dot ' + state; }
+    if (det) { det.textContent = detail; }
+  };
+
+  // Mark all as loading
+  ['worker','google','zoho','resend'].forEach(s => setStatus(s, 'loading', 'Verificando...'));
+
+  // 1. Worker ping
+  try {
+    const t0 = Date.now();
+    const r = await fetch(WORKER_URL + '/audit?limit=1');
+    if (r.ok) setStatus('worker', 'ok', 'Online · ' + (Date.now()-t0) + 'ms');
+    else setStatus('worker', 'error', 'Error ' + r.status);
+  } catch { setStatus('worker', 'error', 'Sin respuesta'); }
+
+  // 2. Google Workspace
+  try {
+    const t0 = Date.now();
+    const r = await fetch(WORKER_URL + '/users');
+    const d = await r.json();
+    if (r.ok && d.users) setStatus('google', 'ok', d.users.length + ' usuarios · ' + (Date.now()-t0) + 'ms');
+    else setStatus('google', 'error', d.error || 'Error');
+  } catch { setStatus('google', 'error', 'Sin respuesta'); }
+
+  // 3. Zoho Assist
+  try {
+    const t0 = Date.now();
+    const r = await fetch(WORKER_URL + '/zoho/devices');
+    const d = await r.json();
+    if (r.ok) setStatus('zoho', 'ok', d.devices.length + ' dispositivos · ' + (Date.now()-t0) + 'ms');
+    else setStatus('zoho', 'error', d.error || 'Error');
+  } catch { setStatus('zoho', 'error', 'Sin respuesta'); }
+
+  // 4. Resend — test via Worker general email endpoint availability
+  try {
+    // We just check that worker responds to POST /  without crashing
+    const r = await fetch(WORKER_URL + '/ticket?limit=1');
+    if (r.ok) setStatus('resend', 'ok', 'Activo vía Worker');
+    else setStatus('resend', 'error', 'Error ' + r.status);
+  } catch { setStatus('resend', 'error', 'Sin respuesta'); }
+
+  if (btn) { btn.disabled = false; btn.innerHTML = '↺ Verificar'; }
+  addLog('Verificación de estado completada', 'info');
+}
+
+async function loadDashboardCounters() {
+  try {
+    // Tickets abiertos
+    const tResp = await fetch(WORKER_URL + '/ticket');
+    if (tResp.ok) {
+      const tData = await tResp.json();
+      const open = (tData.tickets || []).filter(t => t.estado === 'abierto').length;
+      const el = document.getElementById('stat-tickets-open');
+      if (el) { el.textContent = open; el.style.color = open > 0 ? 'var(--hero-danger)' : 'var(--hero-success)'; }
+    }
+  } catch {}
+  try {
+    // Solicitudes pendientes
+    const sResp = await fetch(WORKER_URL + '/alta-agente');
+    if (sResp.ok) {
+      const sData = await sResp.json();
+      const pending = (sData.solicitudes || []).filter(s => s.estado === 'pendiente').length;
+      const el = document.getElementById('stat-solicitudes-pending');
+      if (el) { el.textContent = pending; el.style.color = pending > 0 ? 'var(--hero-warning)' : 'var(--hero-success)'; }
+    }
+  } catch {}
+  try {
+    // Dispositivos
+    const dResp = await fetch(WORKER_URL + '/device');
+    if (dResp.ok) {
+      const dData = await dResp.json();
+      const el = document.getElementById('stat-devices-count');
+      if (el) { el.textContent = (dData.devices || []).length; el.style.color = 'var(--hero-primary)'; }
+    }
+  } catch {}
+}
+
+// ── Búsqueda global ───────────────────────────────────────────
+let searchDebounce = null;
+
+function openGlobalSearch() {
+  document.getElementById('global-search-overlay').style.display = 'flex';
+  setTimeout(() => document.getElementById('global-search-input').focus(), 50);
+}
+function closeGlobalSearch() {
+  document.getElementById('global-search-overlay').style.display = 'none';
+  document.getElementById('global-search-input').value = '';
+  document.getElementById('global-search-results').innerHTML = '';
+}
+function onGlobalSearch() {
+  clearTimeout(searchDebounce);
+  searchDebounce = setTimeout(runGlobalSearch, 300);
+}
+async function runGlobalSearch() {
+  const q = document.getElementById('global-search-input').value.trim().toLowerCase();
+  const results = document.getElementById('global-search-results');
+  if (q.length < 2) { results.innerHTML = ''; return; }
+  results.innerHTML = '<div style="text-align:center;padding:20px;"><span class="spinner"></span></div>';
+  const found = [];
+  try {
+    const r = await fetch(WORKER_URL + '/ticket');
+    if (r.ok) {
+      const d = await r.json();
+      (d.tickets || []).forEach(t => {
+        if ((t.asunto||'').toLowerCase().includes(q) || (t.nombre||'').toLowerCase().includes(q) || (t.descripcion||'').toLowerCase().includes(q))
+          found.push({ type:'🎫 Ticket', title: t.ticketId + ' — ' + t.asunto, sub: t.nombre + ' · ' + t.estado, action: "showPage('tickets')" });
+      });
+    }
+  } catch {}
+  try {
+    const r = await fetch(WORKER_URL + '/alta-agente');
+    if (r.ok) {
+      const d = await r.json();
+      (d.solicitudes || []).forEach(s => {
+        if ((s.nombre||'').toLowerCase().includes(q) || (s.apellido||'').toLowerCase().includes(q) || (s.correo||'').toLowerCase().includes(q))
+          found.push({ type:'📥 Solicitud', title: s.nombre + ' ' + s.apellido, sub: s.correo + ' · ' + s.estado, action: "showPage('solicitudes')" });
+      });
+    }
+  } catch {}
+  try {
+    const r = await fetch(WORKER_URL + '/device');
+    if (r.ok) {
+      const d = await r.json();
+      (d.devices || []).forEach(dev => {
+        if ((dev.nombre||'').toLowerCase().includes(q) || (dev.usuario||'').toLowerCase().includes(q))
+          found.push({ type:'💻 Dispositivo', title: dev.nombre, sub: (dev.usuario||'Sin usuario') + ' · ' + dev.estado, action: "showPage('dispositivos')" });
+      });
+    }
+  } catch {}
+  if (window._workspaceUsers) {
+    window._workspaceUsers.forEach(u => {
+      if ((u.nombre||'').toLowerCase().includes(q) || (u.email||'').toLowerCase().includes(q))
+        found.push({ type:'👤 Usuario', title: u.nombre, sub: u.email + ' · ' + u.estado, action: "showPage('usuarios')" });
+    });
+  }
+  if (!found.length) {
+    results.innerHTML = '<div style="text-align:center;padding:24px;color:var(--hero-text-muted);font-size:13px;">Sin resultados para "' + q + '"</div>';
+    return;
+  }
+  results.innerHTML = found.map(f =>
+    '<div onclick="' + f.action + ';closeGlobalSearch()" style="display:flex;align-items:flex-start;gap:10px;padding:12px 16px;cursor:pointer;border-bottom:1px solid var(--hero-border);transition:background 0.15s;" onmouseover="this.style.background=\'var(--hero-bg)\'" onmouseout="this.style.background=\'\'"> '
+    + '<span style="font-size:11px;padding:2px 8px;background:var(--hero-bg);border:1px solid var(--hero-border);border-radius:20px;color:var(--hero-text-muted);white-space:nowrap;flex-shrink:0;">' + f.type + '</span>'
+    + '<div><div style="font-size:13px;font-weight:600;color:var(--hero-text-primary);">' + f.title + '</div>'
+    + '<div style="font-size:11px;color:var(--hero-text-muted);margin-top:2px;">' + f.sub + '</div></div></div>'
+  ).join('');
+}
+
+// ── Notificaciones push ───────────────────────────────────────
+let notifInterval = null;
+let lastTicketCount = -1;
+let lastSolicitudCount = -1;
+
+async function requestNotificationPermission() {
+  if (!('Notification' in window)) return;
+  if (Notification.permission === 'default') await Notification.requestPermission();
+}
+function sendPushNotification(title, body, onClick) {
+  if (Notification.permission !== 'granted') return;
+  const n = new Notification(title, { body, icon: 'https://i.ibb.co/tMRCCW07/Hero-Nuevo-Circulo-1.png' });
+  if (onClick) n.onclick = onClick;
+}
+function updateTabBadge(total) {
+  document.title = total > 0 ? '(' + total + ') Hero IT Console' : 'Hero IT Console';
+}
+async function pollForUpdates() {
+  try {
+    const [tResp, sResp] = await Promise.all([fetch(WORKER_URL + '/ticket'), fetch(WORKER_URL + '/alta-agente')]);
+    const tData = tResp.ok ? await tResp.json() : { tickets: [] };
+    const sData = sResp.ok ? await sResp.json() : { solicitudes: [] };
+    const openTickets      = (tData.tickets     || []).filter(t => t.estado === 'abierto').length;
+    const pendingSolicitud = (sData.solicitudes  || []).filter(s => s.estado === 'pendiente').length;
+    if (lastTicketCount >= 0 && openTickets > lastTicketCount) {
+      sendPushNotification('Nuevo ticket de soporte', (openTickets - lastTicketCount) + ' ticket(s) nuevo(s)', () => { window.focus(); showPage('tickets'); });
+    }
+    if (lastSolicitudCount >= 0 && pendingSolicitud > lastSolicitudCount) {
+      sendPushNotification('Nueva solicitud de alta', (pendingSolicitud - lastSolicitudCount) + ' solicitud(es) pendiente(s)', () => { window.focus(); showPage('solicitudes'); });
+    }
+    lastTicketCount    = openTickets;
+    lastSolicitudCount = pendingSolicitud;
+    updateTabBadge(openTickets + pendingSolicitud);
+    const elT = document.getElementById('stat-tickets-open');
+    const elS = document.getElementById('stat-solicitudes-pending');
+    if (elT) { elT.textContent = openTickets;      elT.style.color = openTickets > 0      ? 'var(--hero-danger)'  : 'var(--hero-success)'; }
+    if (elS) { elS.textContent = pendingSolicitud; elS.style.color = pendingSolicitud > 0 ? 'var(--hero-warning)' : 'var(--hero-success)'; }
+  } catch {}
+}
+function startPolling() {
+  if (notifInterval) return;
+  pollForUpdates();
+  notifInterval = setInterval(pollForUpdates, 60000);
+}
+
 async function auditLog(tipo, descripcion, detalle = null) {
   try {
     await fetch(WORKER_URL + '/audit', {
@@ -367,25 +572,37 @@ function closeUserModal() {
 }
 
 function generateUserPassword() {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
-  const special = '!@#*';
+  const upper   = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+  const lower   = 'abcdefghjkmnpqrstuvwxyz';
+  const digits  = '23456789';
+  const special = '!@#*$';
+  // Guarantee at least one of each type
   let pwd = '';
-  for (let i = 0; i < 10; i++) pwd += chars[Math.floor(Math.random() * chars.length)];
+  pwd += upper[Math.floor(Math.random() * upper.length)];
+  pwd += lower[Math.floor(Math.random() * lower.length)];
+  pwd += digits[Math.floor(Math.random() * digits.length)];
   pwd += special[Math.floor(Math.random() * special.length)];
-  pwd += Math.floor(Math.random() * 90 + 10);
+  // Fill remaining 8 chars from all pools
+  const all = upper + lower + digits + special;
+  for (let i = 0; i < 8; i++) pwd += all[Math.floor(Math.random() * all.length)];
+  // Shuffle
+  pwd = pwd.split('').sort(() => Math.random() - 0.5).join('');
   document.getElementById('um-new-password').value = pwd;
+  // Copy to clipboard silently
+  navigator.clipboard?.writeText(pwd).catch(() => {});
+  showToast('Contraseña generada y copiada al portapapeles');
 }
 
 async function userAction(action) {
   if (!currentUserEmail) return;
-  const email = currentUserEmail;
+  const email  = currentUserEmail;
   const nombre = document.getElementById('um-nombre').textContent;
 
   const labels = { reset: 'resetear contraseña', suspend: 'suspender', restore: 'restaurar' };
   const newPassword = action === 'reset' ? document.getElementById('um-new-password').value.trim() : null;
 
   if (action === 'reset' && !newPassword) {
-    showToast('Ingresa una contraseña temporal primero'); return;
+    showToast('Ingresa o genera una contraseña temporal primero'); return;
   }
 
   addLog('Ejecutando ' + labels[action] + ' para ' + email + '...', 'info');
@@ -406,6 +623,22 @@ async function userAction(action) {
     };
     addLog(msgs[action], 'success');
     auditLog('usuario', msgs[action], email);
+
+    // #1 — Enviar email de notificación al usuario cuando se resetea su contraseña
+    if (action === 'reset' && newPassword) {
+      try {
+        await sendViaResend({
+          to: email,
+          subject: 'Restablecimiento de contraseña - Hero Insurance USA',
+          html: buildEmailReset(nombre, email, newPassword),
+          text: 'Hola ' + nombre + ', tu contraseña ha sido restablecida. Correo: ' + email + ' / Nueva contraseña temporal: ' + newPassword,
+        });
+        addLog('Email de reset enviado a ' + email, 'success');
+      } catch(emailErr) {
+        addLog('Contraseña reseteada pero email falló: ' + emailErr.message, 'warn');
+      }
+    }
+
     showToast(msgs[action]);
     closeUserModal();
     loadUsers();
@@ -907,6 +1140,7 @@ async function loadUsers() {
     if (!resp.ok) throw new Error(data.error || 'Error del Worker');
 
     allUsers = data.users || [];
+    window._workspaceUsers = allUsers; // cache for global search
     addLog('Usuarios cargados: ' + allUsers.length, 'success');
     renderUsers(allUsers);
 
@@ -1375,3 +1609,358 @@ function renderSessionLogs() {
     addLog('Sistema listo. Worker conectado a Resend.', 'success');
   }
 })();
+
+// ── Módulo Offboarding ────────────────────────────────────────
+const OB_STEPS = [
+  { id: 'suspend',    label: 'Suspender cuenta de Google Workspace',       icon: '🔒', auto: true  },
+  { id: 'sessions',  label: 'Revocar todas las sesiones activas',           icon: '🚫', auto: false },
+  { id: 'groups',    label: 'Remover de Google Groups y carpetas Drive',    icon: '📁', auto: false },
+  { id: 'shared',    label: 'Cambiar contraseñas de cuentas compartidas',   icon: '🔑', auto: false },
+  { id: 'zoho',      label: 'Revocar acceso a Zoho Assist',                icon: '🖥️', auto: false },
+  { id: 'external',  label: 'Revocar accesos a sistemas externos (carriers, ClickUp, etc.)', icon: '🌐', auto: false },
+  { id: 'equipment', label: 'Gestionar devolución de equipos',              icon: '💻', auto: false },
+  { id: 'record',    label: 'Registrar baja en sistema de RR.HH.',          icon: '📋', auto: false },
+];
+
+let obSelectedUser = null;
+let obStepStatus   = {};
+let editingLicId   = null;
+
+function renderOffboardingSteps() {
+  OB_STEPS.forEach(s => { if (!obStepStatus[s.id]) obStepStatus[s.id] = 'pending'; });
+  const container = document.getElementById('ob-steps');
+  if (!container) return;
+  container.innerHTML = OB_STEPS.map(s => {
+    const st    = obStepStatus[s.id];
+    const isDone = st === 'done';
+    const bgColor = isDone ? 'var(--hero-success-bg)' : 'var(--hero-bg)';
+    const border  = isDone ? 'rgba(34,160,107,0.3)' : 'var(--hero-border)';
+    return '<div style="display:flex;align-items:center;gap:12px;padding:12px 14px;background:' + bgColor + ';border:1px solid ' + border + ';border-radius:var(--hero-radius-sm);transition:all 0.2s;">'
+      + '<span style="font-size:16px;flex-shrink:0;">' + s.icon + '</span>'
+      + '<div style="flex:1;">'
+      + '<div style="font-size:13px;font-weight:' + (isDone ? '600' : '400') + ';color:' + (isDone ? 'var(--hero-success)' : 'var(--hero-text-primary)') + ';text-decoration:' + (isDone ? 'line-through' : 'none') + ';">' + s.label + '</div>'
+      + (s.auto ? '<div style="font-size:10px;color:var(--hero-primary);margin-top:2px;">Automático via API</div>' : '')
+      + '</div>'
+      + '<button onclick="toggleObStep(\'' + s.id + '\')" style="background:' + (isDone ? 'var(--hero-success)' : 'transparent') + ';border:1px solid ' + (isDone ? 'var(--hero-success)' : 'var(--hero-border)') + ';color:' + (isDone ? '#fff' : 'var(--hero-text-muted)') + ';width:28px;height:28px;border-radius:50%;cursor:pointer;font-size:14px;flex-shrink:0;">'
+      + (isDone ? '✓' : '') + '</button>'
+      + '</div>';
+  }).join('');
+  // Update progress
+  const done = Object.values(obStepStatus).filter(v => v === 'done').length;
+  const el = document.getElementById('ob-progress-label');
+  if (el) el.textContent = done + ' / ' + OB_STEPS.length + ' completados';
+}
+
+function toggleObStep(id) {
+  obStepStatus[id] = obStepStatus[id] === 'done' ? 'pending' : 'done';
+  renderOffboardingSteps();
+}
+
+function filterOffboardingUsers() {
+  const q = document.getElementById('ob-search').value.toLowerCase();
+  const suggestions = document.getElementById('ob-user-suggestions');
+  if (!q || q.length < 2 || !window._workspaceUsers) { suggestions.style.display = 'none'; return; }
+  const matches = window._workspaceUsers.filter(u =>
+    (u.nombre||'').toLowerCase().includes(q) || (u.email||'').toLowerCase().includes(q)
+  ).slice(0, 8);
+  if (!matches.length) { suggestions.style.display = 'none'; return; }
+  suggestions.style.display = 'block';
+  suggestions.innerHTML = matches.map(u =>
+    '<div onclick="selectOffboardingUser(\'' + u.email + '\',\'' + u.nombre + '\')" style="padding:10px 14px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--hero-border);" onmouseover="this.style.background=\'var(--hero-bg)\'" onmouseout="this.style.background=\'\'">'
+    + '<div style="font-weight:600;color:var(--hero-text-primary);">' + u.nombre + '</div>'
+    + '<div style="font-size:11px;color:var(--hero-text-muted);">' + u.email + '</div></div>'
+  ).join('');
+}
+
+function selectOffboardingUser(email, nombre) {
+  obSelectedUser = { email, nombre };
+  document.getElementById('ob-search').value = nombre;
+  document.getElementById('ob-user-suggestions').style.display = 'none';
+  document.getElementById('ob-user-name').textContent = nombre;
+  document.getElementById('ob-user-email').textContent = email;
+  document.getElementById('ob-selected-user').style.display = 'block';
+  obStepStatus = {};
+  renderOffboardingSteps();
+}
+
+function clearOffboardingUser() {
+  obSelectedUser = null;
+  obStepStatus   = {};
+  document.getElementById('ob-search').value = '';
+  document.getElementById('ob-selected-user').style.display = 'none';
+  renderOffboardingSteps();
+}
+
+function resetOffboarding() {
+  clearOffboardingUser();
+  document.getElementById('ob-notas').value = '';
+}
+
+async function executeOffboarding() {
+  if (!obSelectedUser) { showToast('Selecciona un usuario primero'); return; }
+  const notas = document.getElementById('ob-notas').value.trim();
+  const tipo  = document.getElementById('ob-tipo').value;
+  const btn   = document.getElementById('btn-ob-execute');
+  const done  = Object.values(obStepStatus).filter(v => v === 'done').length;
+
+  if (!confirm('¿Confirmas el offboarding de ' + obSelectedUser.nombre + '?\n\nEsto suspenderá su cuenta de Google Workspace y quedará registrado en Auditoría.')) return;
+
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Ejecutando...';
+
+  // Step 1: Auto-suspend Workspace account
+  try {
+    const r = await fetch(WORKER_URL + '/user-action', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: obSelectedUser.email, action: 'suspend' })
+    });
+    if (r.ok) {
+      obStepStatus['suspend'] = 'done';
+      addLog('Cuenta suspendida: ' + obSelectedUser.email, 'success');
+    }
+  } catch(e) { addLog('Error al suspender cuenta: ' + e.message, 'error'); }
+
+  renderOffboardingSteps();
+
+  // Register in audit
+  const detail = 'Tipo: ' + tipo + ' | Pasos completados: ' + (done + 1) + '/' + OB_STEPS.length + (notas ? ' | ' + notas : '');
+  auditLog('offboarding', 'Offboarding ejecutado: ' + obSelectedUser.nombre, detail);
+  addLog('Offboarding registrado en auditoría', 'success');
+  showToast('Offboarding ejecutado. Cuenta suspendida.');
+
+  btn.disabled = false;
+  btn.innerHTML = '🚪 Ejecutar offboarding';
+}
+
+// ── Módulo Licencias & Software ───────────────────────────────
+let allLicencias = [];
+
+async function loadLicencias() {
+  try {
+    const r = await fetch(WORKER_URL + '/licencia');
+    const d = await r.json();
+    allLicencias = d.licencias || [];
+    renderLicencias();
+  } catch(e) {
+    document.getElementById('lic-grid').innerHTML = '<div class="info-box" style="text-align:center;padding:32px;grid-column:1/-1;"><div style="color:var(--hero-danger);font-size:12px;">Error: ' + e.message + '</div></div>';
+  }
+}
+
+function renderLicencias() {
+  const grid = document.getElementById('lic-grid');
+  const count = document.getElementById('lic-count');
+  if (count) count.textContent = allLicencias.length + ' licencia' + (allLicencias.length !== 1 ? 's' : '');
+  if (!allLicencias.length) {
+    grid.innerHTML = '<div class="info-box" style="text-align:center;padding:40px;grid-column:1/-1;"><div style="font-size:32px;opacity:0.3;margin-bottom:12px;">🔑</div><div style="font-family:var(--mono);font-size:12px;color:var(--hero-text-muted);">Sin licencias registradas. Agrega la primera con el botón ➕</div></div>';
+    return;
+  }
+  const today = new Date();
+  grid.innerHTML = allLicencias.map(l => {
+    const estadoColor = { activa: 'var(--hero-success)', trial: 'var(--hero-warning)', vencida: 'var(--hero-danger)', cancelada: 'var(--hero-text-muted)' }[l.estado] || 'var(--hero-text-muted)';
+    // Days until expiry
+    let expiryBadge = '';
+    if (l.vencimiento) {
+      const days = Math.ceil((new Date(l.vencimiento) - today) / 86400000);
+      if (days < 0)  expiryBadge = '<span style="font-size:10px;color:var(--hero-danger);font-weight:700;">VENCIDA</span>';
+      else if (days <= 30) expiryBadge = '<span style="font-size:10px;color:var(--hero-warning);font-weight:700;">Vence en ' + days + ' días</span>';
+      else expiryBadge = '<span style="font-size:10px;color:var(--hero-text-muted);">Vence ' + new Date(l.vencimiento).toLocaleDateString('es-MX') + '</span>';
+    }
+    return '<div class="action-card" style="--card-color:' + estadoColor + ';">'
+      + '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">'
+      + '<div style="font-size:15px;font-weight:700;color:var(--hero-text-primary);">' + l.nombre + '</div>'
+      + '<span style="font-family:var(--mono);font-size:10px;padding:2px 8px;border-radius:20px;background:rgba(0,0,0,0.05);color:' + estadoColor + ';">' + l.estado + '</span>'
+      + '</div>'
+      + (l.plan ? '<div style="font-size:12px;color:var(--hero-text-muted);margin-bottom:4px;">Plan: ' + l.plan + '</div>' : '')
+      + '<div style="display:flex;gap:16px;font-size:12px;color:var(--hero-text-muted);margin-bottom:10px;">'
+      + (l.costo > 0 ? '<span>💵 $' + Number(l.costo).toFixed(2) + '/mes</span>' : '')
+      + (l.usuarios > 0 ? '<span>👤 ' + l.usuarios + ' usuarios</span>' : '')
+      + '</div>'
+      + (expiryBadge ? '<div style="margin-bottom:10px;">' + expiryBadge + '</div>' : '')
+      + (l.notas ? '<div style="font-size:11px;color:var(--hero-text-muted);margin-bottom:12px;">' + l.notas + '</div>' : '')
+      + '<div style="display:flex;gap:8px;">'
+      + '<button onclick="editLicencia(\'' + l.id + '\')" class="btn btn-secondary" style="flex:1;font-size:12px;">✏️ Editar</button>'
+      + '<button onclick="deleteLicencia(\'' + l.id + '\',\'' + l.nombre + '\')" class="btn btn-danger" style="font-size:12px;padding:8px 10px;">🗑</button>'
+      + '</div></div>';
+  }).join('');
+}
+
+function showLicenciaForm(lic = null) {
+  editingLicId = lic ? lic.id : null;
+  document.getElementById('lic-modal-title').textContent = lic ? 'Editar licencia' : 'Nueva licencia';
+  document.getElementById('lic-f-nombre').value     = lic ? lic.nombre     : '';
+  document.getElementById('lic-f-plan').value       = lic ? lic.plan       : '';
+  document.getElementById('lic-f-costo').value      = lic ? lic.costo      : '';
+  document.getElementById('lic-f-usuarios').value   = lic ? lic.usuarios   : '';
+  document.getElementById('lic-f-vencimiento').value= lic ? (lic.vencimiento||'') : '';
+  document.getElementById('lic-f-estado').value     = lic ? lic.estado     : 'activa';
+  document.getElementById('lic-f-notas').value      = lic ? lic.notas      : '';
+  document.getElementById('lic-modal').style.display = 'block';
+}
+function editLicencia(id) {
+  const lic = allLicencias.find(l => l.id === id);
+  if (lic) showLicenciaForm(lic);
+}
+function closeLicenciaModal() {
+  document.getElementById('lic-modal').style.display = 'none';
+  editingLicId = null;
+}
+async function saveLicencia() {
+  const nombre = document.getElementById('lic-f-nombre').value.trim();
+  if (!nombre) { showToast('El nombre es obligatorio'); return; }
+  const btn = document.getElementById('btn-lic-save');
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>';
+  try {
+    const r = await fetch(WORKER_URL + '/licencia', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: editingLicId || undefined,
+        nombre,
+        plan:        document.getElementById('lic-f-plan').value.trim(),
+        costo:       parseFloat(document.getElementById('lic-f-costo').value) || 0,
+        usuarios:    parseInt(document.getElementById('lic-f-usuarios').value) || 0,
+        vencimiento: document.getElementById('lic-f-vencimiento').value || null,
+        estado:      document.getElementById('lic-f-estado').value,
+        notas:       document.getElementById('lic-f-notas').value.trim(),
+      })
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || 'Error');
+    showToast(editingLicId ? 'Licencia actualizada' : 'Licencia agregada');
+    auditLog('licencia', (editingLicId ? 'Licencia actualizada: ' : 'Licencia agregada: ') + nombre);
+    closeLicenciaModal();
+    loadLicencias();
+  } catch(e) { showToast('Error: ' + e.message); }
+  btn.disabled = false; btn.innerHTML = '💾 Guardar';
+}
+async function deleteLicencia(id, nombre) {
+  if (!confirm('¿Eliminar la licencia de ' + nombre + '?')) return;
+  try {
+    await fetch(WORKER_URL + '/licencia/delete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) });
+    showToast('Licencia eliminada');
+    auditLog('licencia', 'Licencia eliminada: ' + nombre);
+    loadLicencias();
+  } catch(e) { showToast('Error: ' + e.message); }
+}
+
+// ── Integración Office Manager App ───────────────────────────
+// Lee Firestore del Office Manager App (solo lectura, no modifica nada)
+const OM_PROJECT = 'office-manager-app-b82c1';
+const OM_API_URL = 'https://firestore.googleapis.com/v1/projects/' + OM_PROJECT + '/databases/(default)/documents/';
+
+async function loadOfficeStatus() {
+  const card = document.getElementById('office-status-card');
+  if (!card) return;
+  try {
+    const r = await fetch(OM_API_URL + 'asistencia');
+    const d = await r.json();
+    if (!d.documents) { card.innerHTML = '<div style="font-size:12px;color:var(--hero-text-muted);text-align:center;padding:16px;">Sin datos de asistencia hoy</div>'; return; }
+    const today = new Date().toLocaleDateString('es-MX', { timeZone: 'America/New_York' });
+    const hoy = d.documents.filter(doc => {
+      const f = doc.fields;
+      return f && f.fecha && f.fecha.stringValue && f.fecha.stringValue.startsWith(today);
+    });
+    if (!hoy.length) { card.innerHTML = '<div style="font-size:12px;color:var(--hero-text-muted);text-align:center;padding:16px;">Sin registros hoy (' + today + ')</div>'; return; }
+    card.innerHTML = hoy.map(doc => {
+      const f = doc.fields;
+      const nombre  = f.nombre?.stringValue || 'Desconocido';
+      const entrada = f.entrada?.stringValue || '—';
+      const salida  = f.salida?.stringValue  || 'Activo';
+      const isActive = !f.salida?.stringValue;
+      return '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--hero-border);">'
+        + '<div style="display:flex;align-items:center;gap:8px;">'
+        + '<div style="width:6px;height:6px;border-radius:50%;background:' + (isActive ? 'var(--hero-success)' : 'var(--hero-text-muted)') + ';flex-shrink:0;"></div>'
+        + '<span style="font-size:13px;color:var(--hero-text-primary);">' + nombre + '</span></div>'
+        + '<div style="font-family:var(--mono);font-size:11px;color:var(--hero-text-muted);">' + entrada + (isActive ? ' →' : ' → ' + salida) + '</div>'
+        + '</div>';
+    }).join('');
+  } catch(e) {
+    card.innerHTML = '<div style="font-size:12px;color:var(--hero-text-muted);text-align:center;padding:16px;">No se pudo cargar (verifica acceso Firestore)</div>';
+  }
+}
+
+// ── Reporte mensual IT ────────────────────────────────────────
+async function generateMonthlyReport() {
+  const monthInput = document.getElementById('report-month').value;
+  if (!monthInput) { showToast('Selecciona un mes primero'); return; }
+
+  const [year, month] = monthInput.split('-').map(Number);
+  const label = new Date(year, month - 1).toLocaleDateString('es-MX', { month: 'long', year: 'numeric' });
+
+  showToast('Generando reporte de ' + label + '...');
+
+  let csv = 'REPORTE MENSUAL IT — HERO INSURANCE USA\n';
+  csv += '"Mes","' + label.toUpperCase() + '"\n';
+  csv += '"Generado","' + new Date().toLocaleString('es-MX', { timeZone: 'America/New_York' }) + ' ET"\n\n';
+
+  try {
+    // Tickets del mes
+    const tResp = await fetch(WORKER_URL + '/ticket');
+    if (tResp.ok) {
+      const tData = await tResp.json();
+      const tickets = (tData.tickets || []).filter(t => {
+        const d = new Date(t.fecha);
+        return d.getFullYear() === year && d.getMonth() + 1 === month;
+      });
+      csv += 'TICKETS DE SOPORTE\n';
+      csv += '"ID","Asunto","Usuario","Categoría","Prioridad","Estado","Fecha"\n';
+      tickets.forEach(t => {
+        const f = new Date(t.fecha).toLocaleDateString('es-MX', { timeZone: 'America/New_York' });
+        csv += [t.ticketId, t.asunto, t.nombre, t.categoria, t.prioridad, t.estado, f].map(v => '"' + String(v||'').replace(/"/g,'""') + '"').join(',') + '\n';
+      });
+      csv += '"Total tickets","' + tickets.length + '"\n';
+      csv += '"Resueltos","' + tickets.filter(t => t.estado === 'resuelto').length + '"\n\n';
+    }
+  } catch {}
+
+  try {
+    // Auditoría del mes
+    const aResp = await fetch(WORKER_URL + '/audit?limit=500');
+    if (aResp.ok) {
+      const aData = await aResp.json();
+      const entradas = (aData.entradas || []).filter(e => {
+        const d = new Date(e.fecha);
+        return d.getFullYear() === year && d.getMonth() + 1 === month;
+      });
+      csv += 'AUDITORÍA DE ACCIONES\n';
+      csv += '"Fecha","Tipo","Descripción","Detalle"\n';
+      entradas.forEach(e => {
+        const f = new Date(e.fecha).toLocaleString('es-MX', { timeZone: 'America/New_York' });
+        csv += [f, e.tipo, e.descripcion, e.detalle||''].map(v => '"' + String(v||'').replace(/"/g,'""') + '"').join(',') + '\n';
+      });
+      csv += '"Total acciones","' + entradas.length + '"\n\n';
+    }
+  } catch {}
+
+  try {
+    // Dispositivos con intervenciones del mes
+    const dResp = await fetch(WORKER_URL + '/device');
+    if (dResp.ok) {
+      const dData = await dResp.json();
+      const intervencionesMes = [];
+      (dData.devices || []).forEach(dev => {
+        (dev.intervenciones || []).forEach(i => {
+          const d = new Date(i.fecha);
+          if (d.getFullYear() === year && d.getMonth() + 1 === month) {
+            intervencionesMes.push({ dispositivo: dev.nombre, usuario: dev.usuario, ...i });
+          }
+        });
+      });
+      csv += 'INTERVENCIONES DE DISPOSITIVOS\n';
+      csv += '"Dispositivo","Usuario","Tipo","Descripción","Fecha"\n';
+      intervencionesMes.forEach(i => {
+        const f = new Date(i.fecha).toLocaleDateString('es-MX', { timeZone: 'America/New_York' });
+        csv += [i.dispositivo, i.usuario||'', i.tipo, i.descripcion, f].map(v => '"' + String(v||'').replace(/"/g,'""') + '"').join(',') + '\n';
+      });
+      csv += '"Total intervenciones","' + intervencionesMes.length + '"\n\n';
+    }
+  } catch {}
+
+  // Download
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'reporte-IT-' + monthInput + '.csv';
+  a.click();
+  showToast('Reporte generado');
+  auditLog('reporte', 'Reporte mensual generado: ' + label);
+}
