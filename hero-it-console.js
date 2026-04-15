@@ -1049,104 +1049,257 @@ async function guardarTicket() {
 }
 
 // ── Módulo Solicitudes de Alta ────────────────────────────────
+let allSolicitudes = [];
+let solFilter = 'all';
+let solModalData = null;
+
+function setSolFilter(filter) {
+  solFilter = filter;
+  document.querySelectorAll('.sol-filter-chip').forEach(c => {
+    c.classList.toggle('active', c.dataset.filter === filter);
+  });
+  renderSolicitudes();
+}
+
 async function loadSolicitudes() {
   const btn = document.getElementById('btn-load-sol');
-  btn.disabled = true;
-  btn.innerHTML = '<span class="spinner"></span> Cargando...';
-
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>'; }
   try {
     const resp = await fetch(WORKER_URL + '/alta-agente');
     const data = await resp.json();
-    if (!resp.ok) throw new Error(data.error || 'Error del Worker');
-
-    const solicitudes = data.solicitudes || [];
-    document.getElementById('sol-count').textContent =
-      solicitudes.length + ' solicitud' + (solicitudes.length !== 1 ? 'es' : '');
-
-    const container = document.getElementById('sol-list');
-
-    if (!solicitudes.length) {
-      container.innerHTML = '<div class="info-box" style="text-align:center;padding:40px;">' +
-        '<div style="font-size:32px;opacity:0.3;margin-bottom:12px;">📭</div>' +
-        '<div style="font-family:var(--mono);font-size:12px;color:var(--hero-text-muted);">Sin solicitudes pendientes</div></div>';
-      return;
-    }
-
-    container.innerHTML = solicitudes.map(s => {
-      const fecha = new Date(s.fecha).toLocaleString('es-MX', {
-        timeZone: 'America/New_York', year:'numeric', month:'short',
-        day:'numeric', hour:'2-digit', minute:'2-digit'
-      });
-      const estadoColor = s.estado === 'pendiente' ? 'var(--hero-warning)' : 'var(--hero-success)';
-      const estadoBg    = s.estado === 'pendiente' ? 'rgba(232,163,23,0.1)' : 'rgba(34,160,107,0.1)';
-
-      return '<div class="action-card" style="margin-bottom:12px; --card-color:' +
-        (s.estado === 'pendiente' ? 'var(--hero-warning)' : 'var(--hero-success)') + '">' +
-        '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">' +
-          '<div>' +
-            '<div style="font-size:14px;font-weight:600;color:var(--hero-text-primary);">' + s.nombre + ' ' + s.apellido + '</div>' +
-            '<div style="font-family:var(--mono);font-size:11px;color:var(--hero-primary);margin-top:2px;">' + s.correo + '</div>' +
-          '</div>' +
-          '<span style="font-family:var(--mono);font-size:10px;padding:3px 10px;border-radius:20px;background:' + estadoBg + ';color:' + estadoColor + ';">' + s.estado + '</span>' +
-        '</div>' +
-        '<div style="font-size:12px;color:var(--hero-text-body);margin-bottom:8px;">' +
-          '<span style="color:var(--hero-text-muted);">Solicitado por: </span>' +
-          '<strong style="color:var(--hero-text-primary);">' + (s.solicitanteNombre || 'No especificado') + '</strong>' +
-          (s.solicitanteEmail ? ' &nbsp;<span style="font-family:var(--mono);font-size:11px;color:var(--hero-primary);">(' + s.solicitanteEmail + ')</span>' : '') +
-        '</div>' +
-        '<div style="display:flex;gap:16px;font-size:12px;color:var(--hero-text-body);margin-bottom:14px;">' +
-          '<span>📞 ' + s.telefono + '</span>' +
-          '<span>🕐 ' + fecha + ' ET</span>' +
-        '</div>' +
-        (s.estado === 'pendiente' ?
-          '<div style="display:flex;gap:8px;">' +
-            '<button class="btn btn-primary" onclick="procesarAlta(\'' + s.id + '\',\'' + s.nombre + '\',\'' + s.apellido + '\',\'' + s.correo + '\',\'' + (s.solicitanteEmail||'') + '\',\'' + (s.solicitanteNombre||'') + '\')" style="font-size:12px;">➕ Crear usuario</button>' +
-            '<button class="btn btn-secondary" onclick="resolverSolicitud(\'' + s.id + '\', \'procesada\')" style="font-size:12px;">✓ Marcar procesada</button>' +
-          '</div>'
-        : '') +
-      '</div>';
-    }).join('');
-
-  } catch (err) {
+    if (!resp.ok) throw new Error(data.error || 'Error');
+    allSolicitudes = data.solicitudes || [];
+    updateSolStats();
+    renderSolicitudes();
+  } catch(err) {
     document.getElementById('sol-list').innerHTML =
-      '<div class="info-box" style="text-align:center;padding:32px;border-color:rgba(214,69,69,0.3);">' +
-      '<div style="color:var(--hero-error);font-family:var(--mono);font-size:12px;">Error: ' + err.message + '</div></div>';
+      '<div class="info-box" style="text-align:center;padding:32px;border-color:rgba(214,69,69,0.3);">'
+      + '<div style="color:var(--hero-danger);font-size:12px;">Error: ' + err.message + '</div></div>';
+  }
+  if (btn) { btn.disabled = false; btn.innerHTML = '↺ Actualizar'; }
+}
+
+function updateSolStats() {
+  const total   = allSolicitudes.length;
+  const pending = allSolicitudes.filter(s => s.estado === 'pendiente').length;
+  const done    = total - pending;
+  const elT = document.getElementById('sol-stat-total');
+  const elP = document.getElementById('sol-stat-pending');
+  const elD = document.getElementById('sol-stat-done');
+  if (elT) elT.textContent = total;
+  if (elP) elP.textContent = pending;
+  if (elD) elD.textContent = done;
+}
+
+function renderSolicitudes() {
+  const q = (document.getElementById('sol-search')?.value || '').toLowerCase();
+  let filtered = allSolicitudes;
+  if (solFilter !== 'all') filtered = filtered.filter(s => s.estado === solFilter);
+  if (q) filtered = filtered.filter(s =>
+    (s.nombre||'').toLowerCase().includes(q) ||
+    (s.apellido||'').toLowerCase().includes(q) ||
+    (s.correo||'').toLowerCase().includes(q) ||
+    (s.solicitanteNombre||'').toLowerCase().includes(q)
+  );
+
+  const countEl = document.getElementById('sol-count');
+  if (countEl) countEl.textContent = filtered.length + ' resultado' + (filtered.length !== 1 ? 's' : '');
+
+  const container = document.getElementById('sol-list');
+  if (!filtered.length) {
+    container.innerHTML = '<div class="info-box" style="text-align:center;padding:40px;">'
+      + '<div style="font-size:32px;opacity:0.3;margin-bottom:12px;">📭</div>'
+      + '<div style="font-size:12px;color:var(--hero-text-muted);">Sin solicitudes con estos filtros</div></div>';
+    return;
   }
 
-  btn.disabled = false;
-  btn.innerHTML = '↺ Actualizar';
+  container.innerHTML = filtered.map(s => {
+    const fecha = new Date(s.fecha).toLocaleString('es-MX', {
+      timeZone:'America/New_York', year:'numeric', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'
+    });
+    const isPending = s.estado === 'pendiente';
+    const estadoColor = isPending ? 'var(--hero-warning)' : 'var(--hero-success)';
+    const estadoBg    = isPending ? 'rgba(232,163,23,0.1)' : 'rgba(34,160,107,0.1)';
+
+    // Elapsed time
+    const elapsed = getElapsedTime(s.fecha);
+    const elColor = getElapsedColor(s.fecha, isPending ? 'abierto' : 'resuelto');
+
+    return '<div class="action-card" style="margin-bottom:12px;--card-color:' + (isPending ? 'var(--hero-warning)' : 'var(--hero-success)') + ';">'
+      + '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">'
+      + '<div>'
+      + '<div style="font-size:15px;font-weight:600;color:var(--hero-text-primary);">' + s.nombre + ' ' + s.apellido + '</div>'
+      + '<div style="font-family:var(--mono);font-size:11px;color:var(--hero-primary);margin-top:2px;">' + s.correo + '</div>'
+      + '</div>'
+      + '<div style="display:flex;align-items:center;gap:8px;">'
+      + '<span style="font-family:var(--mono);font-size:10px;color:' + elColor + ';">⏱ ' + elapsed + '</span>'
+      + '<span style="font-family:var(--mono);font-size:10px;padding:3px 10px;border-radius:20px;background:' + estadoBg + ';color:' + estadoColor + ';">' + s.estado + '</span>'
+      + '</div>'
+      + '</div>'
+      + '<div style="font-size:12px;color:var(--hero-text-body);margin-bottom:6px;">'
+      + '<span style="color:var(--hero-text-muted);">Solicitado por: </span>'
+      + '<strong>' + (s.solicitanteNombre || 'No especificado') + '</strong>'
+      + (s.solicitanteEmail ? ' <span style="font-family:var(--mono);font-size:11px;color:var(--hero-primary);">(' + s.solicitanteEmail + ')</span>' : '')
+      + '</div>'
+      + '<div style="display:flex;gap:16px;font-size:12px;color:var(--hero-text-muted);margin-bottom:14px;">'
+      + '<span>📞 ' + s.telefono + '</span>'
+      + '<span>🕐 ' + fecha + ' ET</span>'
+      + '</div>'
+      + (isPending
+        ? '<div style="display:flex;gap:8px;">'
+          + '<button class="btn btn-primary" onclick="openSolModal(\'' + s.id + '\')" style="font-size:12px;flex:1;">➕ Crear usuario</button>'
+          + '<button class="btn btn-secondary" onclick="rechazarSolicitud(\'' + s.id + '\',\'' + (s.solicitanteEmail||'') + '\',\'' + (s.solicitanteNombre||'') + '\',\'' + s.nombre + ' ' + s.apellido + '\')" style="font-size:12px;">✗ Rechazar</button>'
+          + '<button class="btn btn-secondary" onclick="resolverSolicitud(\'' + s.id + '\',\'procesada\')" style="font-size:12px;">✓ Marcar procesada</button>'
+          + '</div>'
+        : '')
+      + '</div>';
+  }).join('');
 }
 
 async function resolverSolicitud(id, estado) {
   try {
     await fetch(WORKER_URL + '/alta-agente/resolver', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id, estado })
     });
     showToast('Solicitud marcada como ' + estado);
+    auditLog('solicitud', 'Solicitud marcada como ' + estado, id);
     loadSolicitudes();
-  } catch (err) {
-    showToast('Error: ' + err.message);
+  } catch(err) { showToast('Error: ' + err.message); }
+}
+
+async function rechazarSolicitud(id, solEmail, solNombre, agente) {
+  if (!confirm('¿Rechazar la solicitud de alta para ' + agente + '?\n\nSe notificará al solicitante.')) return;
+  try {
+    await fetch(WORKER_URL + '/alta-agente/resolver', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, estado: 'rechazada' })
+    });
+    // Notify solicitante if email available
+    if (solEmail) {
+      await sendViaResend({
+        to: solEmail,
+        subject: 'Solicitud de alta no procesada — ' + agente,
+        html: '<div style="font-family:Trebuchet MS,Arial,sans-serif;max-width:600px;background:#f0f4f8;padding:32px 16px;">'
+          + '<div style="background:#fff;border-radius:16px;overflow:hidden;">'
+          + '<div style="background:linear-gradient(135deg,#06a3b6,#048395);padding:24px 32px;">'
+          + '<img src="https://i.ibb.co/tMRCCW07/Hero-Nuevo-Circulo-1.png" width="48" style="border-radius:50%;display:block;margin:0 auto 12px;"/>'
+          + '<h2 style="color:#fff;margin:0;text-align:center;font-size:18px;">Solicitud no procesada</h2></div>'
+          + '<div style="padding:24px 32px;">'
+          + '<p style="font-size:14px;color:#444;">Hola <strong>' + (solNombre||'') + '</strong>, la solicitud de alta para <strong>' + agente + '</strong> no pudo ser procesada en este momento.</p>'
+          + '<p style="font-size:13px;color:#777;">Si tienes dudas, comunícate con el equipo de IT.</p>'
+          + '</div></div></div>',
+        text: 'La solicitud de alta para ' + agente + ' no pudo ser procesada.'
+      });
+    }
+    showToast('Solicitud rechazada' + (solEmail ? ' — solicitante notificado' : ''));
+    auditLog('solicitud', 'Solicitud rechazada: ' + agente, solEmail || 'sin email');
+    loadSolicitudes();
+  } catch(err) { showToast('Error: ' + err.message); }
+}
+
+// ── Modal crear usuario desde solicitud ──────────────────────
+function openSolModal(id) {
+  const s = allSolicitudes.find(x => x.id === id);
+  if (!s) return;
+  solModalData = s;
+  document.getElementById('sol-modal-nombre').textContent = s.nombre + ' ' + s.apellido;
+  document.getElementById('sol-modal-solicitante').textContent = s.solicitanteNombre || 'No especificado';
+  document.getElementById('sol-modal-solicitante-email').textContent = s.solicitanteEmail || '';
+  document.getElementById('sm-nombre').value   = s.nombre;
+  document.getElementById('sm-apellido').value = s.apellido;
+  // Suggest email
+  const sugerido = (s.nombre.charAt(0) + s.apellido).toLowerCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/\s/g,'');
+  document.getElementById('sm-email-user').value = sugerido;
+  document.getElementById('sm-email-preview').textContent = sugerido + '@heroinsuranceusa.com';
+  document.getElementById('sm-password').value = '';
+  document.getElementById('sol-modal').style.display = 'block';
+}
+
+function closeSolModal() {
+  document.getElementById('sol-modal').style.display = 'none';
+  solModalData = null;
+}
+
+function previewSolEmail() {
+  const user = document.getElementById('sm-email-user').value.trim();
+  const prev = document.getElementById('sm-email-preview');
+  if (prev) prev.textContent = user ? user + '@heroinsuranceusa.com' : '';
+}
+
+function generateSolPassword() {
+  const upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+  const lower = 'abcdefghjkmnpqrstuvwxyz';
+  const digits = '23456789';
+  const special = '!@#*$';
+  let pwd = upper[Math.floor(Math.random()*upper.length)]
+    + lower[Math.floor(Math.random()*lower.length)]
+    + digits[Math.floor(Math.random()*digits.length)]
+    + special[Math.floor(Math.random()*special.length)];
+  const all = upper + lower + digits + special;
+  for (let i = 0; i < 8; i++) pwd += all[Math.floor(Math.random()*all.length)];
+  pwd = pwd.split('').sort(() => Math.random()-0.5).join('');
+  document.getElementById('sm-password').value = pwd;
+  navigator.clipboard?.writeText(pwd).catch(()=>{});
+  showToast('Contraseña generada y copiada');
+}
+
+async function crearUsuarioDesdeModal() {
+  if (!solModalData) return;
+  const nombre   = document.getElementById('sm-nombre').value.trim();
+  const apellido = document.getElementById('sm-apellido').value.trim();
+  const emailUser= document.getElementById('sm-email-user').value.trim();
+  const password = document.getElementById('sm-password').value.trim();
+
+  if (!nombre || !apellido || !emailUser || !password) {
+    showToast('Completa todos los campos'); return;
   }
+
+  const email = emailUser + '@heroinsuranceusa.com';
+  const btn   = document.getElementById('btn-sm-crear');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Creando...';
+
+  try {
+    // Create user in Workspace
+    const resp = await fetch(WORKER_URL + '/create-user', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        nombre, apellido, email, password,
+        solicitanteEmail: solModalData.solicitanteEmail || null,
+        solicitanteNombre: solModalData.solicitanteNombre || null,
+      })
+    });
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || 'Error al crear usuario');
+
+    // Mark solicitud as processed
+    await resolverSolicitud(solModalData.id, 'procesada');
+
+    // Send onboarding email
+    await sendViaResend({
+      to: solModalData.correo,
+      subject: 'Bienvenido(a) a Hero Insurance USA - Acceso de Agente',
+      html: buildEmailAgente(nombre + ' ' + apellido, email, password),
+      text: 'Bienvenido ' + nombre + '. Tu correo: ' + email,
+    });
+
+    addLog('Usuario creado: ' + email, 'success');
+    auditLog('usuario', 'Usuario creado desde solicitud: ' + nombre + ' ' + apellido, email);
+    showToast('Usuario creado y solicitante notificado');
+    closeSolModal();
+    loadSolicitudes();
+  } catch(err) {
+    showToast('Error: ' + err.message);
+    addLog('Error: ' + err.message, 'error');
+  }
+  btn.disabled = false;
+  btn.innerHTML = '✓ Crear usuario y notificar';
 }
 
 function procesarAlta(id, nombre, apellido, correo, solicitanteEmail, solicitanteNombre) {
-  // Pre-llenar el formulario de Crear Usuario con los datos de la solicitud
-  showPage('crear-usuario');
-  document.getElementById('new-nombre').value = nombre;
-  document.getElementById('new-apellido').value = apellido;
-  document.getElementById('new-email-personal').value = correo;
-  // Sugerir email corporativo
-  const sugerido = (nombre.charAt(0) + apellido).toLowerCase()
-    .normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s/g,'');
-  document.getElementById('new-email-user').value = sugerido;
-  previewEmail();
-  showToast('Datos cargados desde solicitud de alta');
-  // Guardar datos para usar al crear el usuario
-  window._altaId = id;
-  window._altaSolicitanteEmail = solicitanteEmail || null;
-  window._altaSolicitanteNombre = solicitanteNombre || null;
+  openSolModal(id);
 }
 
 // ── Módulo Crear Usuario ──────────────────────────────────────

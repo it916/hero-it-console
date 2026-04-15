@@ -596,6 +596,26 @@ nav { padding: 12px; flex: 1; }
   overflow-y: auto;
   overflow-x: hidden;
 }
+/* ── Solicitudes filter chips ────────────────────────────── */
+.sol-filter-chip {
+  padding: 5px 14px;
+  border-radius: 20px;
+  border: 1px solid var(--hero-border);
+  background: transparent;
+  color: var(--hero-text-muted);
+  font-size: 12px;
+  font-family: var(--hero-font);
+  cursor: pointer;
+  transition: var(--hero-transition);
+}
+.sol-filter-chip:hover { background: var(--hero-bg); color: var(--hero-text-primary); }
+.sol-filter-chip.active {
+  background: var(--hero-primary-light);
+  border-color: rgba(6,163,182,0.4);
+  color: var(--hero-primary);
+  font-weight: 600;
+}
+
 html { scroll-behavior: smooth; }
 
 /* ── Kanban ──────────────────────────────────────────────── */
@@ -1200,14 +1220,95 @@ html { scroll-behavior: smooth; }
         <div class="section-title"><span>//</span> Solicitudes de <span>Alta</span></div>
         <div class="section-desc">Solicitudes enviadas desde el formulario de Alta de Agente.</div>
       </div>
+
+      <!-- Stats row -->
+      <div class="stats-row" style="margin-bottom:16px;">
+        <div class="stat-chip">
+          <div class="stat-value" id="sol-stat-total" style="color:var(--hero-primary);">—</div>
+          <div class="stat-label">Total</div>
+        </div>
+        <div class="stat-chip">
+          <div class="stat-value" id="sol-stat-pending" style="color:var(--hero-warning);">—</div>
+          <div class="stat-label">Pendientes</div>
+        </div>
+        <div class="stat-chip">
+          <div class="stat-value" id="sol-stat-done" style="color:var(--hero-success);">—</div>
+          <div class="stat-label">Procesadas</div>
+        </div>
+      </div>
+
+      <!-- Toolbar -->
       <div style="display:flex;gap:10px;margin-bottom:16px;align-items:center;flex-wrap:wrap;">
-        <button class="btn btn-primary" onclick="loadSolicitudes()" id="btn-load-sol">↺ Actualizar</button>
+        <button class="btn btn-secondary" onclick="loadSolicitudes()" id="btn-load-sol" style="font-size:12px;">↺ Actualizar</button>
+        <!-- Filter chips -->
+        <div style="display:flex;gap:6px;">
+          <button class="sol-filter-chip active" data-filter="all"       onclick="setSolFilter('all')">Todas</button>
+          <button class="sol-filter-chip"        data-filter="pendiente" onclick="setSolFilter('pendiente')">Pendientes</button>
+          <button class="sol-filter-chip"        data-filter="procesada" onclick="setSolFilter('procesada')">Procesadas</button>
+        </div>
+        <input class="form-input" id="sol-search" type="text" placeholder="Buscar agente o solicitante..."
+          oninput="renderSolicitudes()" style="max-width:240px;padding:7px 12px;font-size:12px;margin-left:auto;"/>
         <span id="sol-count" style="font-family:var(--mono);font-size:11px;color:var(--hero-text-muted);"></span>
       </div>
+
       <div id="sol-list">
         <div class="info-box" style="text-align:center;padding:40px;">
           <div style="font-size:32px;opacity:0.3;margin-bottom:12px;">📥</div>
-          <div style="font-family:var(--mono);font-size:12px;color:var(--hero-text-muted);">Presiona "Actualizar" para cargar las solicitudes</div>
+          <div style="font-family:var(--mono);font-size:12px;color:var(--hero-text-muted);">Cargando solicitudes...</div>
+        </div>
+      </div>
+
+      <!-- Modal crear usuario desde solicitud -->
+      <div id="sol-modal" style="display:none;position:fixed;inset:0;background:rgba(26,39,51,0.5);z-index:100;overflow-y:auto;padding:24px;">
+        <div style="background:#ffffff;border:1px solid rgba(6,163,182,0.3);border-radius:16px;max-width:540px;margin:0 auto;padding:0;overflow:hidden;">
+          <div style="background:linear-gradient(135deg,#06a3b6,#048395);padding:20px 24px;display:flex;justify-content:space-between;align-items:center;">
+            <div>
+              <div style="font-size:11px;color:rgba(255,255,255,0.75);letter-spacing:1px;text-transform:uppercase;">Crear usuario desde solicitud</div>
+              <div id="sol-modal-nombre" style="font-size:16px;font-weight:700;color:#fff;margin-top:3px;"></div>
+            </div>
+            <button onclick="closeSolModal()" style="background:rgba(255,255,255,0.2);border:none;color:#fff;width:32px;height:32px;border-radius:8px;cursor:pointer;font-size:16px;">✕</button>
+          </div>
+          <div style="padding:24px;">
+            <!-- Solicitante info -->
+            <div class="info-box" style="margin-bottom:16px;padding:12px 14px;">
+              <div style="font-size:10px;color:var(--hero-primary);font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-bottom:6px;">Solicitado por</div>
+              <div id="sol-modal-solicitante" style="font-size:13px;color:var(--hero-text-primary);"></div>
+              <div id="sol-modal-solicitante-email" style="font-size:11px;color:var(--hero-primary);font-family:var(--mono);margin-top:2px;"></div>
+            </div>
+            <!-- Form fields -->
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+              <div class="form-group">
+                <label class="form-label">Nombre</label>
+                <input class="form-input" id="sm-nombre" type="text"/>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Apellido</label>
+                <input class="form-input" id="sm-apellido" type="text"/>
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Email corporativo</label>
+              <div style="display:flex;gap:0;">
+                <input class="form-input" id="sm-email-user" type="text" placeholder="usuario"
+                  oninput="previewSolEmail()" style="border-radius:8px 0 0 8px;border-right:none;"/>
+                <span style="background:var(--hero-bg);border:1px solid var(--hero-border);border-left:none;padding:9px 12px;border-radius:0 8px 8px 0;font-size:13px;color:var(--hero-text-muted);white-space:nowrap;">&#64;heroinsuranceusa.com</span>
+              </div>
+              <div id="sm-email-preview" style="font-size:11px;color:var(--hero-primary);font-family:var(--mono);margin-top:4px;"></div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Contraseña temporal</label>
+              <div style="display:flex;gap:8px;">
+                <input class="form-input" id="sm-password" type="text" placeholder="Contraseña temporal" style="flex:1;"/>
+                <button class="btn btn-secondary" onclick="generateSolPassword()" style="flex-shrink:0;">⚡</button>
+              </div>
+            </div>
+            <div style="display:flex;gap:10px;margin-top:16px;">
+              <button class="btn btn-primary" onclick="crearUsuarioDesdeModal()" id="btn-sm-crear" style="flex:1;">
+                ✓ Crear usuario y notificar
+              </button>
+              <button class="btn btn-secondary" onclick="closeSolModal()">Cancelar</button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
