@@ -508,8 +508,8 @@ nav { padding: 12px; flex: 1; }
   .panel-grid { grid-template-columns: 1fr !important; }
   .cards-grid { grid-template-columns: 1fr !important; }
   .stats-row { flex-direction: column; }
-  #ticket-modal, #user-modal { padding: 12px; }
-  #ticket-modal > div, #user-modal > div { max-width: 100% !important; border-radius: 10px !important; }
+  #ticket-modal, #user-modal, #dev-modal, #lic-modal { padding: 12px; }
+  #ticket-modal > div, #user-modal > div, #dev-modal > div, #lic-modal > div { max-width: 100% !important; border-radius: 10px !important; }
 }
 @media (min-width: 769px) {
   .btn-hamburger { display: none !important; }
@@ -1585,17 +1585,17 @@ html { scroll-behavior: smooth; }
       </div>
 
       <!-- Modal licencia -->
-      <div id="lic-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:100;overflow-y:auto;padding:24px;">
-        <div style="background:var(--hero-card-bg);border:1px solid rgba(6,163,182,0.3);border-radius:16px;max-width:500px;margin:0 auto;padding:28px;">
+      <div id="lic-modal" style="display:none;">
+        <div>
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
             <div id="lic-modal-title" style="font-size:15px;font-weight:600;color:var(--hero-text-primary);">Nueva licencia</div>
             <button onclick="closeLicenciaModal()" style="background:transparent;border:1px solid var(--hero-border);color:var(--hero-text-muted);width:32px;height:32px;border-radius:8px;cursor:pointer;font-size:16px;">✕</button>
           </div>
+          <div class="form-group">
+            <label class="form-label">Nombre del software *</label>
+            <input class="form-input" id="lic-f-nombre" type="text" placeholder="ej: Zoho Assist, ClickUp, Canva..."/>
+          </div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-            <div class="form-group" style="grid-column:1/-1;">
-              <label class="form-label">Nombre del software *</label>
-              <input class="form-input" id="lic-f-nombre" type="text" placeholder="ej: Zoho Assist, ClickUp, Canva..."/>
-            </div>
             <div class="form-group">
               <label class="form-label">Plan / Tier</label>
               <input class="form-input" id="lic-f-plan" type="text" placeholder="ej: Professional, Team..."/>
@@ -1612,19 +1612,19 @@ html { scroll-behavior: smooth; }
               <label class="form-label">Fecha de vencimiento</label>
               <input class="form-input" id="lic-f-vencimiento" type="date"/>
             </div>
-            <div class="form-group">
-              <label class="form-label">Estado</label>
-              <select id="lic-f-estado" class="form-input" style="background:var(--hero-card-bg);">
-                <option value="activa">Activa</option>
-                <option value="trial">Trial</option>
-                <option value="vencida">Vencida</option>
-                <option value="cancelada">Cancelada</option>
-              </select>
-            </div>
-            <div class="form-group" style="grid-column:1/-1;">
-              <label class="form-label">Notas</label>
-              <input class="form-input" id="lic-f-notas" type="text" placeholder="Cuenta asociada, contacto, etc."/>
-            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Estado</label>
+            <select id="lic-f-estado" class="form-input" style="background:var(--hero-card-bg);">
+              <option value="activa">Activa</option>
+              <option value="trial">Trial</option>
+              <option value="vencida">Vencida</option>
+              <option value="cancelada">Cancelada</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Notas</label>
+            <input class="form-input" id="lic-f-notas" type="text" placeholder="Cuenta asociada, contacto, etc."/>
           </div>
           <div style="display:flex;gap:10px;margin-top:16px;">
             <button class="btn btn-primary" onclick="saveLicencia()" id="btn-lic-save" style="flex:1;">💾 Guardar</button>
