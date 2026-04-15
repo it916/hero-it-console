@@ -193,6 +193,7 @@ nav { padding: 12px; flex: 1; }
   display: flex;
   flex-direction: column;
   overflow-y: auto;
+  overflow-x: hidden;
   height: 100vh;
 }
 
@@ -564,6 +565,37 @@ nav { padding: 12px; flex: 1; }
   color: var(--hero-text-primary); background: transparent; outline: none;
 }
 #global-search-results { max-height: 380px; overflow-y: auto; }
+
+/* ── Modal fix — ensure modals always render on top ─────── */
+#user-modal, #ticket-modal, #dev-modal, #lic-modal {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 300 !important;
+  overflow-y: auto;
+  padding: 24px;
+  background: rgba(26,39,51,0.55) !important;
+}
+#user-modal > div,
+#ticket-modal > div,
+#dev-modal > div,
+#lic-modal > div {
+  position: relative;
+  z-index: 301;
+  margin: 0 auto;
+  max-width: 540px;
+  background: var(--hero-card-bg);
+  border: 1px solid rgba(6,163,182,0.25);
+  border-radius: var(--hero-radius-lg);
+  padding: 28px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+}
+#app-content {
+  overflow: visible !important;
+}
+#main {
+  overflow-y: auto;
+  overflow-x: hidden;
+}
 html { scroll-behavior: smooth; }
 
 /* ── Last updated indicator ─────────────────────────────── */

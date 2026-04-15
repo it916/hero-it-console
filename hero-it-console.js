@@ -32,7 +32,6 @@ function showApp(nombre, picture) {
   appEl.style.display = 'flex';
   appEl.style.width = '100%';
   appEl.style.minHeight = '100vh';
-  appEl.style.overflow = 'hidden';
   appEl.style.flexDirection = 'row';
   const userLabel = document.querySelector('.user-label');
   if (userLabel) userLabel.textContent = nombre + ' · IT Admin';
