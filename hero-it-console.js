@@ -36,6 +36,7 @@ function showApp(nombre, picture) {
   const userLabel = document.querySelector('.user-label');
   if (userLabel) userLabel.textContent = nombre + ' · IT Admin';
   addLog('Sesión iniciada como ' + nombre, 'success');
+  applyStoredTheme();
   // Start background services
   requestNotificationPermission();
   startPolling();
@@ -57,6 +58,24 @@ function checkExistingSession() {
     showApp(nombre, picture);
     return true;
   } catch(e) { return false; }
+}
+
+// ── Tema claro / oscuro ──────────────────────────────────────
+function toggleTheme() {
+  const html = document.documentElement;
+  const isDark = html.getAttribute('data-theme') === 'dark';
+  const newTheme = isDark ? 'light' : 'dark';
+  html.setAttribute('data-theme', newTheme);
+  localStorage.setItem('hero_theme', newTheme);
+  const btn = document.getElementById('btn-theme');
+  if (btn) btn.textContent = newTheme === 'dark' ? '🌙' : '☀️';
+}
+
+function applyStoredTheme() {
+  const stored = localStorage.getItem('hero_theme') || 'light';
+  document.documentElement.setAttribute('data-theme', stored);
+  const btn = document.getElementById('btn-theme');
+  if (btn) btn.textContent = stored === 'dark' ? '🌙' : '☀️';
 }
 
 // ── Logs globales ─────────────────────────────────────────────

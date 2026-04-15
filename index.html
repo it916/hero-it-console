@@ -56,6 +56,48 @@
   --sidebar-w: 230px;
 }
 
+
+/* ── Dark mode ───────────────────────────────────────────── */
+[data-theme="dark"] {
+  --hero-primary:        #06a3b6;
+  --hero-primary-hover:  #07bdd4;
+  --hero-primary-light:  rgba(6,163,182,0.15);
+  --hero-bg-page:        #0f1117;
+  --hero-bg-card:        #1a1d27;
+  --hero-bg-preview:     #141720;
+  --hero-text-primary:   #f0f2f5;
+  --hero-text-body:      #b8bec8;
+  --hero-text-muted:     #7a8494;
+  --hero-text-subtle:    #4e5666;
+  --hero-border-card:    #2a2e3d;
+  --hero-border-topbar:  #232736;
+  --hero-border-btn:     #2e3245;
+  --hero-success:        #22a06b;
+  --hero-success-bg:     rgba(34,160,107,0.12);
+  --hero-error:          #e05252;
+  --hero-error-bg:       rgba(224,82,82,0.12);
+  --bg:        var(--hero-bg-page);
+  --bg2:       var(--hero-bg-card);
+  --bg3:       #141720;
+  --border:    var(--hero-border-card);
+  --amber:     #e8a317;
+  --red:       var(--hero-error);
+}
+[data-theme="dark"] .kanban-col        { background: #141720; }
+[data-theme="dark"] .kanban-col-header { background: #1a1d27; }
+[data-theme="dark"] .kanban-card       { background: #1e2132; }
+[data-theme="dark"] #global-search-box,
+[data-theme="dark"] #global-search-input { background: #1a1d27; color: var(--hero-text-primary); }
+[data-theme="dark"] .status-service    { background: #141720; }
+[data-theme="dark"] #lic-modal > div,
+[data-theme="dark"] #ticket-modal > div,
+[data-theme="dark"] #user-modal > div,
+[data-theme="dark"] #dev-modal > div,
+[data-theme="dark"] #sol-modal > div   { background: #1a1d27 !important; }
+[data-theme="dark"] select,
+[data-theme="dark"] input,
+[data-theme="dark"] textarea            { background: #141720; color: var(--hero-text-primary); border-color: var(--hero-border-btn); }
+[data-theme="dark"] select option       { background: #1a1d27; }
 /* ── Reset ───────────────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -796,6 +838,7 @@ html { scroll-behavior: smooth; }
       <div class="topbar-title">Hero IT Console / <span id="current-section-label">Dashboard</span></div>
     </div>
     <div class="topbar-right">
+        <button onclick="toggleTheme()" id="btn-theme" title="Cambiar tema" style="background:var(--hero-bg);border:1px solid var(--hero-border);color:var(--hero-text-muted);width:36px;height:36px;border-radius:var(--hero-radius-btn);cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">☀️</button>
         <button onclick="openGlobalSearch()" style="background:var(--hero-bg);border:1px solid var(--hero-border);color:var(--hero-text-muted);padding:6px 12px;border-radius:var(--hero-radius-sm);cursor:pointer;font-size:12px;font-family:var(--hero-font);display:flex;align-items:center;gap:6px;">🔍 <span style="color:var(--hero-text-muted)">Buscar...</span></button>
       <div class="clock" id="clock"></div>
       <div id="global-status">● SISTEMA LISTO</div>
