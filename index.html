@@ -1796,11 +1796,14 @@ html { scroll-behavior: smooth; }
 
       <!-- Modal licencia -->
       <div id="lic-modal" style="display:none;position:fixed;inset:0;background:rgba(26,39,51,0.5);z-index:100;overflow-y:auto;padding:24px;">
-        <div style="background:#ffffff;border:1px solid rgba(6,163,182,0.3);border-radius:16px;max-width:500px;margin:0 auto;padding:28px;box-shadow:0 8px 32px rgba(0,0,0,0.15);">
+        <div style="background:#ffffff;border:1px solid rgba(6,163,182,0.3);border-radius:16px;max-width:540px;margin:0 auto;padding:28px;box-shadow:0 8px 32px rgba(0,0,0,0.15);">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
             <div id="lic-modal-title" style="font-size:15px;font-weight:600;color:var(--hero-text-primary);">Nueva licencia</div>
             <button onclick="closeLicenciaModal()" style="background:transparent;border:1px solid var(--hero-border);color:var(--hero-text-muted);width:32px;height:32px;border-radius:8px;cursor:pointer;font-size:16px;">✕</button>
           </div>
+
+          <!-- Sección: Info general -->
+          <div style="font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--hero-primary);margin-bottom:10px;">Información general</div>
           <div class="form-group">
             <label class="form-label">Nombre del software *</label>
             <input class="form-input" id="lic-f-nombre" type="text" placeholder="ej: Zoho Assist, ClickUp, Canva..."/>
@@ -1811,7 +1814,16 @@ html { scroll-behavior: smooth; }
               <input class="form-input" id="lic-f-plan" type="text" placeholder="ej: Professional, Team..."/>
             </div>
             <div class="form-group">
-              <label class="form-label">Costo mensual (USD)</label>
+              <label class="form-label">Tipo de suscripción</label>
+              <select id="lic-f-tipo-sub" class="form-input" style="background:var(--hero-card-bg);">
+                <option value="mensual">Mensual</option>
+                <option value="anual">Anual</option>
+                <option value="única">Pago único</option>
+                <option value="gratis">Gratis / Trial</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Costo (USD)</label>
               <input class="form-input" id="lic-f-costo" type="number" placeholder="0.00" step="0.01"/>
             </div>
             <div class="form-group">
@@ -1822,21 +1834,49 @@ html { scroll-behavior: smooth; }
               <label class="form-label">Fecha de vencimiento</label>
               <input class="form-input" id="lic-f-vencimiento" type="date"/>
             </div>
+            <div class="form-group">
+              <label class="form-label">Estado</label>
+              <select id="lic-f-estado" class="form-input" style="background:var(--hero-card-bg);">
+                <option value="activa">Activa</option>
+                <option value="trial">Trial</option>
+                <option value="vencida">Vencida</option>
+                <option value="cancelada">Cancelada</option>
+              </select>
+            </div>
           </div>
+
+          <!-- Sección: Credenciales -->
+          <div style="font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--hero-primary);margin:16px 0 10px;">Credenciales de acceso <span style="font-weight:400;color:var(--hero-text-muted);text-transform:none;letter-spacing:0;">(opcional)</span></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+            <div class="form-group">
+              <label class="form-label">Usuario / Email</label>
+              <input class="form-input" id="lic-f-cred-usuario" type="text" placeholder="usuario@heroinsuranceusa.com"/>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Contraseña</label>
+              <div style="position:relative;">
+                <input class="form-input" id="lic-f-cred-password" type="password" placeholder="••••••••" style="padding-right:36px;"/>
+                <button onclick="toggleLicPassword()" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:transparent;border:none;cursor:pointer;font-size:14px;color:var(--hero-text-muted);" id="btn-toggle-lic-pwd">👁</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Sección: Código de licencia -->
+          <div style="font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--hero-primary);margin:16px 0 10px;">Código de licencia <span style="font-weight:400;color:var(--hero-text-muted);text-transform:none;letter-spacing:0;">(opcional)</span></div>
           <div class="form-group">
-            <label class="form-label">Estado</label>
-            <select id="lic-f-estado" class="form-input" style="background:var(--hero-card-bg);">
-              <option value="activa">Activa</option>
-              <option value="trial">Trial</option>
-              <option value="vencida">Vencida</option>
-              <option value="cancelada">Cancelada</option>
-            </select>
+            <input class="form-input" id="lic-f-codigo" type="text" placeholder="ej: XXXX-XXXX-XXXX-XXXX" style="font-family:var(--mono);letter-spacing:1px;"/>
           </div>
+
           <div class="form-group">
             <label class="form-label">Notas</label>
-            <input class="form-input" id="lic-f-notas" type="text" placeholder="Cuenta asociada, contacto, etc."/>
+            <input class="form-input" id="lic-f-notas" type="text" placeholder="Cuenta asociada, contacto de soporte, URL de acceso..."/>
           </div>
-          <div style="display:flex;gap:10px;margin-top:16px;">
+
+          <div style="background:rgba(232,163,23,0.08);border:1px solid rgba(232,163,23,0.3);border-radius:8px;padding:10px 14px;margin-bottom:16px;font-size:11px;color:var(--hero-text-muted);line-height:1.5;">
+            🔒 Las credenciales y el código se guardan en Cloudflare KV cifrado. Solo tú puedes verlos desde esta consola.
+          </div>
+
+          <div style="display:flex;gap:10px;">
             <button class="btn btn-primary" onclick="saveLicencia()" id="btn-lic-save" style="flex:1;">💾 Guardar</button>
             <button class="btn btn-secondary" onclick="closeLicenciaModal()">Cancelar</button>
           </div>

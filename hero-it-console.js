@@ -2089,16 +2089,47 @@ function renderLicencias() {
 
 function showLicenciaForm(lic = null) {
   editingLicId = lic ? lic.id : null;
-  document.getElementById('lic-modal-title').textContent = lic ? 'Editar licencia' : 'Nueva licencia';
-  document.getElementById('lic-f-nombre').value     = lic ? lic.nombre     : '';
-  document.getElementById('lic-f-plan').value       = lic ? lic.plan       : '';
-  document.getElementById('lic-f-costo').value      = lic ? lic.costo      : '';
-  document.getElementById('lic-f-usuarios').value   = lic ? lic.usuarios   : '';
-  document.getElementById('lic-f-vencimiento').value= lic ? (lic.vencimiento||'') : '';
-  document.getElementById('lic-f-estado').value     = lic ? lic.estado     : 'activa';
-  document.getElementById('lic-f-notas').value      = lic ? lic.notas      : '';
+  document.getElementById('lic-modal-title').textContent    = lic ? 'Editar licencia' : 'Nueva licencia';
+  document.getElementById('lic-f-nombre').value             = lic ? lic.nombre         : '';
+  document.getElementById('lic-f-plan').value               = lic ? lic.plan           : '';
+  document.getElementById('lic-f-tipo-sub').value           = lic ? (lic.tipoSub||'mensual') : 'mensual';
+  document.getElementById('lic-f-costo').value              = lic ? lic.costo          : '';
+  document.getElementById('lic-f-usuarios').value           = lic ? lic.usuarios       : '';
+  document.getElementById('lic-f-vencimiento').value        = lic ? (lic.vencimiento||'') : '';
+  document.getElementById('lic-f-estado').value             = lic ? lic.estado         : 'activa';
+  document.getElementById('lic-f-cred-usuario').value       = lic ? (lic.credUsuario||'') : '';
+  document.getElementById('lic-f-cred-password').value      = lic ? (lic.credPassword||'') : '';
+  document.getElementById('lic-f-codigo').value             = lic ? (lic.codigoLicencia||'') : '';
+  document.getElementById('lic-f-notas').value              = lic ? lic.notas          : '';
+  // Reset password visibility
+  const pwd = document.getElementById('lic-f-cred-password');
+  if (pwd) pwd.type = 'password';
   document.getElementById('lic-modal').style.display = 'block';
 }
+
+function toggleLicPassword() {
+  const input = document.getElementById('lic-f-cred-password');
+  const btn   = document.getElementById('btn-toggle-lic-pwd');
+  if (input.type === 'password') { input.type = 'text';     btn.textContent = '🙈'; }
+  else                           { input.type = 'password'; btn.textContent = '👁';  }
+}
+
+function verCredenciales(id) {
+  const l = allLicencias.find(x => x.id === id);
+  if (!l) return;
+  let msg = l.nombre + '\n\n';
+  if (l.credUsuario)    msg += 'Usuario: ' + l.credUsuario + '\n';
+  if (l.credPassword)   msg += 'Contraseña: ' + l.credPassword + '\n';
+  if (l.codigoLicencia) msg += 'Código: ' + l.codigoLicencia + '\n';
+  alert(msg);
+  // Copy to clipboard
+  const text = (l.credUsuario ? 'Usuario: ' + l.credUsuario + '\n' : '')
+    + (l.credPassword ? 'Contrasena: ' + l.credPassword + '\n' : '')
+    + (l.codigoLicencia ? 'Codigo: ' + l.codigoLicencia : '');
+  navigator.clipboard?.writeText(text).catch(()=>{});
+  showToast('Credenciales copiadas al portapapeles');
+}
+
 function editLicencia(id) {
   const lic = allLicencias.find(l => l.id === id);
   if (lic) showLicenciaForm(lic);
