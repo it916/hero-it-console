@@ -439,36 +439,104 @@ function checkApiKey() {
   return true; // API Key vive segura en el Worker
 }
 
-// ── Reset Password ────────────────────────────────────────────
-async function sendReset() {
-  const data = validateForm('rst');
-  if (!data) return;
-  if (!checkApiKey()) return;
+// ── Reset Password — integrado con Workspace ─────────────────
+let rstSelectedUser = null;
 
-  const password = document.getElementById('rst-password').value.trim();
-  const btn = document.getElementById('btn-send-rst');
+function filterResetUsers() {
+  const q = document.getElementById('rst-search').value.toLowerCase();
+  const sug = document.getElementById('rst-suggestions');
+  if (!q || q.length < 2 || !window._workspaceUsers) { sug.style.display = 'none'; return; }
+  const matches = window._workspaceUsers.filter(u =>
+    (u.nombre||'').toLowerCase().includes(q) || (u.email||'').toLowerCase().includes(q)
+  ).slice(0, 8);
+  if (!matches.length) { sug.style.display = 'none'; return; }
+  sug.style.display = 'block';
+  sug.innerHTML = matches.map(u =>
+    '<div onclick="selectResetUser(\'' + u.email + '\',\'' + u.nombre + '\',\'' + u.estado + '\')" '
+    + 'style="padding:10px 14px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--hero-border);" '
+    + 'onmouseover="this.style.background=\'var(--hero-bg)\'" onmouseout="this.style.background=\'\'">'
+    + '<div style="font-weight:600;color:var(--hero-text-primary);">' + u.nombre + '</div>'
+    + '<div style="font-size:11px;color:var(--hero-text-muted);">' + u.email + ' · ' + u.estado + '</div></div>'
+  ).join('');
+}
+
+function selectResetUser(email, nombre, estado) {
+  rstSelectedUser = { email, nombre, estado };
+  document.getElementById('rst-search').value = nombre;
+  document.getElementById('rst-suggestions').style.display = 'none';
+  document.getElementById('rst-sel-nombre').textContent = nombre;
+  document.getElementById('rst-sel-email').textContent  = email;
+  document.getElementById('rst-sel-estado').textContent = 'Estado: ' + estado;
+  document.getElementById('rst-selected').style.display = 'block';
+  addLog('Usuario seleccionado: ' + email, 'info', 'log-rst');
+}
+
+function clearResetUser() {
+  rstSelectedUser = null;
+  document.getElementById('rst-search').value = '';
+  document.getElementById('rst-selected').style.display = 'none';
+  document.getElementById('rst-new-password').value = '';
+}
+
+function generateResetPassword() {
+  const upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+  const lower = 'abcdefghjkmnpqrstuvwxyz';
+  const digits = '23456789';
+  const special = '!@#*$';
+  let pwd = upper[Math.floor(Math.random()*upper.length)]
+    + lower[Math.floor(Math.random()*lower.length)]
+    + digits[Math.floor(Math.random()*digits.length)]
+    + special[Math.floor(Math.random()*special.length)];
+  const all = upper + lower + digits + special;
+  for (let i = 0; i < 8; i++) pwd += all[Math.floor(Math.random()*all.length)];
+  pwd = pwd.split('').sort(() => Math.random()-0.5).join('');
+  document.getElementById('rst-new-password').value = pwd;
+  navigator.clipboard?.writeText(pwd).catch(()=>{});
+  showToast('Contraseña generada y copiada');
+}
+
+async function executeReset() {
+  if (!rstSelectedUser) { showToast('Selecciona un usuario primero'); return; }
+  const password = document.getElementById('rst-new-password').value.trim();
+  if (!password) { showToast('Genera o escribe una contraseña temporal'); return; }
+
+  const btn = document.getElementById('btn-exec-reset');
   btn.disabled = true;
-  btn.innerHTML = '<span class="spinner"></span> Enviando...';
-  addLog('Iniciando Reset Password para ' + data.nombre, 'warn', 'log-rst');
+  btn.innerHTML = '<span class="spinner"></span> Reseteando...';
+  addLog('Reseteando contraseña de ' + rstSelectedUser.email + '...', 'warn', 'log-rst');
 
   try {
-    await sendViaResend({
-      to: data.pers,
-      subject: 'Restablecimiento de Contrasena - Hero Insurance USA',
-      html: buildEmailReset(data.nombre, data.email, password),
-      text: 'Hola ' + data.nombre + ', tu contrasena ha sido restablecida. Correo: ' + data.email + ' / Nueva contrasena: ' + password
+    // 1. Reset en Workspace
+    const resp = await fetch(WORKER_URL + '/user-action', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: rstSelectedUser.email, action: 'reset', newPassword: password })
     });
-    addLog('Reset enviado a ' + data.nombre + ' -> ' + data.pers, 'success', 'log-rst');
-    auditLog('reset', 'Reset de contraseña enviado a ' + data.nombre, data.email + ' → ' + data.pers);
-    showToast('Reset enviado a ' + data.nombre);
-    clearForm('rst');
-  } catch (err) {
+    const result = await resp.json();
+    if (!resp.ok) throw new Error(result.error || 'Error en Workspace');
+    addLog('Contraseña reseteada en Workspace', 'success', 'log-rst');
+
+    // 2. Enviar email de notificación al correo corporativo
+    await sendViaResend({
+      to: rstSelectedUser.email,
+      subject: 'Restablecimiento de contraseña - Hero Insurance USA',
+      html: buildEmailReset(rstSelectedUser.nombre, rstSelectedUser.email, password),
+      text: 'Hola ' + rstSelectedUser.nombre + ', tu contraseña ha sido restablecida. Nueva contraseña temporal: ' + password,
+    });
+    addLog('Email de notificación enviado a ' + rstSelectedUser.email, 'success', 'log-rst');
+
+    auditLog('reset', 'Contraseña reseteada: ' + rstSelectedUser.nombre, rstSelectedUser.email);
+    showToast('Contraseña reseteada y usuario notificado');
+    clearResetUser();
+  } catch(err) {
     addLog('Error: ' + err.message, 'error', 'log-rst');
-    showToast('Error al enviar reset. Revisa el log.');
+    showToast('Error: ' + err.message);
   }
+
   btn.disabled = false;
-  btn.innerHTML = 'Enviar reset de contrasena';
+  btn.innerHTML = '🔑 Resetear contraseña en Workspace y notificar';
 }
+
 
 // ── Config ────────────────────────────────────────────────────
 function saveConfig() {
@@ -769,14 +837,53 @@ function exportAuditCSV() {
 // ── Módulo Tickets de Soporte ─────────────────────────────────
 let allTickets = [];
 let currentTicketId = null;
+let ticketView = 'kanban';
 
-const PRIORIDAD_COLOR = { Baja:'var(--hero-success)', Media:'var(--hero-warning)', Alta:'var(--hero-warning)', Urgente:'var(--hero-error)' };
-const ESTADO_COLOR    = { 'abierto':'var(--hero-error)', 'en progreso':'var(--hero-warning)', 'resuelto':'var(--hero-success)' };
+const PRIORIDAD_COLOR = {
+  Baja:    { color: '#22a06b', bg: 'rgba(34,160,107,0.12)' },
+  Media:   { color: '#e8a317', bg: 'rgba(232,163,23,0.12)'  },
+  Alta:    { color: '#e8a317', bg: 'rgba(232,163,23,0.12)'  },
+  Urgente: { color: '#d64545', bg: 'rgba(214,69,69,0.12)'   },
+};
+
+const QUICK_REPLIES = {
+  revisando: 'Hola, hemos recibido tu ticket y estamos revisando el problema. Te contactaremos pronto con una solución.',
+  info:      'Hola, para poder ayudarte necesitamos información adicional. ¿Podrías indicarnos...?',
+  resuelto:  'Hola, hemos resuelto el problema reportado. Por favor verifica que todo funcione correctamente. Si el problema persiste, no dudes en contactarnos.',
+  remoto:    'Hola, para resolver este problema necesitamos conectarnos remotamente a tu equipo via Zoho Assist. ¿Cuándo tienes disponibilidad?',
+};
+
+function setTicketView(view) {
+  ticketView = view;
+  document.getElementById('tickets-kanban').style.display = view === 'kanban' ? 'grid' : 'none';
+  document.getElementById('tickets-list').style.display   = view === 'list'   ? 'block' : 'none';
+  document.getElementById('btn-view-kanban').style.background = view === 'kanban' ? 'var(--hero-primary)' : 'transparent';
+  document.getElementById('btn-view-kanban').style.color      = view === 'kanban' ? '#fff' : 'var(--hero-text-muted)';
+  document.getElementById('btn-view-list').style.background   = view === 'list'   ? 'var(--hero-primary)' : 'transparent';
+  document.getElementById('btn-view-list').style.color        = view === 'list'   ? '#fff' : 'var(--hero-text-muted)';
+  filterTickets();
+}
+
+function getElapsedTime(fechaStr) {
+  const diff = Date.now() - new Date(fechaStr).getTime();
+  const h = Math.floor(diff / 3600000);
+  const d = Math.floor(h / 24);
+  if (d > 0)  return d + 'd';
+  if (h > 0)  return h + 'h';
+  return Math.floor(diff / 60000) + 'm';
+}
+
+function getElapsedColor(fechaStr, estado) {
+  if (estado === 'resuelto') return 'var(--hero-success)';
+  const h = (Date.now() - new Date(fechaStr).getTime()) / 3600000;
+  if (h > 24) return 'var(--hero-danger)';
+  if (h > 8)  return '#e8a317';
+  return 'var(--hero-text-muted)';
+}
 
 async function loadTickets() {
   const btn = document.getElementById('btn-load-tickets');
-  btn.disabled = true;
-  btn.innerHTML = '<span class="spinner"></span> Cargando...';
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>'; }
   try {
     const resp = await fetch(WORKER_URL + '/ticket');
     const data = await resp.json();
@@ -786,48 +893,80 @@ async function loadTickets() {
     setLastUpdated('tickets-last-updated');
     addLog('Tickets cargados: ' + allTickets.length, 'info');
   } catch(err) {
-    document.getElementById('tickets-list').innerHTML =
-      '<div class="info-box" style="text-align:center;padding:32px;border-color:rgba(214,69,69,0.3);"><div style="color:var(--hero-error);font-family:var(--mono);font-size:12px;">Error: ' + err.message + '</div></div>';
+    addLog('Error cargando tickets: ' + err.message, 'error');
   }
-  btn.disabled = false;
-  btn.innerHTML = '↺ Actualizar';
+  if (btn) { btn.disabled = false; btn.innerHTML = '↺ Actualizar'; }
 }
 
 function filterTickets() {
-  const estado    = document.getElementById('ticket-filter-estado').value;
-  const prioridad = document.getElementById('ticket-filter-prioridad').value;
+  const prioridad  = document.getElementById('ticket-filter-prioridad')?.value || '';
+  const categoria  = document.getElementById('ticket-filter-categoria')?.value  || '';
+  const q          = document.getElementById('ticket-search')?.value.toLowerCase() || '';
   let filtered = allTickets;
-  if (estado)    filtered = filtered.filter(t => t.estado === estado);
   if (prioridad) filtered = filtered.filter(t => t.prioridad === prioridad);
-  renderTickets(filtered);
+  if (categoria) filtered = filtered.filter(t => t.categoria === categoria);
+  if (q)         filtered = filtered.filter(t =>
+    (t.asunto||'').toLowerCase().includes(q) || (t.nombre||'').toLowerCase().includes(q)
+  );
+  const count = document.getElementById('tickets-count');
+  if (count) count.textContent = filtered.length + ' ticket' + (filtered.length !== 1 ? 's' : '');
+
+  if (ticketView === 'kanban') renderKanban(filtered);
+  else renderTicketList(filtered);
 }
 
-function renderTickets(tickets) {
-  document.getElementById('tickets-count').textContent = tickets.length + ' ticket' + (tickets.length !== 1 ? 's' : '');
+function renderKanban(tickets) {
+  const cols = { 'abierto': [], 'en progreso': [], 'resuelto': [] };
+  tickets.forEach(t => { if (cols[t.estado] !== undefined) cols[t.estado].push(t); });
+
+  Object.entries(cols).forEach(([estado, items]) => {
+    const key = estado.replace(' ', '-');
+    const countEl = document.getElementById('count-' + key);
+    const cardsEl = document.getElementById('cards-' + key);
+    if (countEl) countEl.textContent = items.length;
+    if (!cardsEl) return;
+    if (!items.length) {
+      cardsEl.innerHTML = '<div style="text-align:center;padding:20px;font-size:11px;color:var(--hero-text-muted);opacity:0.6;">Sin tickets</div>';
+      return;
+    }
+    cardsEl.innerHTML = items.map(t => {
+      const pc = PRIORIDAD_COLOR[t.prioridad] || PRIORIDAD_COLOR.Media;
+      const elapsed = getElapsedTime(t.fecha);
+      const elColor = getElapsedColor(t.fecha, t.estado);
+      return '<div class="kanban-card" style="--card-pcolor:' + pc.color + ';" onclick="openTicketModal(\'' + t.id + '\')">' 
+        + '<div class="kanban-card-title">' + t.asunto + '</div>'
+        + '<div class="kanban-card-meta">' + t.nombre + ' · ' + t.categoria + '</div>'
+        + '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;">'
+        + '<span style="font-size:10px;padding:2px 7px;border-radius:20px;background:' + pc.bg + ';color:' + pc.color + ';font-weight:600;">' + t.prioridad + '</span>'
+        + '<span class="kanban-card-time" style="color:' + elColor + ';">⏱ ' + elapsed + '</span>'
+        + '</div></div>';
+    }).join('');
+  });
+}
+
+function renderTicketList(tickets) {
   const container = document.getElementById('tickets-list');
   if (!tickets.length) {
-    container.innerHTML = '<div class="info-box" style="text-align:center;padding:40px;"><div style="font-size:32px;opacity:0.3;margin-bottom:12px;">📭</div><div style="font-family:var(--mono);font-size:12px;color:var(--hero-text-muted);">Sin tickets con estos filtros</div></div>';
+    container.innerHTML = '<div class="info-box" style="text-align:center;padding:40px;"><div style="font-size:32px;opacity:0.3;margin-bottom:12px;">📭</div><div style="font-size:12px;color:var(--hero-text-muted);">Sin tickets</div></div>';
     return;
   }
+  const estadoColor = { 'abierto': '#d64545', 'en progreso': '#e8a317', 'resuelto': '#22a06b' };
   container.innerHTML = tickets.map(t => {
-    const fecha = new Date(t.fecha).toLocaleString('es-MX', { timeZone:'America/New_York', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' });
-    const pColor = PRIORIDAD_COLOR[t.prioridad] || 'var(--hero-text-body)';
-    const eColor = ESTADO_COLOR[t.estado] || 'var(--hero-text-body)';
-    const cardColor = t.estado === 'abierto' ? 'var(--hero-error)' : t.estado === 'en progreso' ? 'var(--hero-warning)' : 'var(--hero-success)';
-    return '<div class="action-card" style="margin-bottom:10px;cursor:pointer;--card-color:' + cardColor + ';" onclick="openTicketModal(\'' + t.id + '\')">'
-      + '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">'
+    const pc = PRIORIDAD_COLOR[t.prioridad] || PRIORIDAD_COLOR.Media;
+    const elapsed = getElapsedTime(t.fecha);
+    const elColor = getElapsedColor(t.fecha, t.estado);
+    return '<div class="action-card" style="margin-bottom:10px;cursor:pointer;--card-color:' + (estadoColor[t.estado]||'var(--hero-border)') + ';" onclick="openTicketModal(\'' + t.id + '\'">'
+      + '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px;">'
       + '<div style="display:flex;align-items:center;gap:8px;">'
       + '<span style="font-family:var(--mono);font-size:11px;color:var(--hero-primary);">' + t.ticketId + '</span>'
-      + '<span style="font-family:var(--mono);font-size:10px;padding:2px 8px;border-radius:20px;background:rgba(0,0,0,0.06);color:' + pColor + ';">● ' + t.prioridad + '</span>'
+      + '<span style="font-size:10px;padding:2px 7px;border-radius:20px;background:' + pc.bg + ';color:' + pc.color + ';font-weight:600;">' + t.prioridad + '</span>'
       + '</div>'
-      + '<span style="font-family:var(--mono);font-size:10px;padding:2px 8px;border-radius:20px;background:rgba(0,0,0,0.06);color:' + eColor + ';">' + t.estado + '</span>'
-      + '</div>'
-      + '<div style="font-size:14px;font-weight:600;color:var(--hero-text-primary);margin-bottom:4px;">' + t.asunto + '</div>'
-      + '<div style="font-size:12px;color:var(--hero-text-body);margin-bottom:10px;">' + t.nombre + ' · ' + t.categoria + '</div>'
-      + '<div style="display:flex;justify-content:space-between;align-items:center;">'
-      + '<span style="font-size:12px;color:var(--hero-text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:80%;">' + t.descripcion.substring(0,80) + (t.descripcion.length > 80 ? '...' : '') + '</span>'
-      + '<span style="font-family:var(--mono);font-size:10px;color:var(--hero-text-muted);flex-shrink:0;margin-left:8px;">' + fecha + ' ET</span>'
-      + '</div>'
+      + '<div style="display:flex;align-items:center;gap:8px;">'
+      + '<span style="font-size:10px;color:' + elColor + ';font-family:var(--mono);">⏱ ' + elapsed + '</span>'
+      + '<span style="font-size:10px;padding:2px 8px;border-radius:20px;background:rgba(0,0,0,0.05);color:' + (estadoColor[t.estado]||'#444') + ';">' + t.estado + '</span>'
+      + '</div></div>'
+      + '<div style="font-size:13px;font-weight:600;color:var(--hero-text-primary);margin-bottom:3px;">' + t.asunto + '</div>'
+      + '<div style="font-size:12px;color:var(--hero-text-muted);">' + t.nombre + ' · ' + t.categoria + '</div>'
       + '</div>';
   }).join('');
 }
@@ -837,22 +976,47 @@ function openTicketModal(id) {
   if (!t) return;
   currentTicketId = id;
   document.getElementById('modal-ticket-id').textContent = t.ticketId;
-  document.getElementById('modal-asunto').textContent = t.asunto;
-  document.getElementById('modal-nombre').textContent = t.nombre;
-  document.getElementById('modal-email').textContent = t.email;
+  document.getElementById('modal-asunto').textContent    = t.asunto;
+  document.getElementById('modal-nombre').textContent    = t.nombre;
+  document.getElementById('modal-email').textContent     = t.email;
   document.getElementById('modal-categoria').textContent = t.categoria;
-  const fecha = new Date(t.fecha).toLocaleString('es-MX', { timeZone:'America/New_York', year:'numeric', month:'long', day:'numeric', hour:'2-digit', minute:'2-digit' });
+  const fecha = new Date(t.fecha).toLocaleString('es-MX', { timeZone:'America/New_York', year:'numeric', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' });
   document.getElementById('modal-fecha').textContent = fecha + ' ET';
+  const elEl = document.getElementById('modal-elapsed');
+  elEl.textContent = '⏱ Abierto hace ' + getElapsedTime(t.fecha);
+  elEl.style.color = getElapsedColor(t.fecha, t.estado);
   document.getElementById('modal-descripcion').textContent = t.descripcion;
-  document.getElementById('modal-estado').value = t.estado;
+  document.getElementById('modal-estado').value    = t.estado;
   document.getElementById('modal-prioridad').value = t.prioridad;
-  document.getElementById('modal-respuesta').value = t.respuesta || '';
+  document.getElementById('modal-respuesta').value = '';
+
+  // Historial
+  const hist = t.historial || [];
+  const histBox = document.getElementById('modal-historial-box');
+  if (hist.length) {
+    histBox.style.display = 'block';
+    document.getElementById('modal-historial').innerHTML = hist.map(h => {
+      const f = new Date(h.fecha).toLocaleString('es-MX', { timeZone:'America/New_York', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' });
+      if (h.tipo === 'estado')    return '<div style="font-size:12px;color:var(--hero-text-muted);padding:4px 0;border-bottom:1px solid var(--hero-border);">📋 Estado: <strong>' + h.de + '</strong> → <strong>' + h.a + '</strong> · <span style="font-family:var(--mono);font-size:10px;">' + f + '</span></div>';
+      if (h.tipo === 'respuesta') return '<div style="font-size:12px;color:var(--hero-text-muted);padding:4px 0;border-bottom:1px solid var(--hero-border);">💬 Respuesta enviada · <span style="font-family:var(--mono);font-size:10px;">' + f + '</span></div>';
+      return '';
+    }).join('');
+  } else {
+    histBox.style.display = 'none';
+  }
+
   document.getElementById('ticket-modal').style.display = 'block';
 }
 
 function closeTicketModal() {
   document.getElementById('ticket-modal').style.display = 'none';
   currentTicketId = null;
+}
+
+function setQuickReply(key) {
+  const ta = document.getElementById('modal-respuesta');
+  ta.value = QUICK_REPLIES[key] || '';
+  ta.focus();
 }
 
 async function guardarTicket() {
@@ -871,18 +1035,17 @@ async function guardarTicket() {
     });
     const result = await resp.json();
     if (!resp.ok) throw new Error(result.error || 'Error');
-    addLog('Ticket actualizado: ' + currentTicketId, 'success');
     const t = allTickets.find(x => x.id === currentTicketId);
-    auditLog('ticket', 'Ticket ' + (t ? t.ticketId : '') + ' actualizado — estado: ' + document.getElementById('modal-estado').value, respuesta ? 'Respuesta enviada a ' + (t ? t.email : '') : null);
+    auditLog('ticket', 'Ticket ' + (t ? t.ticketId : '') + ' actualizado → ' + estado, respuesta ? 'Respuesta enviada' : null);
     showToast(respuesta ? 'Respuesta enviada al usuario' : 'Ticket actualizado');
     closeTicketModal();
     loadTickets();
   } catch(err) {
     addLog('Error: ' + err.message, 'error');
-    showToast('Error al guardar: ' + err.message);
+    showToast('Error: ' + err.message);
   }
   btn.disabled = false;
-  btn.innerHTML = '💾 Guardar y enviar respuesta';
+  btn.innerHTML = '💾 Guardar y notificar usuario';
 }
 
 // ── Módulo Solicitudes de Alta ────────────────────────────────

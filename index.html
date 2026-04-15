@@ -598,6 +598,49 @@ nav { padding: 12px; flex: 1; }
 }
 html { scroll-behavior: smooth; }
 
+/* ── Kanban ──────────────────────────────────────────────── */
+.kanban-col {
+  background: var(--hero-bg);
+  border-radius: var(--hero-radius);
+  border: 1px solid var(--hero-border);
+  overflow: hidden;
+  min-height: 200px;
+}
+.kanban-col-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 14px;
+  border-bottom: 2px solid var(--col-color, var(--hero-border));
+  background: var(--hero-card-bg);
+}
+.kanban-col-title { font-size: 12px; font-weight: 700; color: var(--hero-text-primary); }
+.kanban-col-count {
+  font-family: var(--mono);
+  font-size: 11px;
+  background: rgba(0,0,0,0.06);
+  padding: 2px 8px;
+  border-radius: 20px;
+  color: var(--hero-text-muted);
+}
+.kanban-cards { padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+.kanban-card {
+  background: var(--hero-card-bg);
+  border: 1px solid var(--hero-border);
+  border-radius: 8px;
+  padding: 12px;
+  cursor: pointer;
+  transition: box-shadow 0.15s, transform 0.15s;
+  border-left: 3px solid var(--card-pcolor, var(--hero-border));
+}
+.kanban-card:hover { box-shadow: 0 3px 12px rgba(0,0,0,0.1); transform: translateY(-1px); }
+.kanban-card-title { font-size: 12px; font-weight: 600; color: var(--hero-text-primary); margin-bottom: 4px; line-height: 1.4; }
+.kanban-card-meta  { font-size: 11px; color: var(--hero-text-muted); }
+.kanban-card-time  { font-size: 10px; font-family: var(--mono); margin-top: 6px; }
+@media (max-width: 900px) {
+  #tickets-kanban { grid-template-columns: 1fr !important; }
+}
+
 /* ── Last updated indicator ─────────────────────────────── */
 .last-updated {
   font-size: 11px;
@@ -898,70 +941,81 @@ html { scroll-behavior: smooth; }
     <div class="page" id="page-reset">
       <div class="section-header">
         <div class="section-title"><span>//</span> Reset de <span>Contraseña</span></div>
-        <div class="section-desc">Envía un email de restablecimiento con nueva contraseña temporal al correo personal del usuario.</div>
+        <div class="section-desc">Resetea la contraseña directamente en Google Workspace y notifica al usuario por email.</div>
       </div>
 
       <div class="panel-grid">
-        <div class="info-box">
-          <div class="info-box-title">Datos del usuario</div>
-          <div class="form-group">
-            <label class="form-label">Nombre completo</label>
-            <input class="form-input" id="rst-nombre" type="text" placeholder="ej: Carlos Mendoza"/>
-          </div>
-          <div class="form-group">
-            <label class="form-label">Email corporativo</label>
-            <input class="form-input" id="rst-email" type="email" placeholder="cmendoza&#64;heroinsuranceusa.com"/>
-          </div>
-          <div class="form-group">
-            <label class="form-label">Nueva contraseña temporal</label>
-            <input class="form-input" id="rst-password" type="text" placeholder="NuevaHero2026* (dejar vacío si aún no aplica)"/>
-          </div>
-          <div class="form-group">
-            <label class="form-label">Email personal (destino)</label>
-            <input class="form-input" id="rst-email-personal" type="email" placeholder="carlos.mendoza&#64;gmail.com"/>
-          </div>
-          <div style="display:flex; gap:10px; margin-top:18px">
-            <button class="btn btn-danger" id="btn-send-rst" onclick="sendReset()">
-              🔑 Enviar reset de contraseña
-            </button>
-            <button class="btn btn-secondary" onclick="clearForm('rst')">Limpiar</button>
-          </div>
-        </div>
+        <!-- Left: search + form -->
+        <div style="display:flex;flex-direction:column;gap:14px;">
 
-        <div style="display:flex; flex-direction:column; gap:16px">
+          <!-- Step 1: Search user -->
           <div class="info-box">
-            <div class="info-box-title">¿Qué incluye este email?</div>
-            <div style="font-size:13px; color:var(--hero-text-body); line-height:1.8">
-              ✓ Aviso de seguridad destacado<br>
-              ✓ Email corporativo + nueva contraseña<br>
-              ✓ Pasos para cambiar contraseña en Workspace<br>
-              ✓ Instrucciones de activación MFA<br>
-              ✓ Enlace a soporte IT<br>
-              ✓ Timestamp con fecha/hora ET
+            <div class="info-box-title">① Buscar usuario en Workspace</div>
+            <div style="position:relative;">
+              <input class="form-input" id="rst-search" type="text"
+                placeholder="Nombre o email corporativo..."
+                oninput="filterResetUsers()" autocomplete="off"/>
+              <div id="rst-suggestions" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid rgba(6,163,182,0.3);border-radius:0 0 8px 8px;z-index:50;max-height:200px;overflow-y:auto;box-shadow:0 4px 16px rgba(0,0,0,0.1);"></div>
+            </div>
+            <!-- Selected user card -->
+            <div id="rst-selected" style="display:none;margin-top:12px;padding:12px 14px;background:var(--hero-bg);border-radius:8px;border:1px solid var(--hero-border);">
+              <div style="display:flex;justify-content:space-between;align-items:center;">
+                <div>
+                  <div id="rst-sel-nombre" style="font-size:14px;font-weight:600;color:var(--hero-text-primary);"></div>
+                  <div id="rst-sel-email" style="font-size:12px;color:var(--hero-primary);font-family:var(--mono);margin-top:2px;"></div>
+                  <div id="rst-sel-estado" style="font-size:11px;color:var(--hero-text-muted);margin-top:2px;"></div>
+                </div>
+                <button onclick="clearResetUser()" style="background:transparent;border:none;color:var(--hero-text-muted);cursor:pointer;font-size:18px;">✕</button>
+              </div>
             </div>
           </div>
-          <div class="info-box" style="border-color: rgba(245,101,101,0.2); background: rgba(245,101,101,0.04)">
-            <div class="info-box-title" style="color:var(--hero-danger)">⚠️ Importante</div>
-            <div style="font-size:12px; color:var(--hero-text-body); line-height:1.6">
-              Asegúrate de haber cambiado ya la contraseña en la consola de Google Workspace <strong style="color:var(--hero-text-primary)">antes</strong> de enviar este email, o de indicar al usuario que el sistema le asignará una al iniciar sesión.
-            </div>
-          </div>
-        </div>
-      </div>
 
-      <div class="log-console">
-        <div class="log-console-header">
-          <span class="log-console-title">CONSOLA · RESET PASSWORD</span>
-          <div class="log-console-dots">
-            <div class="log-dot" style="background:#f56565"></div>
-            <div class="log-dot" style="background:#f0b429"></div>
-            <div class="log-dot" style="background:#22d87a"></div>
+          <!-- Step 2: New password -->
+          <div class="info-box">
+            <div class="info-box-title">② Nueva contraseña temporal</div>
+            <div style="display:flex;gap:8px;margin-top:10px;">
+              <input class="form-input" id="rst-new-password" type="text"
+                placeholder="Escribe o genera una contraseña..." style="flex:1;"/>
+              <button class="btn btn-secondary" onclick="generateResetPassword()" title="Generar contraseña segura" style="flex-shrink:0;">⚡ Generar</button>
+            </div>
+            <div style="margin-top:8px;font-size:11px;color:var(--hero-text-muted);">
+              El usuario deberá cambiarla en su próximo inicio de sesión.
+            </div>
           </div>
+
+          <!-- Step 3: Execute -->
+          <button class="btn btn-primary" id="btn-exec-reset" onclick="executeReset()" style="padding:14px;">
+            🔑 Resetear contraseña en Workspace y notificar
+          </button>
         </div>
-        <div class="log-body" id="log-rst">
-          <div class="log-empty">
-            <div class="log-empty-icon">🔑</div>
-            <div class="log-empty-text">Completa el formulario y presiona "Enviar reset"</div>
+
+        <!-- Right: info + log -->
+        <div style="display:flex;flex-direction:column;gap:14px;">
+          <div class="info-box">
+            <div class="info-box-title">¿Qué hace este módulo?</div>
+            <div style="font-size:13px;color:var(--hero-text-body);line-height:1.9;">
+              ① Busca el usuario directamente en Google Workspace<br>
+              ② Cambia la contraseña via Admin API<br>
+              ③ Obliga al usuario a cambiarla al iniciar sesión<br>
+              ④ Envía email de notificación al correo corporativo<br>
+              ⑤ Registra la acción en Auditoría
+            </div>
+          </div>
+          <div class="log-console">
+            <div class="log-console-header">
+              <span class="log-console-title">CONSOLA · RESET</span>
+              <div class="log-console-dots">
+                <div class="log-dot" style="background:#f56565"></div>
+                <div class="log-dot" style="background:#f0b429"></div>
+                <div class="log-dot" style="background:#22d87a"></div>
+              </div>
+            </div>
+            <div class="log-body" id="log-rst">
+              <div class="log-empty">
+                <div class="log-empty-icon">🔑</div>
+                <div class="log-empty-text">Busca un usuario para comenzar</div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -1162,99 +1216,154 @@ html { scroll-behavior: smooth; }
     <div class="page" id="page-tickets">
       <div class="section-header">
         <div class="section-title"><span>//</span> Tickets de <span>Soporte</span></div>
-        <div class="section-desc">Gestiona todas las solicitudes de soporte técnico del equipo.</div>
+        <div class="section-desc">Gestiona solicitudes de soporte — vista Kanban o lista, con notificaciones automáticas al usuario.</div>
       </div>
 
-      <div style="display:flex;gap:10px;margin-bottom:16px;align-items:center;flex-wrap:wrap;">
-        <button class="btn btn-primary" onclick="loadTickets()" id="btn-load-tickets">↺ Actualizar</button>
-        <select id="ticket-filter-estado" onchange="filterTickets()" style="background:var(--hero-bg-card);border:1px solid var(--hero-border-card);color:var(--hero-text-body);padding:8px 12px;border-radius:8px;font-size:12px;font-family:var(--sans);">
-          <option value="">Todos los estados</option>
-          <option value="abierto">Abierto</option>
-          <option value="en progreso">En progreso</option>
-          <option value="resuelto">Resuelto</option>
-        </select>
-        <select id="ticket-filter-prioridad" onchange="filterTickets()" style="background:var(--hero-bg-card);border:1px solid var(--hero-border-card);color:var(--hero-text-body);padding:8px 12px;border-radius:8px;font-size:12px;font-family:var(--sans);">
+      <!-- Toolbar -->
+      <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;align-items:center;">
+        <button class="btn btn-secondary" onclick="loadTickets()" id="btn-load-tickets" style="font-size:12px;">↺ Actualizar</button>
+        <div style="display:flex;border:1px solid var(--hero-border);border-radius:8px;overflow:hidden;">
+          <button id="btn-view-kanban" onclick="setTicketView('kanban')" class="btn" style="border:none;border-radius:0;background:var(--hero-primary);color:#fff;font-size:12px;padding:7px 14px;">⬛ Kanban</button>
+          <button id="btn-view-list"   onclick="setTicketView('list')"   class="btn" style="border:none;border-radius:0;background:transparent;color:var(--hero-text-muted);font-size:12px;padding:7px 14px;">☰ Lista</button>
+        </div>
+        <select id="ticket-filter-prioridad" onchange="filterTickets()" style="background:var(--hero-card-bg);border:1px solid var(--hero-border);color:var(--hero-text-body);padding:7px 12px;border-radius:8px;font-size:12px;font-family:var(--hero-font);">
           <option value="">Todas las prioridades</option>
           <option value="Urgente">Urgente</option>
           <option value="Alta">Alta</option>
           <option value="Media">Media</option>
           <option value="Baja">Baja</option>
         </select>
-        <span <span id="tickets-last-updated" class="last-updated" style="margin-left:8px;margin-bottom:0;"></span>
+        <select id="ticket-filter-categoria" onchange="filterTickets()" style="background:var(--hero-card-bg);border:1px solid var(--hero-border);color:var(--hero-text-body);padding:7px 12px;border-radius:8px;font-size:12px;font-family:var(--hero-font);">
+          <option value="">Todas las categorías</option>
+          <option value="Problema con equipo o hardware">Equipo / Hardware</option>
+          <option value="Acceso a aplicación o plataforma">Acceso / App</option>
+          <option value="Solicitud de software">Software</option>
+          <option value="Otro">Otro</option>
+        </select>
+        <input class="form-input" id="ticket-search" type="text" placeholder="Buscar..." oninput="filterTickets()" style="max-width:200px;padding:7px 12px;font-size:12px;"/>
         <span id="tickets-count" style="font-family:var(--mono);font-size:11px;color:var(--hero-text-muted);margin-left:auto;"></span>
+        <span id="tickets-last-updated" class="last-updated" style="margin-bottom:0;"></span>
       </div>
 
-      <div id="tickets-list">
-        <div class="info-box" style="text-align:center;padding:48px;">
-          <div style="font-size:36px;opacity:0.3;margin-bottom:12px;">🎫</div>
-          <div style="font-family:var(--mono);font-size:12px;color:var(--hero-text-muted);">Presiona "Actualizar" para cargar los tickets</div>
+      <!-- Kanban view -->
+      <div id="tickets-kanban" style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;">
+        <div class="kanban-col" id="col-abierto">
+          <div class="kanban-col-header" style="--col-color:#d64545;">
+            <span class="kanban-col-title">🔴 Abierto</span>
+            <span class="kanban-col-count" id="count-abierto">0</span>
+          </div>
+          <div class="kanban-cards" id="cards-abierto"></div>
+        </div>
+        <div class="kanban-col" id="col-en-progreso">
+          <div class="kanban-col-header" style="--col-color:#e8a317;">
+            <span class="kanban-col-title">🟡 En progreso</span>
+            <span class="kanban-col-count" id="count-en-progreso">0</span>
+          </div>
+          <div class="kanban-cards" id="cards-en-progreso"></div>
+        </div>
+        <div class="kanban-col" id="col-resuelto">
+          <div class="kanban-col-header" style="--col-color:#22a06b;">
+            <span class="kanban-col-title">✅ Resuelto</span>
+            <span class="kanban-col-count" id="count-resuelto">0</span>
+          </div>
+          <div class="kanban-cards" id="cards-resuelto"></div>
         </div>
       </div>
 
-      <!-- Modal de ticket -->
+      <!-- List view (hidden by default) -->
+      <div id="tickets-list" style="display:none;"></div>
+
+      <!-- Ticket detail modal -->
       <div id="ticket-modal" style="display:none;position:fixed;inset:0;background:rgba(26,39,51,0.5);z-index:100;overflow-y:auto;padding:24px;">
-        <div style="background:var(--hero-bg-card);border:1px solid rgba(6,163,182,0.3);border-radius:16px;max-width:620px;margin:0 auto;padding:28px;">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+        <div style="background:#ffffff;border:1px solid rgba(6,163,182,0.3);border-radius:16px;max-width:640px;margin:0 auto;padding:0;overflow:hidden;">
+          <!-- Modal header -->
+          <div style="background:linear-gradient(135deg,#06a3b6,#048395);padding:20px 24px;display:flex;justify-content:space-between;align-items:center;">
             <div>
-              <div id="modal-ticket-id" style="font-family:var(--mono);font-size:14px;color:var(--hero-primary);font-weight:700;"></div>
-              <div id="modal-asunto" style="font-size:16px;color:var(--hero-text-primary);font-weight:600;margin-top:4px;"></div>
+              <div id="modal-ticket-id" style="font-family:var(--mono);font-size:13px;color:rgba(255,255,255,0.8);"></div>
+              <div id="modal-asunto" style="font-size:16px;font-weight:700;color:#fff;margin-top:3px;"></div>
             </div>
-            <button onclick="closeTicketModal()" style="background:transparent;border:1px solid var(--hero-border-card);color:var(--hero-text-body);width:32px;height:32px;border-radius:8px;cursor:pointer;font-size:16px;">✕</button>
+            <button onclick="closeTicketModal()" style="background:rgba(255,255,255,0.2);border:none;color:#fff;width:32px;height:32px;border-radius:8px;cursor:pointer;font-size:16px;">✕</button>
           </div>
-
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px;">
-            <div class="info-box" style="padding:14px;">
-              <div style="font-family:var(--mono);font-size:9px;letter-spacing:1px;color:var(--hero-text-muted);text-transform:uppercase;margin-bottom:6px;">Usuario</div>
-              <div id="modal-nombre" style="font-size:13px;color:var(--hero-text-primary);font-weight:500;"></div>
-              <div id="modal-email" style="font-family:var(--mono);font-size:11px;color:var(--hero-primary);margin-top:2px;"></div>
+          <div style="padding:24px;">
+            <!-- User info + time -->
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
+              <div class="info-box" style="padding:12px 14px;">
+                <div style="font-size:10px;color:var(--hero-primary);font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-bottom:6px;">Usuario</div>
+                <div id="modal-nombre" style="font-size:13px;font-weight:600;color:var(--hero-text-primary);"></div>
+                <div id="modal-email"  style="font-size:11px;color:var(--hero-primary);font-family:var(--mono);margin-top:2px;"></div>
+              </div>
+              <div class="info-box" style="padding:12px 14px;">
+                <div style="font-size:10px;color:var(--hero-primary);font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-bottom:6px;">Detalles</div>
+                <div id="modal-categoria" style="font-size:12px;color:var(--hero-text-body);"></div>
+                <div id="modal-fecha"    style="font-size:10px;color:var(--hero-text-muted);font-family:var(--mono);margin-top:4px;"></div>
+                <div id="modal-elapsed"  style="font-size:10px;font-weight:600;margin-top:3px;"></div>
+              </div>
             </div>
-            <div class="info-box" style="padding:14px;">
-              <div style="font-family:var(--mono);font-size:9px;letter-spacing:1px;color:var(--hero-text-muted);text-transform:uppercase;margin-bottom:6px;">Detalles</div>
-              <div id="modal-categoria" style="font-size:12px;color:var(--hero-text-body);"></div>
-              <div id="modal-fecha" style="font-family:var(--mono);font-size:10px;color:var(--hero-text-muted);margin-top:4px;"></div>
+
+            <!-- Description -->
+            <div class="info-box" style="padding:14px;margin-bottom:16px;">
+              <div style="font-size:10px;color:var(--hero-primary);font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-bottom:8px;">Descripción</div>
+              <div id="modal-descripcion" style="font-size:13px;color:var(--hero-text-body);line-height:1.7;white-space:pre-wrap;"></div>
             </div>
-          </div>
 
-          <div class="info-box" style="padding:16px;margin-bottom:16px;">
-            <div style="font-family:var(--mono);font-size:9px;letter-spacing:1px;color:var(--hero-text-muted);text-transform:uppercase;margin-bottom:8px;">Descripción</div>
-            <div id="modal-descripcion" style="font-size:13px;color:var(--hero-text-body);line-height:1.7;white-space:pre-wrap;"></div>
-          </div>
-
-          <!-- Acciones -->
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;">
-            <div>
-              <label class="form-label">Estado</label>
-              <select id="modal-estado" style="width:100%;background:var(--hero-bg-page);border:1px solid var(--hero-border-card);color:var(--hero-text-primary);padding:9px 12px;border-radius:8px;font-size:13px;font-family:var(--sans);">
-                <option value="abierto">Abierto</option>
-                <option value="en progreso">En progreso</option>
-                <option value="resuelto">Resuelto</option>
-              </select>
+            <!-- Historial -->
+            <div id="modal-historial-box" style="display:none;margin-bottom:16px;">
+              <div class="info-box" style="padding:14px;">
+                <div style="font-size:10px;color:var(--hero-primary);font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-bottom:10px;">Historial</div>
+                <div id="modal-historial"></div>
+              </div>
             </div>
-            <div>
-              <label class="form-label">Prioridad</label>
-              <select id="modal-prioridad" style="width:100%;background:var(--hero-bg-page);border:1px solid var(--hero-border-card);color:var(--hero-text-primary);padding:9px 12px;border-radius:8px;font-size:13px;font-family:var(--sans);">
-                <option value="Baja">Baja</option>
-                <option value="Media">Media</option>
-                <option value="Alta">Alta</option>
-                <option value="Urgente">Urgente</option>
-              </select>
+
+            <!-- Actions -->
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;">
+              <div>
+                <label class="form-label">Estado</label>
+                <select id="modal-estado" class="form-input" style="background:var(--hero-card-bg);">
+                  <option value="abierto">Abierto</option>
+                  <option value="en progreso">En progreso</option>
+                  <option value="resuelto">Resuelto</option>
+                </select>
+              </div>
+              <div>
+                <label class="form-label">Prioridad</label>
+                <select id="modal-prioridad" class="form-input" style="background:var(--hero-card-bg);">
+                  <option value="Baja">Baja</option>
+                  <option value="Media">Media</option>
+                  <option value="Alta">Alta</option>
+                  <option value="Urgente">Urgente</option>
+                </select>
+              </div>
             </div>
-          </div>
 
-          <div class="form-group">
-            <label class="form-label">Respuesta al usuario</label>
-            <textarea id="modal-respuesta" class="form-input" rows="4" placeholder="Escribe tu respuesta... Se enviará por email al usuario." style="resize:vertical;"></textarea>
-          </div>
+            <!-- Quick replies -->
+            <div style="margin-bottom:10px;">
+              <label class="form-label">Respuestas rápidas</label>
+              <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;">
+                <button onclick="setQuickReply('revisando')" class="btn btn-secondary" style="font-size:11px;padding:5px 10px;">📋 Revisando</button>
+                <button onclick="setQuickReply('info')"      class="btn btn-secondary" style="font-size:11px;padding:5px 10px;">❓ Necesito info</button>
+                <button onclick="setQuickReply('resuelto')"  class="btn btn-secondary" style="font-size:11px;padding:5px 10px;">✅ Resuelto</button>
+                <button onclick="setQuickReply('remoto')"    class="btn btn-secondary" style="font-size:11px;padding:5px 10px;">🖥️ Soporte remoto</button>
+              </div>
+            </div>
 
-          <div style="display:flex;gap:10px;margin-top:16px;">
-            <button class="btn btn-primary" id="btn-guardar-ticket" onclick="guardarTicket()" style="flex:1;">💾 Guardar y enviar respuesta</button>
-            <button class="btn btn-secondary" onclick="closeTicketModal()">Cancelar</button>
+            <div class="form-group">
+              <label class="form-label">Respuesta al usuario</label>
+              <textarea id="modal-respuesta" class="form-input" rows="3"
+                placeholder="Escribe tu respuesta... Se enviará por email al usuario."
+                style="resize:vertical;"></textarea>
+            </div>
+
+            <div style="display:flex;gap:10px;margin-top:14px;">
+              <button class="btn btn-primary" id="btn-guardar-ticket" onclick="guardarTicket()" style="flex:1;">
+                💾 Guardar y notificar usuario
+              </button>
+              <button class="btn btn-secondary" onclick="closeTicketModal()">Cancelar</button>
+            </div>
           </div>
         </div>
       </div>
-    </div>
+    </div><!-- /tickets -->
 
-    <!-- ══ AUDITORÍA ══════════════════════════════════════ -->
     <div class="page" id="page-auditoria">
       <div class="section-header">
         <div class="section-title"><span>//</span> Auditoría</div>
