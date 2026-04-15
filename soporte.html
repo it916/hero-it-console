@@ -109,6 +109,7 @@
 
       <div class="field">
         <label>Prioridad *</label>
+        <div id="priority-hint" style="font-size:11px;color:var(--cyan);margin-bottom:8px;min-height:16px;"></div>
         <div class="priority-group">
           <div class="priority-chip baja">
             <input type="radio" name="prioridad" id="p-baja" value="Baja"/>
@@ -131,12 +132,12 @@
 
       <div class="field">
         <label for="asunto">Asunto *</label>
-        <input type="text" id="asunto" placeholder="Describe brevemente el problema"/>
+        <input type="text" id="asunto" oninput="suggestPriority()" placeholder="Describe brevemente el problema"/>
       </div>
 
       <div class="field">
         <label for="descripcion">Descripción detallada *</label>
-        <textarea id="descripcion" placeholder="Explica con detalle qué está pasando, desde cuándo, y qué has intentado..."></textarea>
+        <textarea id="descripcion" oninput="suggestPriority()" placeholder="Explica con detalle qué está pasando, desde cuándo, y qué has intentado..."></textarea>
       </div>
 
       <button class="btn-primary" onclick="enviarTicket()">Enviar ticket →</button>
@@ -147,6 +148,33 @@
 
 <script>
   const WORKER_URL = 'https://hero-email-worker.broad-fire-d2d6.workers.dev';
+
+  // Palabras clave para sugerencia automática de prioridad
+  const KEYWORDS = {
+    Urgente: ['urgente','no puedo trabajar','bloqueado','caído','no funciona nada','sin acceso total','emergencia'],
+    Alta:    ['no puedo entrar','error al iniciar','no abre','falla','no conecta','contraseña','no carga'],
+    Media:   ['problema','lento','falla intermitente','a veces','no siempre'],
+    Baja:    ['solicitud','instalar','agregar','cambiar','actualizar','mejorar'],
+  };
+
+  function suggestPriority() {
+    const desc = document.getElementById('descripcion').value.toLowerCase();
+    const asunto = document.getElementById('asunto').value.toLowerCase();
+    const text = desc + ' ' + asunto;
+    for (const [priority, words] of Object.entries(KEYWORDS)) {
+      if (words.some(w => text.includes(w))) {
+        const radioId = 'p-' + priority.toLowerCase();
+        const radio = document.getElementById(radioId);
+        if (radio) {
+          radio.checked = true;
+          // Show subtle hint
+          const hint = document.getElementById('priority-hint');
+          if (hint) hint.textContent = '💡 Prioridad sugerida: ' + priority;
+        }
+        return;
+      }
+    }
+  }
 
   async function enviarTicket() {
     const nombre      = document.getElementById('nombre').value.trim();
