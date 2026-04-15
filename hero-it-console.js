@@ -1726,24 +1726,12 @@ function renderZohoGrid(devices) {
 }
 
 async function startZohoSession(computerId, name) {
-  showToast('Iniciando sesión remota con ' + name + '...');
-  addLog('Iniciando sesión Zoho Assist → ' + name, 'info');
-  try {
-    const resp = await fetch(WORKER_URL + '/zoho/session/' + computerId);
-    const data = await resp.json();
-    if (!resp.ok) throw new Error(data.error || 'Error al iniciar sesión');
-    if (data.sessionUrl) {
-      window.open(data.sessionUrl, '_blank');
-      auditLog('zoho', 'Sesión remota iniciada: ' + name, computerId);
-    } else {
-      // Si no hay URL directa, abrir Zoho Assist directamente
-      window.open('https://assist.zoho.com', '_blank');
-      showToast('Abre Zoho Assist y conecta a ' + name);
-    }
-  } catch(err) {
-    addLog('Error Zoho: ' + err.message, 'error');
-    showToast('Error: ' + err.message);
-  }
+  addLog('Abriendo Zoho Assist para ' + name + '...', 'info');
+  // Open Zoho Assist portal directly — the user must be logged in to Zoho
+  const url = 'https://assist.zoho.com/portal/it265/app/home#/unattended/devices?computer_id=' + computerId;
+  window.open(url, '_blank');
+  auditLog('zoho', 'Sesion remota iniciada: ' + name, computerId);
+  showToast('Abriendo Zoho Assist → ' + name);
 }
 // ── Render session logs on demand ───────────────────────────
 function renderSessionLogs() {
