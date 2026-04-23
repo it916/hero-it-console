@@ -596,12 +596,164 @@ async function testConexion() {
 
 // ── Email templates ───────────────────────────────────────────
 function buildEmailEmpleado(nombre, email, password) {
-  var t=['https://i.imgur.com/CcVDV8K.png|Gather Town|Oficina virtual.|https://app.v2.gather.town/app/hero-insurance-usa-2e9e375c-6dcb-40c4-b607-d0791d5dfb78','https://cdn-1.webcatalog.io/catalog/fathom-video/fathom-video-icon-filled-256.png|Fathom|Graba reuniones.|https://fathom.video','https://i.imgur.com/7d0c77c.png|Scribe|Guias automaticas.|https://scribehow.com','https://img.icons8.com/color/1200/express-vpn.jpg|ExpressVPN|Conexion segura.|https://www.expressvpn.com','https://i.imgur.com/4WZmKFm.png|ClickUp|Gestion de tareas.|https://app.clickup.com'].map(function(x){var p=x.split('|');return '<table cellspacing="0" cellpadding="0" border="0" width="100%" style="margin-bottom:8px"><tr><td width="48" valign="top" style="padding-right:12px"><img src="'+p[0]+'" width="40" height="40" style="width:40px;height:40px;border-radius:10px;display:block"/></td><td valign="top"><p style="margin:0 0 2px;font-family:Arial,sans-serif;font-size:13px;font-weight:700;color:#1a202c">'+p[1]+'</p><p style="margin:0;font-family:Arial,sans-serif;font-size:12px;color:#718096">'+p[2]+'</p></td></tr></table>';}).join('');
-  return '<!DOCTYPE html><html><head><meta charset="UTF-8"/></head><body style="margin:0;padding:0;background:#f0f4f8"><table cellspacing="0" cellpadding="0" border="0" width="100%"><tr><td style="padding:32px 16px"><table cellspacing="0" cellpadding="0" border="0" width="600" align="center" style="background:#fff;border-radius:16px;overflow:hidden"><tr><td style="background:linear-gradient(135deg,#0065F3,#19CDEB);padding:36px 40px;text-align:center"><img src="https://i.imgur.com/mZDIi6V.png" width="160" style="display:block;margin:0 auto 16px"/><h1 style="margin:0;font-family:Arial,sans-serif;font-size:26px;font-weight:900;color:#fff">Bienvenido, '+nombre+'!</h1></td></tr><tr><td style="padding:32px 40px;background:#fff"><p style="margin:0 0 20px;font-family:Arial,sans-serif;font-size:14px;color:#2d3748">Hola <strong>'+nombre+'</strong>, aqui estan tus credenciales de acceso:</p><div style="background:#f7faff;border-radius:12px;border:1px solid #e2eaf8;margin-bottom:20px"><div style="padding:12px 20px;background:#eef4ff;border-radius:12px 12px 0 0;font-family:Arial,sans-serif;font-size:11px;font-weight:900;letter-spacing:2px;text-transform:uppercase;color:#0065F3">Cuenta Corporativa</div><div style="padding:16px 20px"><div style="padding:12px;background:#fff;border-radius:8px;border:1px solid #dde8ff;margin-bottom:10px"><p style="margin:0 0 3px;font-family:Arial,sans-serif;font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:#8fa6cc">Correo corporativo</p><p style="margin:0;font-family:Courier New,monospace;font-size:14px;font-weight:700;color:#0065F3">'+email+'</p></div><div style="padding:12px;background:#fff8e6;border-radius:8px;border:1px solid #f5d87a"><p style="margin:0 0 3px;font-family:Arial,sans-serif;font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:#b08a00">Contrasena Temporal</p><p style="margin:0;font-family:Courier New,monospace;font-size:14px;font-weight:700;color:#7a5f00">'+(password||'(asignada al iniciar sesion)')+'</p></div></div></div><div style="background:#f7faff;border-radius:12px;border:1px solid #e2eaf8;margin-bottom:20px"><div style="padding:12px 20px;background:#eef4ff;border-radius:12px 12px 0 0;font-family:Arial,sans-serif;font-size:11px;font-weight:900;letter-spacing:2px;text-transform:uppercase;color:#0065F3">Herramientas</div><div style="padding:16px 20px">'+t+'</div></div><div style="background:#fff8f8;border-radius:12px;border:1px solid #ffd4d4;padding:14px 20px;margin-bottom:20px"><p style="margin:0 0 8px;font-family:Arial,sans-serif;font-size:11px;font-weight:900;letter-spacing:2px;text-transform:uppercase;color:#cc3333">Seguridad</p><ul style="margin:0;padding:0 0 0 16px;font-family:Arial,sans-serif;font-size:13px;color:#4a5568;line-height:1.8"><li>Tu cuenta es personal</li><li>No compartas tu contrasena</li><li>La informacion es confidencial</li></ul></div><div style="background:linear-gradient(135deg,#eef4ff,#e6f7ff);border-radius:12px;border:1px solid #c5deff;padding:18px 20px"><p style="margin:0 0 4px;font-family:Arial,sans-serif;font-size:13px;font-weight:700;color:#1a202c">Tienes algun inconveniente?</p><p style="margin:0 0 10px;font-family:Arial,sans-serif;font-size:12px;color:#4a5568">Nuestro equipo de IT esta disponible.</p><a href="https://forms.gle/8dkvmbgAFwqVx2Mj9" style="display:inline-block;padding:10px 20px;background:#0065F3;color:#fff;font-family:Arial,sans-serif;font-size:12px;font-weight:700;text-decoration:none;border-radius:8px">Solicitar soporte IT</a></div></td></tr><tr><td style="padding:14px 40px 20px;background:#f0f4f8;text-align:center"><p style="margin:0;font-family:Arial,sans-serif;font-size:10px;color:#a0aec0">CONFIDENTIALITY NOTICE: This email is intended solely for the addressee.</p></td></tr></table></td></tr></table></body></html>';
+  return buildOnboardingEmail(nombre, email, password);
 }
 
 function buildEmailAgente(nombre, email, password) {
-  return '<!DOCTYPE html><html><head><meta charset="UTF-8"/></head><body style="margin:0;padding:0;background:#f0f4f8"><table cellspacing="0" cellpadding="0" border="0" width="100%"><tr><td style="padding:32px 16px"><table cellspacing="0" cellpadding="0" border="0" width="600" align="center" style="background:#fff;border-radius:16px;overflow:hidden"><tr><td style="background:linear-gradient(135deg,#0065F3,#19CDEB);padding:36px 40px;text-align:center"><img src="https://i.imgur.com/mZDIi6V.png" width="160" style="display:block;margin:0 auto 16px"/><h1 style="margin:0;font-family:Arial,sans-serif;font-size:26px;font-weight:900;color:#fff">Bienvenido, '+nombre+'!</h1></td></tr><tr><td style="padding:32px 40px;background:#fff"><p style="margin:0 0 20px;font-family:Arial,sans-serif;font-size:14px;color:#2d3748">Hola <strong>'+nombre+'</strong>, aqui estan tus credenciales de acceso:</p><div style="background:#f7faff;border-radius:12px;border:1px solid #e2eaf8;margin-bottom:20px"><div style="padding:12px 20px;background:#eef4ff;border-radius:12px 12px 0 0;font-family:Arial,sans-serif;font-size:11px;font-weight:900;letter-spacing:2px;text-transform:uppercase;color:#0065F3">Cuenta Corporativa</div><div style="padding:16px 20px"><div style="padding:12px;background:#fff;border-radius:8px;border:1px solid #dde8ff;margin-bottom:10px"><p style="margin:0 0 3px;font-family:Arial,sans-serif;font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:#8fa6cc">Correo corporativo</p><p style="margin:0;font-family:Courier New,monospace;font-size:14px;font-weight:700;color:#0065F3">'+email+'</p></div><div style="padding:12px;background:#fff8e6;border-radius:8px;border:1px solid #f5d87a"><p style="margin:0 0 3px;font-family:Arial,sans-serif;font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:#b08a00">Contrasena Temporal</p><p style="margin:0;font-family:Courier New,monospace;font-size:14px;font-weight:700;color:#7a5f00">'+(password||'(asignada al iniciar sesion)')+'</p></div></div></div><div style="background:#fff8f8;border-radius:12px;border:1px solid #ffd4d4;padding:14px 20px;margin-bottom:20px"><p style="margin:0 0 8px;font-family:Arial,sans-serif;font-size:11px;font-weight:900;letter-spacing:2px;text-transform:uppercase;color:#cc3333">Seguridad</p><ul style="margin:0;padding:0 0 0 16px;font-family:Arial,sans-serif;font-size:13px;color:#4a5568;line-height:1.8"><li>Tu cuenta es personal</li><li>No compartas tu contrasena</li><li>La informacion es confidencial</li></ul></div><div style="background:linear-gradient(135deg,#eef4ff,#e6f7ff);border-radius:12px;border:1px solid #c5deff;padding:18px 20px"><p style="margin:0 0 4px;font-family:Arial,sans-serif;font-size:13px;font-weight:700;color:#1a202c">Tienes algun inconveniente?</p><p style="margin:0 0 10px;font-family:Arial,sans-serif;font-size:12px;color:#4a5568">Nuestro equipo de IT esta disponible.</p><a href="https://forms.gle/8dkvmbgAFwqVx2Mj9" style="display:inline-block;padding:10px 20px;background:#0065F3;color:#fff;font-family:Arial,sans-serif;font-size:12px;font-weight:700;text-decoration:none;border-radius:8px">Solicitar soporte IT</a></div></td></tr><tr><td style="padding:14px 40px 20px;background:#f0f4f8;text-align:center"><p style="margin:0;font-family:Arial,sans-serif;font-size:10px;color:#a0aec0">CONFIDENTIALITY NOTICE: This email is intended solely for the addressee.</p></td></tr></table></td></tr></table></body></html>';
+  return buildOnboardingEmail(nombre, email, password);
+}
+
+function buildOnboardingEmail(nombre, email, password) {
+  var P = '#06a3b6';
+  var P2 = '#048395';
+  var LOGO = 'https://i.ibb.co/tMRCCW07/Hero-Nuevo-Circulo-1.png';
+  var HUB_URL = 'https://it916.github.io/hero-hub/';
+  var SOPORTE_URL = 'https://it916.github.io/hero-it-console/soporte.html';
+
+  var pasos = [
+    ['1', '&#128274;', 'Inicia sesi&oacute;n en Google Workspace',
+     'Abre Gmail con tu correo corporativo y la contrase&ntilde;a temporal. Google te pedir&aacute; crear una nueva contrase&ntilde;a segura.'],
+    ['2', '&#128119;', 'Accede al Hero Hub',
+     'El Hero Hub es tu portal de trabajo diario. Encontrar&aacute;s herramientas, comunicados y recursos del equipo. Usa el bot&oacute;n al final de este correo.'],
+    ['3', '&#128187;', 'Configura tu equipo',
+     'Instala ExpressVPN para conexiones seguras. Si tienes dudas sobre tu equipo, abre un ticket de soporte IT.'],
+    ['4', '&#128241;', 'Activa la verificaci&oacute;n en dos pasos',
+     'Ve a myaccount.google.com &rarr; Seguridad &rarr; Verificaci&oacute;n en dos pasos. Protege tu cuenta corporativa.'],
+    ['5', '&#127775;', 'Explora las herramientas del equipo',
+     'Gather Town (oficina virtual), Fathom (reuniones), ClickUp (tareas) y Scribe (gu&iacute;as). Accesos en el Hero Hub.'],
+    ['6', '&#128101;', 'Preséntate con el equipo',
+     'Entra a Gather Town y saluda. El equipo te espera para darte la bienvenida presencialmente.'],
+  ];
+
+
+  var pasosHtml = pasos.map(function(p) {
+    return '<table cellspacing="0" cellpadding="0" border="0" width="100%" style="margin-bottom:12px;">'
+      + '<tr valign="top">'
+      + '<td width="44" style="padding-right:12px;padding-top:2px;">'
+      + '<div style="width:36px;height:36px;background:linear-gradient(135deg,' + P + ',' + P2 + ');border-radius:50%;text-align:center;line-height:36px;font-size:16px;">' + p[1] + '</div>'
+      + '</td>'
+      + '<td valign="top">'
+      + '<p style="margin:0 0 3px;font-family:Trebuchet MS,Arial,sans-serif;font-size:13px;font-weight:700;color:#1a1a1a;">' + p[0] + '. ' + p[2] + '</p>'
+      + '<p style="margin:0;font-family:Trebuchet MS,Arial,sans-serif;font-size:12px;color:#666;line-height:1.6;">' + p[3] + '</p>'
+      + '</td>'
+      + '</tr>'
+      + '</table>';
+  }).join('');
+
+
+  var rolLabel = 'Nuevo Colaborador';
+
+  return '<!DOCTYPE html><html><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/></head>'
+    + '<body style="margin:0;padding:0;background:#f0f4f8;font-family:Trebuchet MS,Arial,sans-serif;">'
+    + '<table cellspacing="0" cellpadding="0" border="0" width="100%" style="background:#f0f4f8;"><tr><td style="padding:32px 16px;">'
+    + '<table cellspacing="0" cellpadding="0" border="0" width="600" align="center" style="background:#fff;border-radius:20px;overflow:hidden;box-shadow:0 8px 32px rgba(6,163,182,0.12);">'
+
+    // ── Hero banner (adapted from Hero Hub) ──────────────────────────────
+    + '<tr><td style="background:linear-gradient(135deg,' + P + ' 0%,' + P2 + ' 60%,#036070 100%);padding:0;position:relative;">'
+    // Decorative top line
+    + '<table cellspacing="0" cellpadding="0" border="0" width="100%"><tr><td style="height:4px;background:linear-gradient(90deg,rgba(255,255,255,0.15),rgba(255,255,255,0.5),rgba(255,255,255,0.15));"></td></tr></table>'
+    // Banner content
+    + '<table cellspacing="0" cellpadding="0" border="0" width="100%"><tr><td style="padding:36px 40px 28px;">'
+    + '<table cellspacing="0" cellpadding="0" border="0" width="100%"><tr valign="middle">'
+    // Left: Logo + greeting
+    + '<td style="padding-right:20px;">'
+    + '<img src="' + LOGO + '" width="72" height="72" style="width:72px;height:72px;border-radius:50%;display:block;border:3px solid rgba(255,255,255,0.4);box-shadow:0 4px 20px rgba(0,0,0,0.2);"/>'
+    + '</td>'
+    + '<td valign="middle">'
+    + '<div style="font-family:Trebuchet MS,Arial,sans-serif;font-size:11px;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:rgba(255,255,255,0.75);margin-bottom:6px;">Hero Insurance USA &nbsp;&bull;&nbsp; ' + rolLabel + '</div>'
+    + '<h1 style="margin:0 0 6px;font-family:Trebuchet MS,Arial,sans-serif;font-size:26px;font-weight:700;color:#fff;line-height:1.2;">&iexcl;Bienvenido al equipo, ' + nombre + '!</h1>'
+    + '<p style="margin:0;font-family:Trebuchet MS,Arial,sans-serif;font-size:13px;color:rgba(255,255,255,0.85);line-height:1.5;">Tu viaje en Hero Insurance comienza hoy. Estamos emocionados de tenerte con nosotros.</p>'
+    + '</td>'
+    + '</tr></table>'
+    + '</td></tr></table>'
+    + '</td></tr>'
+
+    // ── Body ─────────────────────────────────────────────────────────────
+    + '<tr><td style="padding:32px 40px;">'
+
+    // Credentials box
+    + '<div style="background:linear-gradient(135deg,#f0f8fa,#e8f4f6);border-radius:14px;border:1px solid #c8e8ec;padding:20px;margin-bottom:24px;">'
+    + '<p style="margin:0 0 14px;font-family:Trebuchet MS,Arial,sans-serif;font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:' + P + ';">&#128274; Tus credenciales de acceso</p>'
+    + '<table cellspacing="0" cellpadding="0" border="0" width="100%">'
+    + '<tr><td style="padding-bottom:10px;">'
+    + '<div style="background:#fff;border-radius:8px;border:1px solid #d8e1ea;padding:12px 16px;">'
+    + '<p style="margin:0 0 3px;font-family:Trebuchet MS,Arial,sans-serif;font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#7a8494;">Correo corporativo</p>'
+    + '<p style="margin:0;font-family:Courier New,monospace;font-size:14px;font-weight:700;color:' + P + ';">' + email + '</p>'
+    + '</div>'
+    + '</td></tr>'
+    + '<tr><td>'
+    + '<div style="background:#fffbf0;border-radius:8px;border:1px solid #f0d080;padding:12px 16px;">'
+    + '<p style="margin:0 0 3px;font-family:Trebuchet MS,Arial,sans-serif;font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#b08a00;">Contrase&ntilde;a temporal</p>'
+    + '<p style="margin:0;font-family:Courier New,monospace;font-size:16px;font-weight:700;color:#7a5f00;letter-spacing:2px;">' + (password || '(se asignar&aacute; al iniciar sesi&oacute;n)') + '</p>'
+    + '<p style="margin:6px 0 0;font-family:Trebuchet MS,Arial,sans-serif;font-size:11px;color:#b08a00;">Deber&aacute;s cambiarla al iniciar sesi&oacute;n por primera vez.</p>'
+    + '</div>'
+    + '</td></tr>'
+    + '</table>'
+    + '</div>'
+
+    // Onboarding guide
+    + '<div style="margin-bottom:24px;">'
+    + '<p style="margin:0 0 16px;font-family:Trebuchet MS,Arial,sans-serif;font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:' + P + ';">&#9989; Tu gu&iacute;a de onboarding</p>'
+    + '<p style="margin:0 0 18px;font-family:Trebuchet MS,Arial,sans-serif;font-size:13px;color:#555;line-height:1.6;">Sigue estos pasos para completar tu incorporaci&oacute;n al equipo Hero. Te recomendamos hacerlos en orden durante tus primeros d&iacute;as.</p>'
+    + pasosHtml
+    + '</div>'
+
+    // Tools (only for employees)
+
+    // Security
+    + '<div style="background:#fff5f5;border-radius:10px;border:1px solid #ffd4d4;padding:16px 20px;margin-bottom:24px;">'
+    + '<p style="margin:0 0 8px;font-family:Trebuchet MS,Arial,sans-serif;font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#c0392b;">&#128274; Pol&iacute;ticas de seguridad</p>'
+    + '<ul style="margin:0;padding:0 0 0 16px;font-family:Trebuchet MS,Arial,sans-serif;font-size:13px;color:#4a5568;line-height:1.9;">'
+    + '<li>Tu cuenta es personal e intransferible</li>'
+    + '<li>Nunca compartas tu contrase&ntilde;a con nadie</li>'
+    + '<li>La informaci&oacute;n de clientes es estrictamente confidencial</li>'
+    + '<li>Reporta cualquier actividad sospechosa de inmediato a IT</li>'
+    + '</ul>'
+    + '</div>'
+
+    // Support CTA
+    + '<div style="text-align:center;margin-bottom:8px;">'
+    + '<p style="font-family:Trebuchet MS,Arial,sans-serif;font-size:13px;color:#777;margin:0 0 10px;">&iquest;Necesitas ayuda con tu cuenta o accesos?</p>'
+    + '<a href="' + SOPORTE_URL + '" style="display:inline-block;padding:10px 24px;background:' + P + ';color:#fff;font-family:Trebuchet MS,Arial,sans-serif;font-size:13px;font-weight:700;text-decoration:none;border-radius:8px;">Abrir ticket de soporte &rarr;</a>'
+    + '</div>'
+
+    + '</td></tr>'
+
+    // ── Hero Hub banner (CTA final) ───────────────────────────────────────
+    + '<tr><td style="padding:0;">'
+    + '<table cellspacing="0" cellpadding="0" border="0" width="100%">'
+    + '<tr><td style="background:linear-gradient(135deg,#0f1a2e 0%,#0d2b50 50%,' + P2 + ' 100%);border-radius:0 0 20px 20px;overflow:hidden;padding:0;">'
+    // Inner layout: text left, hero right
+    + '<table cellspacing="0" cellpadding="0" border="0" width="100%"><tr valign="bottom">'
+    // Left: text content
+    + '<td style="padding:32px 0 32px 40px;vertical-align:middle;">'
+    + '<div style="display:inline-block;margin-bottom:14px;">'
+    + '<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,0.2);margin:0 3px;"></span>'
+    + '<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,0.5);margin:0 3px;"></span>'
+    + '<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,0.2);margin:0 3px;"></span>'
+    + '</div>'
+    + '<p style="margin:0 0 4px;font-family:Trebuchet MS,Arial,sans-serif;font-size:10px;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:rgba(255,255,255,0.6);">Tu nuevo portal de trabajo</p>'
+    + '<h2 style="margin:0 0 8px;font-family:Trebuchet MS,Arial,sans-serif;font-size:22px;font-weight:700;color:#fff;line-height:1.2;">Accede al<br/>Hero Hub</h2>'
+    + '<p style="margin:0 0 20px;font-family:Trebuchet MS,Arial,sans-serif;font-size:12px;color:rgba(255,255,255,0.75);line-height:1.6;">Herramientas, comunicados,<br/>calendario y mucho m&aacute;s.</p>'
+    + '<a href="' + HUB_URL + '" style="display:inline-block;padding:12px 24px;background:#fff;color:' + P + ';font-family:Trebuchet MS,Arial,sans-serif;font-size:13px;font-weight:700;text-decoration:none;border-radius:10px;box-shadow:0 4px 16px rgba(0,0,0,0.25);">Entrar al Hero Hub &rarr;</a>'
+    + '<p style="margin:12px 0 0;font-family:Trebuchet MS,Arial,sans-serif;font-size:9px;color:rgba(255,255,255,0.35);">' + HUB_URL + '</p>'
+    + '</td>'
+    // Right: hero character
+    + '<td width="180" style="vertical-align:bottom;padding:0;text-align:right;line-height:0;">'
+    + '<img src="https://i.ibb.co/KxLx6b4M/heroportal.png" alt="Hero" width="170" style="width:170px;height:auto;display:block;margin-left:auto;border-radius:0 0 20px 0;"/>'
+    + '</td>'
+    + '</tr></table>'
+    + '</td></tr>'
+    + '</table>'
+    + '</td></tr>'
+
+    // ── Footer ────────────────────────────────────────────────────────────
+    + '<tr><td style="padding:16px 40px;background:#f0f4f8;text-align:center;">'
+    + '<p style="margin:0;font-family:Trebuchet MS,Arial,sans-serif;font-size:11px;color:#aaa;">Hero Insurance USA &bull; IT Department &bull; <a href="mailto:it@heroinsuranceusa.com" style="color:' + P + ';text-decoration:none;">it&#64;heroinsuranceusa.com</a></p>'
+    + '<p style="margin:4px 0 0;font-family:Trebuchet MS,Arial,sans-serif;font-size:10px;color:#ccc;">CONFIDENTIALITY NOTICE: This email is intended solely for the addressee.</p>'
+    + '</td></tr>'
+
+    + '</table></td></tr></table></body></html>';
 }
 
 function buildEmailReset(nombre, emailCorp, password) {
