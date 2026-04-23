@@ -606,7 +606,7 @@ function buildEmailAgente(nombre, email, password) {
 function buildOnboardingEmail(nombre, email, password) {
   var P = '#06a3b6';
   var P2 = '#048395';
-  var LOGO = 'https://i.ibb.co/tMRCCW07/Hero-Nuevo-Circulo-1.png';
+  var LOGO = 'https://i.ibb.co/PvS31B1z/shield-low.png';
   var HUB_URL = 'https://it916.github.io/hero-hub/';
   var SOPORTE_URL = 'https://it916.github.io/hero-it-console/soporte.html';
 
