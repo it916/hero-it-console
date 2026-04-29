@@ -611,18 +611,18 @@ function buildOnboardingEmail(nombre, email, password) {
   var SOPORTE_URL = 'https://it916.github.io/hero-it-console/soporte.html';
 
   var pasos = [
-    ['1', '&#128274;', 'Inicia sesi&oacute;n en Google Workspace',
-     'Abre Gmail con tu correo corporativo y la contrase&ntilde;a temporal. Google te pedir&aacute; crear una nueva contrase&ntilde;a segura.'],
-    ['2', '&#128119;', 'Accede al Hero Hub',
-     'El Hero Hub es tu portal de trabajo diario. Encontrar&aacute;s herramientas, comunicados y recursos del equipo. Usa el bot&oacute;n al final de este correo.'],
-    ['3', '&#128187;', 'Configura tu equipo',
-     'Instala ExpressVPN para conexiones seguras. Si tienes dudas sobre tu equipo, abre un ticket de soporte IT.'],
-    ['4', '&#128241;', 'Activa la verificaci&oacute;n en dos pasos',
-     'Ve a myaccount.google.com &rarr; Seguridad &rarr; Verificaci&oacute;n en dos pasos. Protege tu cuenta corporativa.'],
-    ['5', '&#127775;', 'Explora las herramientas del equipo',
-     'Gather Town (oficina virtual), Fathom (reuniones), ClickUp (tareas) y Scribe (gu&iacute;as). Accesos en el Hero Hub.'],
-    ['6', '&#128101;', 'Preséntate con el equipo',
-     'Entra a Gather Town y saluda. El equipo te espera para darte la bienvenida presencialmente.'],
+    ['1', '&#128187;', 'Crea un perfil de Chrome con tu cuenta corporativa',
+     'Abre Google Chrome y haz clic en el &iacute;cono de perfil (esquina superior derecha). Selecciona <strong style="color:#1a1a1a;">+ Agregar</strong> y luego <strong style="color:#1a1a1a;">Iniciar sesi&oacute;n</strong>. Ingresa tu correo y contrase&ntilde;a corporativa para sincronizar marcadores, extensiones y configuraciones de la empresa. &iquest;No sabes c&oacute;mo? <a href="https://heroinsuranceusa.com/onboarding/chrome" style="color:#06a3b6;font-weight:700;">Mira este video &rarr;</a>'],
+    ['2', '&#9997;&#65039;', 'Configura tu firma de correo',
+     '<strong style="color:#1a1a1a;">Instala tu firma:</strong> Entra a <a href="https://heroinsuranceusa.com/firma" style="color:#06a3b6;font-weight:700;">heroinsuranceusa.com/firma</a> con tu cuenta corporativa, acepta los permisos, verifica que tus datos est&eacute;n correctos y haz clic en <strong style="color:#1a1a1a;">"Instalar mi firma en Gmail"</strong>. Recarga Gmail y listo. <br/><br/><strong style="color:#1a1a1a;">Para respuestas:</strong> Gmail no aplica la firma autom&aacute;ticamente al responder. Sigue este tutorial r&aacute;pido (menos de 2 min): <a href="https://heroinsuranceusa.com/firma/replyto.php" style="color:#06a3b6;font-weight:700;">Ver tutorial &rarr;</a>'],
+    ['3', '&#128197;', 'Agenda tu sesi&oacute;n de configuraci&oacute;n con IT',
+     'Reserva tu cita con Fernando Romero (IT) para configurar tu dispositivo y dejarlo 100% operativo. La sesi&oacute;n dura aproximadamente 30 minutos. <br/><a href="https://calendar.app.google/fn3S9ZhgEexDMaKG7" style="display:inline-block;margin-top:8px;padding:6px 14px;background:#06a3b6;color:#fff;font-family:Trebuchet MS,Arial,sans-serif;font-size:11px;font-weight:700;text-decoration:none;border-radius:6px;">Reservar cita &rarr;</a>'],
+    ['4', '&#127968;', 'Entra a nuestra oficina virtual',
+     'Gather Town es nuestra oficina virtual donde el equipo colabora y comparte el d&iacute;a a d&iacute;a. Haz el tour para conocer los espacios y si necesitas ayuda, cualquier miembro del equipo puede orientarte. <br/><a href="https://app.v2.gather.town/app/2e9e375c-6dcb-40c4-b607-d0791d5dfb78/invite/c82e085f-a62d-4212-86e5-8ebb067f10aa?copysource=inviteTeamModal" style="display:inline-block;margin-top:8px;padding:6px 14px;background:#06a3b6;color:#fff;font-family:Trebuchet MS,Arial,sans-serif;font-size:11px;font-weight:700;text-decoration:none;border-radius:6px;">Entrar a la oficina &rarr;</a>'],
+    ['5', '&#128188;', 'Explora el ecosistema Google',
+     'Toda la operaci&oacute;n de Hero Insurance corre sobre Google Workspace. Tendr&aacute;s acceso completo a Gmail, Drive, Docs, Sheets, Slides, Meet, Calendar y m&aacute;s. Recuerda: todos los archivos corporativos deben guardarse en Google Drive &mdash; nunca en el escritorio local.'],
+    ['6', '&#129354;', '&iexcl;Bienvenido al equipo, H&eacute;roe!',
+     '&iquest;Tienes dudas o algo no funciona? El equipo de IT est&aacute; aqu&iacute; para ti. Abre un ticket desde el bot&oacute;n de soporte o escr&iacute;benos a <a href="mailto:it@heroinsuranceusa.com" style="color:#06a3b6;">it@heroinsuranceusa.com</a>. &iexcl;Mucho &eacute;xito en tu nueva misi&oacute;n!'],
   ];
 
 
@@ -2288,16 +2288,74 @@ function toggleLicPassword() {
 function verCredenciales(id) {
   const l = allLicencias.find(x => x.id === id);
   if (!l) return;
-  let msg = l.nombre + '\n\n';
-  if (l.credUsuario)    msg += 'Usuario: ' + l.credUsuario + '\n';
-  if (l.credPassword)   msg += 'Contraseña: ' + l.credPassword + '\n';
-  if (l.codigoLicencia) msg += 'Código: ' + l.codigoLicencia + '\n';
-  alert(msg);
-  // Copy to clipboard
-  const text = (l.credUsuario ? 'Usuario: ' + l.credUsuario + '\n' : '')
-    + (l.credPassword ? 'Contrasena: ' + l.credPassword + '\n' : '')
-    + (l.codigoLicencia ? 'Codigo: ' + l.codigoLicencia : '');
-  navigator.clipboard?.writeText(text).catch(()=>{});
+
+  const rows = [
+    l.credUsuario    ? ['U Usuario',        l.credUsuario,    false] : null,
+    l.credPassword   ? ['K Contrasena',     l.credPassword,   true]  : null,
+    l.codigoLicencia ? ['C Codigo licencia',l.codigoLicencia, false] : null,
+  ].filter(Boolean);
+
+  const rowsHtml = rows.map(function(row) {
+    const label = row[0], value = row[1], isPassword = row[2];
+    const safeVal = value.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+    return '<div style="margin-bottom:14px;">'
+      + '<div style="font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--hero-primary);margin-bottom:5px;">' + label + '</div>'
+      + '<div style="display:flex;align-items:center;gap:8px;">'
+      + '<code data-val="' + value.replace(/"/g,'&quot;') + '" style="flex:1;background:var(--hero-bg);border:1px solid var(--hero-border);border-radius:6px;padding:8px 12px;font-family:var(--mono);font-size:13px;color:var(--hero-text-primary);display:block;overflow-wrap:anywhere;">'
+      + (isPassword ? '&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;' : value)
+      + '</code>'
+      + (isPassword ? '<button onclick="toggleCredVal(this)" data-val="' + value.replace(/"/g,'&quot;') + '" style="background:transparent;border:1px solid var(--hero-border);border-radius:6px;padding:6px 10px;cursor:pointer;font-size:14px;color:var(--hero-text-muted);">&#128065;</button>' : '')
+      + '<button onclick="navigator.clipboard.writeText(this.dataset.val);showToast(&quot;Copiado&quot;)" data-val="' + value.replace(/"/g,'&quot;') + '" style="background:transparent;border:1px solid var(--hero-border);border-radius:6px;padding:6px 10px;cursor:pointer;font-size:14px;color:var(--hero-text-muted);">&#128203;</button>'
+      + '</div></div>';
+  }).join('');
+
+  let modal = document.getElementById('cred-view-modal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'cred-view-modal';
+    modal.style.cssText = 'display:none;position:fixed;inset:0;background:rgba(26,39,51,0.5);z-index:200;overflow-y:auto;padding:24px;';
+    modal.innerHTML =
+      '<div style="background:#ffffff;border:1px solid rgba(6,163,182,0.3);border-radius:16px;max-width:460px;margin:0 auto;overflow:hidden;">'
+      + '<div style="background:linear-gradient(135deg,#06a3b6,#048395);padding:18px 24px;display:flex;justify-content:space-between;align-items:center;">'
+      + '<div id="cred-modal-title" style="font-size:15px;font-weight:700;color:#fff;"></div>'
+      + '<button onclick="document.getElementById(&quot;cred-view-modal&quot;).style.display=&quot;none&quot;" style="background:rgba(255,255,255,0.2);border:none;color:#fff;width:30px;height:30px;border-radius:6px;cursor:pointer;font-size:16px;">&#10005;</button>'
+      + '</div>'
+      + '<div id="cred-modal-body" style="padding:20px 24px;"></div>'
+      + '<div style="padding:0 24px 20px;display:flex;gap:8px;">'
+      + '<button onclick="copyAllCreds()" class="btn btn-secondary" style="flex:1;font-size:12px;">&#128203; Copiar todo</button>'
+      + '<button onclick="document.getElementById(&quot;cred-view-modal&quot;).style.display=&quot;none&quot;" class="btn btn-secondary" style="font-size:12px;">Cerrar</button>'
+      + '</div></div>';
+    document.body.appendChild(modal);
+  }
+
+  modal._licId = id;
+  document.getElementById('cred-modal-title').textContent = '🔐 ' + l.nombre;
+  document.getElementById('cred-modal-body').innerHTML = rowsHtml;
+  modal.style.display = 'block';
+}
+
+function toggleCredVal(btn) {
+  const code = btn.previousElementSibling;
+  const val  = btn.dataset.val;
+  if (code.textContent.includes('•') || code.innerHTML.includes('&#8226;')) {
+    code.textContent = val;
+    btn.innerHTML = '&#128584;';
+  } else {
+    code.innerHTML = '&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;';
+    btn.innerHTML = '&#128065;';
+  }
+}
+
+function copyAllCreds() {
+  const modal = document.getElementById('cred-view-modal');
+  const l = allLicencias.find(x => x.id === modal._licId);
+  if (!l) return;
+  const text = [
+    l.credUsuario    ? 'Usuario: '   + l.credUsuario    : '',
+    l.credPassword   ? 'Contrasena: '+ l.credPassword   : '',
+    l.codigoLicencia ? 'Codigo: '    + l.codigoLicencia : '',
+  ].filter(Boolean).join('\n');
+  navigator.clipboard.writeText(text).catch(()=>{});
   showToast('Credenciales copiadas al portapapeles');
 }
 
@@ -2318,14 +2376,18 @@ async function saveLicencia() {
     const r = await fetch(WORKER_URL + '/licencia', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        id: editingLicId || undefined,
+        id:             editingLicId || undefined,
         nombre,
-        plan:        document.getElementById('lic-f-plan').value.trim(),
-        costo:       parseFloat(document.getElementById('lic-f-costo').value) || 0,
-        usuarios:    parseInt(document.getElementById('lic-f-usuarios').value) || 0,
-        vencimiento: document.getElementById('lic-f-vencimiento').value || null,
-        estado:      document.getElementById('lic-f-estado').value,
-        notas:       document.getElementById('lic-f-notas').value.trim(),
+        plan:           document.getElementById('lic-f-plan').value.trim(),
+        tipoSub:        document.getElementById('lic-f-tipo-sub').value,
+        costo:          parseFloat(document.getElementById('lic-f-costo').value) || 0,
+        usuarios:       parseInt(document.getElementById('lic-f-usuarios').value) || 0,
+        vencimiento:    document.getElementById('lic-f-vencimiento').value || null,
+        estado:         document.getElementById('lic-f-estado').value,
+        credUsuario:    document.getElementById('lic-f-cred-usuario').value.trim(),
+        credPassword:   document.getElementById('lic-f-cred-password').value.trim(),
+        codigoLicencia: document.getElementById('lic-f-codigo').value.trim(),
+        notas:          document.getElementById('lic-f-notas').value.trim(),
       })
     });
     const d = await r.json();
