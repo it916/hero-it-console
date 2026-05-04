@@ -324,36 +324,157 @@ async function requestNotificationPermission() {
   if (!('Notification' in window)) return;
   if (Notification.permission === 'default') await Notification.requestPermission();
 }
+
+// ── Centro de notificaciones ──────────────────────────────────
+let notifList = []; // { id, tipo, titulo, cuerpo, fecha, leida, action }
+
+function addNotif(tipo, titulo, cuerpo, action) {
+  const notif = {
+    id:     Date.now(),
+    tipo,   // 'ticket' | 'solicitud' | 'info'
+    titulo,
+    cuerpo,
+    fecha:  new Date(),
+    leida:  false,
+    action,
+  };
+  notifList.unshift(notif);
+  if (notifList.length > 50) notifList = notifList.slice(0, 50);
+  renderNotifPanel();
+  // Also send browser push if permitted
+  sendPushNotification(titulo, cuerpo, action);
+}
+
+function renderNotifPanel() {
+  const unread = notifList.filter(n => !n.leida).length;
+  const badge  = document.getElementById('notif-badge');
+  const list   = document.getElementById('notif-list');
+  const empty  = document.getElementById('notif-empty');
+
+  // Badge
+  if (badge) {
+    badge.style.display = unread > 0 ? 'block' : 'none';
+    badge.textContent   = unread > 9 ? '9+' : unread;
+  }
+
+  if (!list) return;
+
+  if (!notifList.length) {
+    list.innerHTML = '<div id="notif-empty" style="padding:32px;text-align:center;font-size:12px;color:var(--hero-text-muted);"><div style="font-size:28px;margin-bottom:8px;opacity:0.4;">🔔</div>Sin notificaciones nuevas</div>';
+    return;
+  }
+
+  const iconos = { ticket: '🎫', solicitud: '📥', info: 'ℹ️' };
+  const colores = { ticket: 'var(--hero-danger)', solicitud: 'var(--hero-warning)', info: 'var(--hero-primary)' };
+
+  list.innerHTML = notifList.map(n => {
+    const tiempo = getElapsedTime(n.fecha.toISOString ? n.fecha.toISOString() : n.fecha);
+    const bg     = n.leida ? 'transparent' : 'var(--hero-primary-light)';
+    return '<div onclick="clickNotif(' + n.id + ')" style="display:flex;gap:12px;align-items:flex-start;padding:12px 16px;border-bottom:1px solid var(--hero-border);cursor:pointer;background:' + bg + ';transition:background 0.15s;" onmouseover="this.style.background=\'var(--hero-bg)\'" onmouseout="this.style.background=\'' + bg + '\'">'
+      + '<div style="width:32px;height:32px;border-radius:50%;background:' + colores[n.tipo] + '20;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;">' + (iconos[n.tipo] || '🔔') + '</div>'
+      + '<div style="flex:1;min-width:0;">'
+      + '<div style="font-size:12px;font-weight:' + (n.leida ? '400' : '700') + ';color:var(--hero-text-primary);margin-bottom:2px;">' + n.titulo + '</div>'
+      + '<div style="font-size:11px;color:var(--hero-text-muted);line-height:1.4;">' + n.cuerpo + '</div>'
+      + '<div style="font-size:10px;color:var(--hero-text-subtle);margin-top:4px;font-family:var(--mono);">Hace ' + tiempo + '</div>'
+      + '</div>'
+      + (!n.leida ? '<div style="width:7px;height:7px;border-radius:50%;background:var(--hero-primary);flex-shrink:0;margin-top:4px;"></div>' : '')
+      + '</div>';
+  }).join('');
+}
+
+function clickNotif(id) {
+  const n = notifList.find(x => x.id === id);
+  if (!n) return;
+  n.leida = true;
+  renderNotifPanel();
+  closeNotifPanel();
+  if (n.action) n.action();
+}
+
+function toggleNotifPanel() {
+  const panel = document.getElementById('notif-panel');
+  if (!panel) return;
+  const isOpen = panel.style.display === 'block';
+  panel.style.display = isOpen ? 'none' : 'block';
+  if (!isOpen) {
+    // Mark all as read when opening
+    setTimeout(() => {
+      notifList.forEach(n => n.leida = true);
+      renderNotifPanel();
+    }, 2000);
+  }
+}
+
+function closeNotifPanel() {
+  const panel = document.getElementById('notif-panel');
+  if (panel) panel.style.display = 'none';
+}
+
+function clearNotifs() {
+  notifList = [];
+  renderNotifPanel();
+  closeNotifPanel();
+}
+
+// Close panel when clicking outside
+document.addEventListener('click', function(e) {
+  const panel = document.getElementById('notif-panel');
+  const btn   = document.getElementById('btn-notif');
+  if (panel && panel.style.display === 'block' && !panel.contains(e.target) && e.target !== btn && !btn?.contains(e.target)) {
+    closeNotifPanel();
+  }
+});
+
 function sendPushNotification(title, body, onClick) {
   if (Notification.permission !== 'granted') return;
-  const n = new Notification(title, { body, icon: 'https://i.ibb.co/tMRCCW07/Hero-Nuevo-Circulo-1.png' });
-  if (onClick) n.onclick = onClick;
+  const n = new Notification(title, { body, icon: 'https://i.ibb.co/PvS31B1z/shield-low.png' });
+  if (onClick) n.onclick = function() { window.focus(); onClick(); };
 }
+
 function updateTabBadge(total) {
   document.title = total > 0 ? '(' + total + ') Hero IT Console' : 'Hero IT Console';
 }
+
 async function pollForUpdates() {
   try {
-    const [tResp, sResp] = await Promise.all([fetch(WORKER_URL + '/ticket'), fetch(WORKER_URL + '/alta-agente')]);
+    const [tResp, sResp] = await Promise.all([
+      fetch(WORKER_URL + '/ticket'),
+      fetch(WORKER_URL + '/alta-agente')
+    ]);
     const tData = tResp.ok ? await tResp.json() : { tickets: [] };
     const sData = sResp.ok ? await sResp.json() : { solicitudes: [] };
-    const openTickets      = (tData.tickets     || []).filter(t => t.estado === 'abierto').length;
-    const pendingSolicitud = (sData.solicitudes  || []).filter(s => s.estado === 'pendiente').length;
+
+    const openTickets      = (tData.tickets    || []).filter(t => t.estado === 'abierto').length;
+    const pendingSolicitud = (sData.solicitudes || []).filter(s => s.estado === 'pendiente').length;
+
     if (lastTicketCount >= 0 && openTickets > lastTicketCount) {
-      sendPushNotification('Nuevo ticket de soporte', (openTickets - lastTicketCount) + ' ticket(s) nuevo(s)', () => { window.focus(); showPage('tickets'); });
+      const diff = openTickets - lastTicketCount;
+      addNotif('ticket',
+        diff + ' ticket' + (diff > 1 ? 's' : '') + ' nuevo' + (diff > 1 ? 's' : ''),
+        'Se ' + (diff > 1 ? 'abrieron' : 'abrió') + ' ' + diff + ' ticket' + (diff > 1 ? 's' : '') + ' de soporte',
+        function() { showPage('tickets'); }
+      );
     }
     if (lastSolicitudCount >= 0 && pendingSolicitud > lastSolicitudCount) {
-      sendPushNotification('Nueva solicitud de alta', (pendingSolicitud - lastSolicitudCount) + ' solicitud(es) pendiente(s)', () => { window.focus(); showPage('solicitudes'); });
+      const diff = pendingSolicitud - lastSolicitudCount;
+      addNotif('solicitud',
+        diff + ' solicitud' + (diff > 1 ? 'es' : '') + ' de alta',
+        'Nueva' + (diff > 1 ? 's' : '') + ' solicitud' + (diff > 1 ? 'es' : '') + ' pendiente' + (diff > 1 ? 's' : '') + ' de procesar',
+        function() { showPage('solicitudes'); }
+      );
     }
+
     lastTicketCount    = openTickets;
     lastSolicitudCount = pendingSolicitud;
     updateTabBadge(openTickets + pendingSolicitud);
+
     const elT = document.getElementById('stat-tickets-open');
     const elS = document.getElementById('stat-solicitudes-pending');
     if (elT) { elT.textContent = openTickets;      elT.style.color = openTickets > 0      ? 'var(--hero-danger)'  : 'var(--hero-success)'; }
     if (elS) { elS.textContent = pendingSolicitud; elS.style.color = pendingSolicitud > 0 ? 'var(--hero-warning)' : 'var(--hero-success)'; }
-  } catch {}
+  } catch(e) { console.warn('pollForUpdates:', e.message); }
 }
+
 function startPolling() {
   if (notifInterval) return;
   pollForUpdates();
