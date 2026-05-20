@@ -1320,12 +1320,17 @@ async function loadSolicitudes() {
 function updateSolStats() {
   const total   = allSolicitudes.length;
   const pending = allSolicitudes.filter(s => s.estado === 'pendiente').length;
+  const auth    = allSolicitudes.filter(s => s.estado === 'autorizada').length;
+  // El contador "done" del Console agrupa autorizadas+procesadas como "no pendientes"
+  // (los autorizadores ya autorizaron — el procesamiento por IT puede seguir abierto).
   const done    = total - pending;
   const elT = document.getElementById('sol-stat-total');
   const elP = document.getElementById('sol-stat-pending');
+  const elA = document.getElementById('sol-stat-auth');
   const elD = document.getElementById('sol-stat-done');
   if (elT) elT.textContent = total;
   if (elP) elP.textContent = pending;
+  if (elA) elA.textContent = auth;
   if (elD) elD.textContent = done;
 }
 
@@ -1337,6 +1342,8 @@ function renderSolicitudes() {
     (s.nombre||'').toLowerCase().includes(q) ||
     (s.apellido||'').toLowerCase().includes(q) ||
     (s.correo||'').toLowerCase().includes(q) ||
+    (s.correoPersonal||'').toLowerCase().includes(q) ||
+    (s.correoEliminar||'').toLowerCase().includes(q) ||
     (s.solicitanteNombre||'').toLowerCase().includes(q)
   );
 
@@ -1355,41 +1362,117 @@ function renderSolicitudes() {
     const fecha = new Date(s.fecha).toLocaleString('es-MX', {
       timeZone:'America/New_York', year:'numeric', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'
     });
-    const isPending = s.estado === 'pendiente';
-    const estadoColor = isPending ? 'var(--hero-warning)' : 'var(--hero-success)';
-    const estadoBg    = isPending ? 'rgba(232,163,23,0.1)' : 'rgba(34,160,107,0.1)';
+    const isPending    = s.estado === 'pendiente';
+    const isAuthorized = s.estado === 'autorizada';
+    const isOpen       = isPending || isAuthorized; // estados accionables por IT
+    let estadoColor, estadoBg;
+    if (isPending)         { estadoColor = 'var(--hero-warning)'; estadoBg = 'rgba(232,163,23,0.1)'; }
+    else if (isAuthorized) { estadoColor = 'var(--hero-primary)'; estadoBg = 'rgba(0,101,243,0.12)'; }
+    else                   { estadoColor = 'var(--hero-success)'; estadoBg = 'rgba(34,160,107,0.1)'; }
 
-    // Elapsed time
     const elapsed = getElapsedTime(s.fecha);
-    const elColor = getElapsedColor(s.fecha, isPending ? 'abierto' : 'resuelto');
+    const elColor = getElapsedColor(s.fecha, isOpen ? 'abierto' : 'resuelto');
 
-    return '<div class="action-card" style="margin-bottom:12px;--card-color:' + (isPending ? 'var(--hero-warning)' : 'var(--hero-success)') + ';">'
-      + '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">'
-      + '<div>'
-      + '<div style="font-size:15px;font-weight:600;color:var(--hero-text-primary);">' + s.nombre + ' ' + s.apellido + '</div>'
-      + '<div style="font-family:var(--mono);font-size:11px;color:var(--hero-primary);margin-top:2px;">' + s.correo + '</div>'
-      + '</div>'
-      + '<div style="display:flex;align-items:center;gap:8px;">'
-      + '<span style="font-family:var(--mono);font-size:10px;color:' + elColor + ';">⏱ ' + elapsed + '</span>'
-      + '<span style="font-family:var(--mono);font-size:10px;padding:3px 10px;border-radius:20px;background:' + estadoBg + ';color:' + estadoColor + ';">' + s.estado + '</span>'
-      + '</div>'
-      + '</div>'
-      + '<div style="font-size:12px;color:var(--hero-text-body);margin-bottom:6px;">'
-      + '<span style="color:var(--hero-text-muted);">Solicitado por: </span>'
-      + '<strong>' + (s.solicitanteNombre || 'No especificado') + '</strong>'
-      + (s.solicitanteEmail ? ' <span style="font-family:var(--mono);font-size:11px;color:var(--hero-primary);">(' + s.solicitanteEmail + ')</span>' : '')
-      + '</div>'
-      + '<div style="display:flex;gap:16px;font-size:12px;color:var(--hero-text-muted);margin-bottom:14px;">'
-      + '<span>📞 ' + s.telefono + '</span>'
-      + '<span>🕐 ' + fecha + ' ET</span>'
-      + '</div>'
-      + (isPending
-        ? '<div style="display:flex;gap:8px;">'
-          + '<button class="btn btn-primary" onclick="openSolModal(\'' + s.id + '\')" style="font-size:12px;flex:1;">➕ Crear usuario</button>'
-          + '<button class="btn btn-secondary" onclick="rechazarSolicitud(\'' + s.id + '\',\'' + (s.solicitanteEmail||'') + '\',\'' + (s.solicitanteNombre||'') + '\',\'' + s.nombre + ' ' + s.apellido + '\')" style="font-size:12px;">✗ Rechazar</button>'
+    // Schema unificado: por defecto trata las solicitudes viejas como ALTA de agente.
+    const isBaja        = s.tipoSolicitud === 'baja';
+    const tipoPersona   = s.tipoPersona === 'empleado' ? 'empleado' : 'agente';
+    const tipoLabel     = isBaja ? 'BAJA' : 'ALTA';
+    const tipoColor     = isBaja ? 'var(--hero-danger)' : 'var(--hero-primary)';
+    const tipoBg        = isBaja ? 'rgba(214,69,69,0.1)' : 'rgba(0,101,243,0.1)';
+    let cardColor;
+    if (isPending)         cardColor = isBaja ? 'var(--hero-danger)' : 'var(--hero-warning)';
+    else if (isAuthorized) cardColor = 'var(--hero-primary)';
+    else                   cardColor = 'var(--hero-success)';
+    const personaColor  = tipoPersona === 'empleado' ? '#8b5cf6' : '#06a3b6';
+    const personaBg     = tipoPersona === 'empleado' ? 'rgba(139,92,246,0.1)' : 'rgba(6,163,182,0.1)';
+
+    // Bloque "Autorizada por X el Y" cuando aplica
+    const autorizadaHtml = (isAuthorized || s.autorizadaPor)
+      ? '<div style="background:rgba(0,101,243,0.06);border-left:3px solid var(--hero-primary);padding:8px 12px;border-radius:6px;margin:0 0 10px;font-size:12px;color:var(--hero-text-body);">'
+        + '<span style="color:var(--hero-primary);font-weight:600;">✓ Autorizada</span>'
+        + (s.autorizadaPor ? ' por <strong>' + s.autorizadaPor + '</strong>' : '')
+        + (s.autorizadaFecha
+            ? ' · <span style="color:var(--hero-text-muted);">' + new Date(s.autorizadaFecha).toLocaleString('es-MX', { timeZone:'America/New_York', day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' }) + ' ET</span>'
+            : '')
+        + '</div>'
+      : '';
+
+    const titulo = isBaja ? (s.nombre || '') : ((s.nombre || '') + ' ' + (s.apellido || ''));
+    const correoMostrar = isBaja
+      ? (s.correoEliminar || '')
+      : (s.correoPersonal || s.correo || '');
+    const correoLabel = isBaja ? 'Correo a eliminar' : 'Correo personal';
+
+    // Datos de empleado (cargo/área) si aplica
+    const cargoAreaHtml = (tipoPersona === 'empleado' && (s.cargo || s.area))
+      ? '<div style="display:flex;gap:14px;font-size:12px;color:var(--hero-text-muted);margin-bottom:6px;">'
+        + (s.cargo ? '<span><strong style="color:var(--hero-text-body);">Cargo:</strong> ' + s.cargo + '</span>' : '')
+        + (s.area  ? '<span><strong style="color:var(--hero-text-body);">Área:</strong> '   + s.area  + '</span>' : '')
+        + '</div>'
+      : '';
+
+    // Bloque específico por tipo
+    const detalleBloque = isBaja
+      ? '<div style="background:rgba(214,69,69,0.06);border-left:3px solid var(--hero-danger);padding:10px 12px;border-radius:6px;margin:8px 0 12px;">'
+        + '<div style="font-size:10px;font-weight:700;letter-spacing:2px;color:var(--hero-danger);text-transform:uppercase;margin-bottom:4px;">Motivo</div>'
+        + '<div style="font-size:12px;color:var(--hero-text-body);line-height:1.5;">' + (s.motivo || '—') + '</div>'
+        + (s.detalle ? '<div style="font-size:12px;color:var(--hero-text-muted);margin-top:6px;"><strong>Detalle:</strong> ' + s.detalle + '</div>' : '')
+        + '</div>'
+      : '<div style="display:flex;gap:16px;font-size:12px;color:var(--hero-text-muted);margin-bottom:14px;">'
+        + (s.telefono       ? '<span>📞 ' + s.telefono + '</span>' : '')
+        + (s.fechaRequerida ? '<span>📅 Requerida: ' + s.fechaRequerida + '</span>' : '')
+        + '</div>';
+
+    // Botonera: distinta según tipo
+    const safeSolEmail  = (s.solicitanteEmail  || '').replace(/'/g, '\\\'');
+    const safeSolNombre = (s.solicitanteNombre || '').replace(/'/g, '\\\'');
+    const safeTitulo    = titulo.replace(/'/g, '\\\'');
+    const safeCorreoEl  = (s.correoEliminar || '').replace(/'/g, '\\\'');
+
+    let acciones = '';
+    if (isOpen) {
+      if (isBaja) {
+        acciones = '<div style="display:flex;gap:8px;flex-wrap:wrap;">'
+          + '<button class="btn btn-primary" onclick="suspenderDesdeSolicitud(\'' + s.id + '\',\'' + safeCorreoEl + '\',\'' + safeTitulo + '\')" style="font-size:12px;flex:1;background:linear-gradient(135deg,#c0392b,#e67e22);">🔒 Suspender cuenta</button>'
+          + '<button class="btn btn-secondary" onclick="rechazarSolicitud(\'' + s.id + '\',\'' + safeSolEmail + '\',\'' + safeSolNombre + '\',\'' + safeTitulo + '\',\'baja\')" style="font-size:12px;">✗ Rechazar</button>'
           + '<button class="btn btn-secondary" onclick="resolverSolicitud(\'' + s.id + '\',\'procesada\')" style="font-size:12px;">✓ Marcar procesada</button>'
-          + '</div>'
-        : '')
+          + '</div>';
+      } else {
+        acciones = '<div style="display:flex;gap:8px;flex-wrap:wrap;">'
+          + '<button class="btn btn-primary" onclick="openSolModal(\'' + s.id + '\')" style="font-size:12px;flex:1;">➕ Crear usuario</button>'
+          + '<button class="btn btn-secondary" onclick="rechazarSolicitud(\'' + s.id + '\',\'' + safeSolEmail + '\',\'' + safeSolNombre + '\',\'' + safeTitulo + '\',\'alta\')" style="font-size:12px;">✗ Rechazar</button>'
+          + '<button class="btn btn-secondary" onclick="resolverSolicitud(\'' + s.id + '\',\'procesada\')" style="font-size:12px;">✓ Marcar procesada</button>'
+          + '</div>';
+      }
+    }
+
+    return '<div class="action-card" style="margin-bottom:12px;--card-color:' + cardColor + ';">'
+      + '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;gap:10px;">'
+      +   '<div style="min-width:0;flex:1;">'
+      +     '<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;flex-wrap:wrap;">'
+      +       '<span style="font-family:var(--mono);font-size:9px;font-weight:700;padding:2px 8px;border-radius:12px;background:' + tipoBg + ';color:' + tipoColor + ';letter-spacing:1px;">' + tipoLabel + '</span>'
+      +       '<span style="font-family:var(--mono);font-size:9px;font-weight:700;padding:2px 8px;border-radius:12px;background:' + personaBg + ';color:' + personaColor + ';letter-spacing:1px;">' + tipoPersona.toUpperCase() + '</span>'
+      +     '</div>'
+      +     '<div style="font-size:15px;font-weight:600;color:var(--hero-text-primary);">' + titulo + '</div>'
+      +     (correoMostrar
+              ? '<div style="font-family:var(--mono);font-size:11px;color:' + (isBaja ? 'var(--hero-danger)' : 'var(--hero-primary)') + ';margin-top:2px;"><span style="color:var(--hero-text-muted);">' + correoLabel + ':</span> ' + correoMostrar + '</div>'
+              : '')
+      +   '</div>'
+      +   '<div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">'
+      +     '<span style="font-family:var(--mono);font-size:10px;color:' + elColor + ';">⏱ ' + elapsed + '</span>'
+      +     '<span style="font-family:var(--mono);font-size:10px;padding:3px 10px;border-radius:20px;background:' + estadoBg + ';color:' + estadoColor + ';">' + s.estado + '</span>'
+      +   '</div>'
+      + '</div>'
+      + cargoAreaHtml
+      + '<div style="font-size:12px;color:var(--hero-text-body);margin-bottom:6px;">'
+      +   '<span style="color:var(--hero-text-muted);">Solicitado por: </span>'
+      +   '<strong>' + (s.solicitanteNombre || 'No especificado') + '</strong>'
+      +   (s.solicitanteEmail ? ' <span style="font-family:var(--mono);font-size:11px;color:var(--hero-primary);">(' + s.solicitanteEmail + ')</span>' : '')
+      + '</div>'
+      + autorizadaHtml
+      + detalleBloque
+      + '<div style="font-size:11px;color:var(--hero-text-muted);margin-bottom:' + (isOpen ? '14px' : '0') + ';">🕐 ' + fecha + ' ET</div>'
+      + acciones
       + '</div>';
   }).join('');
 }
@@ -1406,34 +1489,65 @@ async function resolverSolicitud(id, estado) {
   } catch(err) { showToast('Error: ' + err.message); }
 }
 
-async function rechazarSolicitud(id, solEmail, solNombre, agente) {
-  if (!confirm('¿Rechazar la solicitud de alta para ' + agente + '?\n\nSe notificará al solicitante.')) return;
+async function rechazarSolicitud(id, solEmail, solNombre, persona, tipo) {
+  const tipoLabel = tipo === 'baja' ? 'baja' : 'alta';
+  if (!confirm('¿Rechazar la solicitud de ' + tipoLabel + ' para ' + persona + '?\n\nSe notificará al solicitante.')) return;
   try {
     await fetch(WORKER_URL + '/alta-agente/resolver', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id, estado: 'rechazada' })
     });
-    // Notify solicitante if email available
     if (solEmail) {
       await sendViaResend({
         to: solEmail,
-        subject: 'Solicitud de alta no procesada — ' + agente,
+        subject: 'Solicitud de ' + tipoLabel + ' no procesada — ' + persona,
         html: '<div style="font-family:Trebuchet MS,Arial,sans-serif;max-width:600px;background:#f0f4f8;padding:32px 16px;">'
           + '<div style="background:#fff;border-radius:16px;overflow:hidden;">'
           + '<div style="background:linear-gradient(135deg,#06a3b6,#048395);padding:24px 32px;">'
           + '<img src="https://i.ibb.co/tMRCCW07/Hero-Nuevo-Circulo-1.png" width="48" style="border-radius:50%;display:block;margin:0 auto 12px;"/>'
           + '<h2 style="color:#fff;margin:0;text-align:center;font-size:18px;">Solicitud no procesada</h2></div>'
           + '<div style="padding:24px 32px;">'
-          + '<p style="font-size:14px;color:#444;">Hola <strong>' + (solNombre||'') + '</strong>, la solicitud de alta para <strong>' + agente + '</strong> no pudo ser procesada en este momento.</p>'
+          + '<p style="font-size:14px;color:#444;">Hola <strong>' + (solNombre||'') + '</strong>, la solicitud de ' + tipoLabel + ' para <strong>' + persona + '</strong> no pudo ser procesada en este momento.</p>'
           + '<p style="font-size:13px;color:#777;">Si tienes dudas, comunícate con el equipo de IT.</p>'
           + '</div></div></div>',
-        text: 'La solicitud de alta para ' + agente + ' no pudo ser procesada.'
+        text: 'La solicitud de ' + tipoLabel + ' para ' + persona + ' no pudo ser procesada.'
       });
     }
     showToast('Solicitud rechazada' + (solEmail ? ' — solicitante notificado' : ''));
-    auditLog('solicitud', 'Solicitud rechazada: ' + agente, solEmail || 'sin email');
+    auditLog('solicitud', 'Solicitud rechazada (' + tipoLabel + '): ' + persona, solEmail || 'sin email');
     loadSolicitudes();
   } catch(err) { showToast('Error: ' + err.message); }
+}
+
+// ── Suspender cuenta desde solicitud de BAJA ─────────────────
+// PROC-IT-001: nunca eliminar — sólo suspender. Eliminación es paso manual posterior.
+async function suspenderDesdeSolicitud(id, correoEliminar, persona) {
+  if (!correoEliminar) {
+    showToast('La solicitud no tiene correo a eliminar');
+    return;
+  }
+  if (!confirm('¿Suspender la cuenta ' + correoEliminar + '?\n\n'
+    + 'PROC-IT-001: la cuenta se marcará como suspendida en Google Workspace '
+    + '(la eliminación definitiva es un paso manual posterior).\n\n'
+    + 'La solicitud quedará marcada como procesada.')) return;
+  try {
+    const resp = await fetch(WORKER_URL + '/user-action', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: correoEliminar, action: 'suspend' })
+    });
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || 'Error al suspender');
+    await fetch(WORKER_URL + '/alta-agente/resolver', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, estado: 'procesada' })
+    });
+    showToast('Cuenta suspendida: ' + correoEliminar);
+    auditLog('solicitud', 'Cuenta suspendida desde solicitud de baja: ' + persona, correoEliminar);
+    loadSolicitudes();
+  } catch(err) {
+    showToast('Error: ' + err.message);
+    auditLog('solicitud', 'Error al suspender cuenta: ' + err.message, correoEliminar);
+  }
 }
 
 // ── Modal crear usuario desde solicitud ──────────────────────
@@ -1515,13 +1629,16 @@ async function crearUsuarioDesdeModal() {
     // Mark solicitud as processed
     await resolverSolicitud(solModalData.id, 'procesada');
 
-    // Send onboarding email
-    await sendViaResend({
-      to: solModalData.correo,
-      subject: 'Bienvenido(a) a Hero Insurance USA - Acceso de Agente',
-      html: buildEmailAgente(nombre + ' ' + apellido, email, password),
-      text: 'Bienvenido ' + nombre + '. Tu correo: ' + email,
-    });
+    // Send onboarding email (al correo personal indicado en la solicitud)
+    const destinoPersonal = solModalData.correoPersonal || solModalData.correo;
+    if (destinoPersonal) {
+      await sendViaResend({
+        to: destinoPersonal,
+        subject: 'Bienvenido(a) a Hero Insurance USA - Acceso de Agente',
+        html: buildEmailAgente(nombre + ' ' + apellido, email, password),
+        text: 'Bienvenido ' + nombre + '. Tu correo: ' + email,
+      });
+    }
 
     addLog('Usuario creado: ' + email, 'success');
     auditLog('usuario', 'Usuario creado desde solicitud: ' + nombre + ' ' + apellido, email);

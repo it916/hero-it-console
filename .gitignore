@@ -1,0 +1,13 @@
+# Cache y estado local de wrangler — se regenera automáticamente
+.wrangler/
+
+# Settings locales de Claude Code (no van al repo)
+.claude/
+
+# Node modules si en algún momento usamos npm en este proyecto
+node_modules/
+
+# Logs y archivos temporales
+*.log
+.DS_Store
+Thumbs.db

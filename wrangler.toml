@@ -1,0 +1,23 @@
+# ─── Configuración de wrangler para el Hero IT Worker ───
+# Este archivo le dice a wrangler cómo desplegar el worker.
+# NO contiene secrets (las API keys siguen guardadas en Cloudflare).
+
+# Nombre del worker en Cloudflare. Debe coincidir con el que ya existe
+# en tu dashboard, si no, wrangler creará uno nuevo en vez de actualizar el actual.
+name = "hero-email-worker"
+
+# Archivo principal del worker — el código que se sube a Cloudflare.
+main = "hero-email-worker.js"
+
+# Fecha que fija la "versión" del runtime de Workers (qué APIs están disponibles).
+# Cloudflare recomienda usar una fecha reciente; no hace falta cambiarla seguido.
+compatibility_date = "2025-01-01"
+
+# ── Bindings ──
+# Los "bindings" conectan el worker a recursos de Cloudflare (KV, R2, D1, etc.).
+# Aquí solo usas un KV (la base de datos clave-valor donde guardas solicitudes,
+# tickets, licencias, etc.). El "binding" es el nombre que usa tu código
+# (env.HERO_KV) y el "id" es el namespace real en tu cuenta.
+[[kv_namespaces]]
+binding = "HERO_KV"
+id = "1da921302dbd4923a67c7823e449ae34"
