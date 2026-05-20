@@ -1,646 +1,2021 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Solicitud de Cuenta de Correo · Hero Insurance USA</title>
-  <style>
-    :root {
-      /* Colors */
-      --hero-primary: #06a3b6;
-      --hero-primary-dark: #048395;
-      --hero-primary-light: #3dbccc;
-      --hero-bg: #f0f4f8;
-      --hero-card-bg: #ffffff;
-      --hero-text: #1a2733;
-      --hero-text-muted: #5a6b7a;
-      --hero-border: #d8e1ea;
-      --hero-success: #22a06b;
-      --hero-warning: #e8a317;
-      --hero-danger: #d64545;
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Hero IT Console</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+<style>
+/* ── Hero Insurance Brand System — Light Theme ──────────── */
+@import url('https://fonts.googleapis.com/css2?family=Trebuchet+MS&display=swap');
 
-      /* Typography */
-      --hero-font: 'Trebuchet MS', Arial, sans-serif;
-      --hero-fs-xs: 12px;
-      --hero-fs-sm: 14px;
-      --hero-fs-base: 15px;
-      --hero-fs-lg: 18px;
-      --hero-fs-xl: 22px;
-      --hero-fs-2xl: 28px;
+:root {
+  --hero-primary:        #06a3b6;
+  --hero-primary-hover:  #058fa0;
+  --hero-primary-light:  #d6edf0;
+  --hero-bg-page:        #f0f4f8;
+  --hero-bg-card:        #ffffff;
+  --hero-bg-preview:     #f9fafb;
+  --hero-text-primary:   #1a1a1a;
+  --hero-text-body:      #444444;
+  --hero-text-muted:     #777777;
+  --hero-text-subtle:    #aaaaaa;
+  --hero-border-card:    #e8e8e8;
+  --hero-border-topbar:  #e0e0e0;
+  --hero-border-btn:     #dddddd;
+  --hero-success:        #27ae60;
+  --hero-success-bg:     #eafaf1;
+  --hero-error:          #c0392b;
+  --hero-error-bg:       #fdedec;
+  --hero-font:           'Trebuchet MS', Arial, sans-serif;
+  --hero-radius-card:    10px;
+  --hero-radius-btn:     8px;
+  --hero-radius-pill:    20px;
+  --hero-transition:     background 0.2s, transform 0.15s;
 
-      /* Spacing */
-      --hero-sp-1: 4px;
-      --hero-sp-2: 8px;
-      --hero-sp-3: 12px;
-      --hero-sp-4: 16px;
-      --hero-sp-5: 20px;
-      --hero-sp-6: 24px;
-      --hero-sp-8: 32px;
-      --hero-sp-10: 40px;
+  /* Mapped to old var names for compatibility */
+  --bg:        var(--hero-bg-page);
+  --bg2:       var(--hero-bg-card);
+  --bg3:       #f0f4f8;
+  --border:    var(--hero-border-card);
+  --border2:   var(--hero-primary);
+  --blue:      var(--hero-primary);
+  --blue2:     var(--hero-primary-hover);
+  --cyan:      var(--hero-primary);
+  --text:      var(--hero-text-primary);
+  --text2:     var(--hero-text-body);
+  --text3:     var(--hero-text-muted);
+  --green:     var(--hero-success);
+  --amber:     #e67e22;
+  --red:       var(--hero-error);
+  --purple:    #8e44ad;
+  --mono:      'Courier New', monospace;
+  --sans:      var(--hero-font);
+  --radius:    var(--hero-radius-btn);
+  --sidebar-w: 230px;
+}
 
-      /* Radii */
-      --hero-radius-sm: 6px;
-      --hero-radius: 10px;
-      --hero-radius-lg: 16px;
 
-      /* Shadows */
-      --hero-shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
-      --hero-shadow: 0 2px 8px rgba(6,163,182,0.08);
-      --hero-shadow-lg: 0 8px 24px rgba(6,163,182,0.15);
+/* ── Dark mode ───────────────────────────────────────────── */
+[data-theme="dark"] {
+  --hero-primary:        #06a3b6;
+  --hero-primary-hover:  #07bdd4;
+  --hero-primary-light:  rgba(6,163,182,0.15);
+  --hero-bg-page:        #0f1117;
+  --hero-bg-card:        #1a1d27;
+  --hero-bg-preview:     #141720;
+  --hero-text-primary:   #f0f2f5;
+  --hero-text-body:      #b8bec8;
+  --hero-text-muted:     #7a8494;
+  --hero-text-subtle:    #4e5666;
+  --hero-border-card:    #2a2e3d;
+  --hero-border-topbar:  #232736;
+  --hero-border-btn:     #2e3245;
+  --hero-success:        #22a06b;
+  --hero-success-bg:     rgba(34,160,107,0.12);
+  --hero-error:          #e05252;
+  --hero-error-bg:       rgba(224,82,82,0.12);
+  --bg:        var(--hero-bg-page);
+  --bg2:       var(--hero-bg-card);
+  --bg3:       #141720;
+  --border:    var(--hero-border-card);
+  --amber:     #e8a317;
+  --red:       var(--hero-error);
+}
+[data-theme="dark"] .kanban-col        { background: #141720; }
+[data-theme="dark"] .kanban-col-header { background: #1a1d27; }
+[data-theme="dark"] .kanban-card       { background: #1e2132; }
+[data-theme="dark"] #global-search-box,
+[data-theme="dark"] #global-search-input { background: #1a1d27; color: var(--hero-text-primary); }
+[data-theme="dark"] .status-service    { background: #141720; }
+[data-theme="dark"] #lic-modal > div,
+[data-theme="dark"] #ticket-modal > div,
+[data-theme="dark"] #user-modal > div,
+[data-theme="dark"] #dev-modal > div,
+[data-theme="dark"] #sol-modal > div   { background: #1a1d27 !important; }
+[data-theme="dark"] select,
+[data-theme="dark"] input,
+[data-theme="dark"] textarea            { background: #141720; color: var(--hero-text-primary); border-color: var(--hero-border-btn); }
+[data-theme="dark"] select option       { background: #1a1d27; }
+/* ── Reset ───────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-      /* Layout */
-      --hero-max-width: 1200px;
-    }
+body {
+  font-family: var(--hero-font);
+  background: var(--hero-bg-page);
+  color: var(--hero-text-primary);
+  min-height: 100vh;
+  overflow: hidden;
+}
 
-    * { box-sizing: border-box; }
+/* ── Sidebar ─────────────────────────────────────────────── */
+#sidebar {
+  width: var(--sidebar-w);
+  height: 100vh;
+  background: var(--hero-bg-card);
+  border-right: 1px solid var(--hero-border-topbar);
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  overflow-y: auto;
+  z-index: 10;
+}
 
-    body {
-      margin: 0;
-      font-family: var(--hero-font);
-      font-size: var(--hero-fs-base);
-      color: var(--hero-text);
-      background: var(--hero-bg);
-      line-height: 1.5;
-      min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-    }
+.sidebar-header {
+  padding: 20px 20px 16px;
+  border-bottom: 1px solid var(--hero-border-topbar);
+}
+.sidebar-logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.logo-shield {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+.logo-text {
+  font-family: var(--hero-font);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--hero-text-primary);
+  letter-spacing: 0.3px;
+  line-height: 1.2;
+}
+.logo-sub {
+  font-size: 9px;
+  color: var(--hero-primary);
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+}
+.sidebar-user {
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.user-dot {
+  width: 7px;
+  height: 7px;
+  background: var(--hero-success);
+  border-radius: 50%;
+  animation: pulse-dot 2s ease-in-out infinite;
+}
+@keyframes pulse-dot { 0%,100%{opacity:1} 50%{opacity:0.4} }
+.user-label {
+  font-size: 11px;
+  color: var(--hero-text-muted);
+}
 
-    h1, h2, h3 { font-family: var(--hero-font); color: var(--hero-text); margin-top: 0; }
+/* ── Nav ─────────────────────────────────────────────────── */
+nav { padding: 12px; flex: 1; }
+.nav-section-label {
+  font-size: 9px;
+  letter-spacing: 1.5px;
+  color: var(--hero-text-subtle);
+  text-transform: uppercase;
+  padding: 0 8px;
+  margin-bottom: 4px;
+  margin-top: 14px;
+}
+.nav-section-label:first-child { margin-top: 0; }
 
-    a { color: var(--hero-primary); text-decoration: none; }
-    a:hover { color: var(--hero-primary-dark); text-decoration: underline; }
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 10px;
+  border-radius: var(--hero-radius-btn);
+  cursor: pointer;
+  transition: var(--hero-transition);
+  margin-bottom: 2px;
+  border: 1px solid transparent;
+  text-decoration: none;
+  color: var(--hero-text-body);
+  font-size: 13px;
+  font-weight: 400;
+  position: relative;
+}
+.nav-item:hover { background: var(--hero-primary-light); color: var(--hero-text-primary); }
+.nav-item.active {
+  background: var(--hero-primary-light);
+  border-color: rgba(6,163,182,0.25);
+  color: var(--hero-primary);
+  font-weight: 600;
+}
+.nav-item.active::before {
+  content: '';
+  position: absolute;
+  left: -1px; top: 20%; height: 60%;
+  width: 3px;
+  background: var(--hero-primary);
+  border-radius: 0 3px 3px 0;
+}
+.nav-icon { font-size: 14px; width: 20px; text-align: center; flex-shrink: 0; }
 
-    /* ===== Header ===== */
-    .hero-header {
-      background: var(--hero-primary);
-      color: #fff;
-      box-shadow: var(--hero-shadow);
-    }
-    .hero-header-inner {
-      max-width: var(--hero-max-width);
-      margin: 0 auto;
-      padding: var(--hero-sp-4) var(--hero-sp-6);
-      display: flex;
-      align-items: center;
-      gap: var(--hero-sp-6);
-    }
-    .hero-header-brand {
-      display: flex;
-      align-items: baseline;
-      gap: var(--hero-sp-2);
-    }
-    .hero-logo {
-      font-size: var(--hero-fs-xl);
-      font-weight: bold;
-      letter-spacing: 1px;
-    }
-    .hero-logo-sub {
-      font-size: var(--hero-fs-sm);
-      opacity: 0.85;
-    }
-    .hero-header-title {
-      margin: 0;
-      font-size: var(--hero-fs-lg);
-      font-weight: normal;
-      color: #fff;
-    }
+.sidebar-footer {
+  padding: 12px 20px;
+  border-top: 1px solid var(--hero-border-topbar);
+}
+.version-tag { font-size: 10px; color: var(--hero-text-subtle); }
 
-    /* ===== Layout ===== */
-    .main-wrap {
-      flex: 1;
-      width: 100%;
-      max-width: 680px;
-      margin: 0 auto;
-      padding: var(--hero-sp-8) var(--hero-sp-5);
-    }
+/* ── Main ────────────────────────────────────────────────── */
+#main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  overflow-x: hidden;
+  height: 100vh;
+}
 
-    /* ===== Card ===== */
-    .hero-card {
-      background: var(--hero-card-bg);
-      border: 1px solid var(--hero-border);
-      border-radius: var(--hero-radius);
-      padding: var(--hero-sp-8);
-      box-shadow: var(--hero-shadow);
-    }
-    .card-heading {
-      color: var(--hero-primary);
-      font-size: var(--hero-fs-xl);
-      margin: 0 0 var(--hero-sp-2) 0;
-    }
-    .card-desc {
-      color: var(--hero-text-muted);
-      font-size: var(--hero-fs-sm);
-      margin: 0 0 var(--hero-sp-6) 0;
-    }
+.topbar {
+  height: 54px;
+  border-bottom: 1px solid var(--hero-border-topbar);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24px;
+  background: var(--hero-bg-card);
+  flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+.topbar-title { font-size: 12px; color: var(--hero-text-muted); }
+.topbar-title span { color: var(--hero-primary); font-weight: 700; }
+.topbar-right { display: flex; align-items: center; gap: 14px; }
+.clock { font-size: 11px; color: var(--hero-text-subtle); font-family: var(--mono); }
+#global-status {
+  font-size: 10px;
+  padding: 4px 10px;
+  border-radius: 20px;
+  background: var(--hero-success-bg);
+  border: 1px solid rgba(39,174,96,0.3);
+  color: var(--hero-success);
+  letter-spacing: 0.5px;
+}
 
-    /* ===== Request type selector ===== */
-    .type-selector {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: var(--hero-sp-3);
-      margin-bottom: var(--hero-sp-6);
-    }
-    .type-option {
-      border: 1.5px solid var(--hero-border);
-      border-radius: var(--hero-radius-sm);
-      padding: var(--hero-sp-4);
-      text-align: center;
-      cursor: pointer;
-      transition: border-color 0.15s, background 0.15s;
-      background: var(--hero-card-bg);
-    }
-    .type-option:hover { border-color: var(--hero-primary-light); }
-    .type-option.selected {
-      border-color: var(--hero-primary);
-      background: rgba(6,163,182,0.06);
-    }
-    .type-option-label {
-      font-weight: bold;
-      font-size: var(--hero-fs-base);
-      color: var(--hero-text);
-    }
-    .type-option.selected .type-option-label { color: var(--hero-primary); }
-    .type-option-sub {
-      font-size: var(--hero-fs-xs);
-      color: var(--hero-text-muted);
-      margin-top: var(--hero-sp-1);
-    }
+/* ── Content ─────────────────────────────────────────────── */
+.content { flex: 1; padding: 24px 28px; }
+.page { display: none; }
+.page.active { display: block; animation: fadein 0.2s ease; }
+@keyframes fadein { from{opacity:0;transform:translateY(4px)} to{opacity:1;transform:none} }
 
-    /* ===== Form sections ===== */
-    .form-section { display: none; }
-    .form-section.active { display: block; }
+/* ── Section header ──────────────────────────────────────── */
+.section-header { margin-bottom: 20px; }
+.section-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--hero-text-primary);
+  letter-spacing: -0.3px;
+}
+.section-title span { color: var(--hero-primary); }
+.section-desc { margin-top: 4px; font-size: 13px; color: var(--hero-text-muted); }
 
-    .section-title {
-      font-size: var(--hero-fs-sm);
-      font-weight: bold;
-      color: var(--hero-primary);
-      text-transform: uppercase;
-      letter-spacing: 1px;
-      margin: var(--hero-sp-6) 0 var(--hero-sp-4) 0;
-      padding-bottom: var(--hero-sp-2);
-      border-bottom: 1px solid var(--hero-border);
-    }
-    .section-title:first-child { margin-top: 0; }
+/* ── Cards grid ──────────────────────────────────────────── */
+.cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px,1fr));
+  gap: 14px;
+  margin-bottom: 24px;
+}
 
-    .field-row {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: var(--hero-sp-4);
-    }
-    @media (max-width: 520px) {
-      .field-row { grid-template-columns: 1fr; }
-      .type-selector { grid-template-columns: 1fr; }
-    }
+/* ── Action card ─────────────────────────────────────────── */
+.action-card {
+  background: var(--hero-bg-card);
+  border: 1px solid var(--hero-border-card);
+  border-radius: var(--hero-radius-card);
+  padding: 18px;
+  transition: box-shadow 0.2s, border-color 0.2s;
+  position: relative;
+  overflow: hidden;
+}
+.action-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+  background: var(--card-color, var(--hero-primary));
+}
+.action-card:hover {
+  border-color: rgba(6,163,182,0.3);
+  box-shadow: 0 4px 16px rgba(6,163,182,0.1);
+}
+.card-header { display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:10px; }
+.card-icon { font-size: 20px; line-height: 1; }
+.card-badge {
+  font-size: 9px;
+  padding: 2px 8px;
+  border-radius: 20px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+.badge-manual { background:#fff3e0; border:1px solid #ffe0b2; color:#e67e22; }
+.badge-auto   { background:var(--hero-primary-light); border:1px solid rgba(6,163,182,0.3); color:var(--hero-primary); }
+.card-title { font-size: 14px; font-weight: 700; color: var(--hero-text-primary); margin-bottom: 4px; }
+.card-desc  { font-size: 12px; color: var(--hero-text-muted); line-height: 1.6; margin-bottom: 14px; }
 
-    .hero-field { margin-bottom: var(--hero-sp-4); }
-    .hero-field.full { grid-column: 1 / -1; }
-    .hero-label {
-      display: block;
-      margin-bottom: var(--hero-sp-2);
-      font-size: var(--hero-fs-sm);
-      color: var(--hero-text-muted);
-      font-weight: bold;
-    }
-    .hero-label .req { color: var(--hero-danger); }
-    .hero-input {
-      width: 100%;
-      padding: var(--hero-sp-3);
-      border: 1px solid var(--hero-border);
-      border-radius: var(--hero-radius-sm);
-      font-family: var(--hero-font);
-      font-size: var(--hero-fs-base);
-      background: var(--hero-card-bg);
-      color: var(--hero-text);
-    }
-    .hero-input:focus {
-      outline: none;
-      border-color: var(--hero-primary);
-      box-shadow: 0 0 0 3px rgba(6,163,182,0.15);
-    }
-    textarea.hero-input { resize: vertical; min-height: 80px; }
-    .field-hint {
-      font-size: var(--hero-fs-xs);
-      color: var(--hero-text-muted);
-      margin-top: var(--hero-sp-1);
-    }
+/* ── Buttons ─────────────────────────────────────────────── */
+.btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 8px 14px; border-radius: var(--hero-radius-btn);
+  font-size: 12px; font-weight: 600; cursor: pointer;
+  border: none; transition: var(--hero-transition);
+  font-family: var(--hero-font); text-decoration: none;
+}
+.btn-primary { background: var(--hero-primary); color: #fff; }
+.btn-primary:hover { background: var(--hero-primary-hover); }
+.btn-secondary { background: transparent; color: var(--hero-text-body); border: 1px solid var(--hero-border-btn); }
+.btn-secondary:hover { background: var(--hero-bg-page); color: var(--hero-text-primary); }
+.btn-danger { background: var(--hero-error-bg); color: var(--hero-error); border: 1px solid #f5b7b1; }
+.btn-danger:hover { background: #f5b7b1; }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
 
-    /* ===== Button ===== */
-    .hero-btn {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: var(--hero-sp-2);
-      width: 100%;
-      background: var(--hero-primary);
-      color: #fff;
-      border: none;
-      border-radius: var(--hero-radius-sm);
-      padding: var(--hero-sp-4) var(--hero-sp-5);
-      font-family: var(--hero-font);
-      font-size: var(--hero-fs-base);
-      font-weight: bold;
-      cursor: pointer;
-      transition: background 0.15s;
-      margin-top: var(--hero-sp-4);
-    }
-    .hero-btn:hover { background: var(--hero-primary-dark); }
-    .hero-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+/* ── Form elements ───────────────────────────────────────── */
+.form-group { margin-bottom: 14px; }
+.form-label {
+  display: block;
+  font-size: 10px; font-weight: 700;
+  letter-spacing: 1px; text-transform: uppercase;
+  color: var(--hero-text-muted); margin-bottom: 5px;
+}
+.form-input {
+  width: 100%;
+  background: var(--hero-bg-card);
+  border: 1px solid var(--hero-border-btn);
+  border-radius: var(--hero-radius-btn);
+  padding: 9px 12px;
+  font-size: 13px;
+  color: var(--hero-text-primary);
+  font-family: var(--hero-font);
+  transition: border-color 0.15s;
+  outline: none;
+}
+.form-input:focus { border-color: var(--hero-primary); box-shadow: 0 0 0 3px rgba(6,163,182,0.1); }
+.form-input::placeholder { color: var(--hero-text-subtle); }
 
-    /* ===== Notice box ===== */
-    .notice {
-      background: rgba(232,163,23,0.1);
-      border: 1px solid rgba(232,163,23,0.35);
-      border-radius: var(--hero-radius-sm);
-      padding: var(--hero-sp-3) var(--hero-sp-4);
-      font-size: var(--hero-fs-xs);
-      color: var(--hero-text-muted);
-      margin-top: var(--hero-sp-4);
-    }
-    .notice strong { color: var(--hero-text); }
+/* ── Log console ─────────────────────────────────────────── */
+.log-console {
+  background: var(--hero-bg-card);
+  border: 1px solid var(--hero-border-card);
+  border-radius: var(--hero-radius-card);
+  overflow: hidden;
+}
+.log-console-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--hero-border-topbar);
+  background: var(--hero-bg-page);
+}
+.log-console-title { font-size: 10px; color: var(--hero-text-muted); letter-spacing: 1px; font-weight: 700; }
+.log-console-dots { display: flex; gap: 5px; }
+.log-dot { width: 8px; height: 8px; border-radius: 50%; }
+.log-body { padding: 12px 16px; min-height: 160px; max-height: 320px; overflow-y: auto; }
+.log-line { font-family: var(--mono); font-size: 11.5px; line-height: 1.8; display: flex; gap: 10px; align-items: flex-start; }
+.log-time { color: var(--hero-text-subtle); flex-shrink: 0; min-width: 70px; }
+.log-msg         { color: var(--hero-text-muted); }
+.log-msg.success { color: var(--hero-success); }
+.log-msg.error   { color: var(--hero-error); }
+.log-msg.warn    { color: var(--hero-warning); }
+.log-msg.info    { color: var(--hero-primary); }
+.log-empty { display:flex; flex-direction:column; align-items:center; justify-content:center; height:120px; gap:8px; }
+.log-empty-icon { font-size:24px; opacity:0.3; }
+.log-empty-text { font-size:11px; color:var(--hero-text-subtle); }
 
-    /* ===== Toast ===== */
-    .toast {
-      display: none;
-      align-items: center;
-      gap: var(--hero-sp-3);
-      background: var(--hero-success);
-      color: #fff;
-      padding: var(--hero-sp-4) var(--hero-sp-5);
-      border-radius: var(--hero-radius-sm);
-      margin-bottom: var(--hero-sp-5);
-      font-size: var(--hero-fs-sm);
-      font-weight: bold;
-      box-shadow: var(--hero-shadow);
-    }
-    .toast.show { display: flex; }
-    .toast-icon {
-      width: 24px;
-      height: 24px;
-      background: rgba(255,255,255,0.25);
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      flex-shrink: 0;
-    }
+/* ── Panel grid ──────────────────────────────────────────── */
+.panel-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 18px; }
+@media (max-width: 900px) { .panel-grid { grid-template-columns: 1fr; } }
 
-    /* ===== Footer ===== */
-    .hero-footer {
-      background: var(--hero-card-bg);
-      border-top: 1px solid var(--hero-border);
-      margin-top: var(--hero-sp-10);
-    }
-    .hero-footer-inner {
-      max-width: var(--hero-max-width);
-      margin: 0 auto;
-      padding: var(--hero-sp-4) var(--hero-sp-6);
-      display: flex;
-      justify-content: space-between;
-      color: var(--hero-text-muted);
-      font-size: var(--hero-fs-sm);
-    }
-  </style>
+/* ── Info box ────────────────────────────────────────────── */
+.info-box {
+  background: var(--hero-bg-card);
+  border: 1px solid var(--hero-border-card);
+  border-radius: var(--hero-radius-card);
+  padding: 16px 18px;
+}
+.info-box-title {
+  font-size: 10px; font-weight: 700;
+  letter-spacing: 1.2px; text-transform: uppercase;
+  color: var(--hero-primary); margin-bottom: 12px;
+}
+
+/* ── Stat chips ──────────────────────────────────────────── */
+.stats-row { display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
+.stat-chip {
+  background: var(--hero-bg-card);
+  border: 1px solid var(--hero-border-card);
+  border-radius: var(--hero-radius-card);
+  padding: 14px 18px; flex: 1; min-width: 120px;
+}
+.stat-value { font-size: 22px; font-weight: 700; color: var(--hero-text-primary); line-height: 1; margin-bottom: 4px; }
+.stat-label { font-size: 11px; color: var(--hero-text-muted); }
+
+/* ── Config rows ─────────────────────────────────────────── */
+.config-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 0; border-bottom: 1px solid var(--hero-border-card);
+}
+.config-row:last-child { border-bottom: none; }
+.config-key { font-size: 12px; color: var(--hero-text-muted); }
+.config-val {
+  font-size: 11px; color: var(--hero-primary);
+  background: var(--hero-primary-light);
+  padding: 3px 10px; border-radius: 6px;
+}
+
+/* ── Spinner ─────────────────────────────────────────────── */
+.spinner {
+  display: inline-block; width: 12px; height: 12px;
+  border: 2px solid rgba(6,163,182,0.2);
+  border-top-color: var(--hero-primary);
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Toast ───────────────────────────────────────────────── */
+#toast {
+  position: fixed; bottom: 24px; right: 24px;
+  background: var(--hero-text-primary);
+  border-radius: var(--hero-radius-btn);
+  padding: 12px 18px;
+  font-size: 13px; color: #fff;
+  z-index: 999;
+  transition: opacity 0.3s, transform 0.3s;
+  opacity: 0; transform: translateY(10px);
+  pointer-events: none; max-width: 320px;
+}
+#toast.show { opacity: 1; transform: none; }
+
+/* ── URL notice ──────────────────────────────────────────── */
+.url-notice {
+  background: #fff8e6;
+  border: 1px solid #ffe0b2;
+  border-radius: var(--hero-radius-btn);
+  padding: 12px 14px; margin-bottom: 16px;
+  display: flex; gap: 10px; align-items: flex-start;
+}
+.url-notice-icon { font-size: 14px; flex-shrink: 0; margin-top: 1px; }
+.url-notice-text { font-size: 12px; color: var(--hero-text-body); line-height: 1.6; }
+.url-notice-text strong { color: #e67e22; }
+.url-notice-text code {
+  font-family: var(--mono); font-size: 11px;
+  background: var(--hero-primary-light);
+  padding: 1px 5px; border-radius: 4px; color: var(--hero-primary);
+}
+
+/* ── Login screen ────────────────────────────────────────── */
+#login-screen {
+  position: fixed; inset: 0;
+  background: var(--hero-bg-page);
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center; z-index: 999;
+}
+#login-screen::before {
+  content: '';
+  position: absolute; inset: 0;
+  background: radial-gradient(ellipse at 50% 30%, rgba(6,163,182,0.08) 0%, transparent 70%);
+  pointer-events: none;
+}
+.login-card {
+  background: var(--hero-bg-card);
+  border: 1px solid var(--hero-border-card);
+  border-radius: 14px;
+  padding: 44px 40px;
+  text-align: center;
+  max-width: 380px; width: 90%;
+  position: relative; z-index: 1;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+}
+.login-logo {
+  width: 56px; height: 56px;
+  border-radius: 14px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 28px; margin: 0 auto 18px;
+  background: var(--hero-primary-light);
+}
+.login-title { font-size: 20px; font-weight: 700; color: var(--hero-text-primary); margin-bottom: 6px; }
+.login-sub { font-size: 13px; color: var(--hero-text-muted); margin-bottom: 28px; line-height: 1.5; }
+.login-error {
+  display: none;
+  background: var(--hero-error-bg);
+  border: 1px solid #f5b7b1;
+  border-radius: 8px;
+  padding: 12px 14px; font-size: 12px;
+  color: var(--hero-error); margin-top: 14px; line-height: 1.5;
+}
+#app-content { display: none; width: 100%; min-height: 100vh; flex-direction: row; }
+
+/* ── Responsive ──────────────────────────────────────────── */
+.btn-hamburger {
+  display: none;
+  background: transparent;
+  border: 1px solid var(--hero-border-btn);
+  color: var(--hero-text-muted);
+  width: 36px; height: 36px; border-radius: 8px;
+  cursor: pointer; font-size: 18px;
+  align-items: center; justify-content: center; flex-shrink: 0;
+}
+.sidebar-overlay {
+  display: none; position: fixed; inset: 0;
+  background: rgba(0,0,0,0.35); z-index: 199;
+}
+@media (max-width: 768px) {
+  body { overflow: auto; }
+  #app-content { flex-direction: column !important; }
+  #sidebar {
+    position: fixed !important; left: -100% !important; top: 0;
+    height: 100vh; width: 280px; z-index: 200;
+    transition: left 0.25s ease;
+    box-shadow: 4px 0 24px rgba(0,0,0,0.15);
+  }
+  #sidebar.open { left: 0 !important; }
+  .sidebar-overlay.show { display: block; }
+  .btn-hamburger { display: flex !important; }
+  #main { width: 100%; min-height: 100vh; overflow-y: auto; }
+  .topbar { padding: 0 14px; }
+  .clock { display: none; }
+  .content { padding: 16px; }
+  .panel-grid { grid-template-columns: 1fr !important; }
+  .cards-grid { grid-template-columns: 1fr !important; }
+  .stats-row { flex-direction: column; }
+  #ticket-modal, #user-modal, #dev-modal, #lic-modal { padding: 12px; }
+  #ticket-modal > div, #user-modal > div, #dev-modal > div, #lic-modal > div { max-width: 100% !important; border-radius: 10px !important; }
+}
+@media (min-width: 769px) {
+  .btn-hamburger { display: none !important; }
+  .sidebar-overlay { display: none !important; }
+}
+
+
+/* ── System status ───────────────────────────────────────── */
+.status-service {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: var(--hero-bg);
+  border-radius: var(--hero-radius-sm);
+  border: 1px solid var(--hero-border);
+}
+.status-dot {
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  background: var(--hero-border);
+  flex-shrink: 0;
+  transition: background 0.3s;
+}
+.status-dot.ok      { background: var(--hero-success); box-shadow: 0 0 6px rgba(34,160,107,0.4); }
+.status-dot.error   { background: var(--hero-danger); }
+.status-dot.loading { background: var(--hero-warning); animation: pulse-dot 1s ease-in-out infinite; }
+.status-name   { font-size: 12px; font-weight: 600; color: var(--hero-text-primary); }
+.status-detail { font-size: 10px; color: var(--hero-text-muted); margin-top: 2px; }
+
+/* ── Global search ───────────────────────────────────────── */
+#global-search-overlay {
+  display: none;
+  position: fixed; inset: 0;
+  background: rgba(26,39,51,0.5);
+  z-index: 500;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 80px;
+}
+#global-search-box {
+  background: var(--hero-card-bg);
+  border: 1px solid rgba(6,163,182,0.3);
+  border-radius: var(--hero-radius-lg);
+  width: 90%; max-width: 580px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+  overflow: hidden;
+}
+#global-search-input {
+  width: 100%; padding: 16px 20px;
+  border: none; border-bottom: 1px solid var(--hero-border);
+  font-size: 15px; font-family: var(--hero-font);
+  color: var(--hero-text-primary); background: transparent; outline: none;
+}
+#global-search-results { max-height: 380px; overflow-y: auto; }
+
+/* ── Modal fix — ensure modals always render on top ─────── */
+#user-modal, #ticket-modal, #dev-modal, #lic-modal {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 300 !important;
+  overflow-y: auto;
+  padding: 24px;
+  background: rgba(26,39,51,0.55) !important;
+}
+#user-modal > div,
+#ticket-modal > div,
+#dev-modal > div,
+#lic-modal > div {
+  position: relative;
+  z-index: 301;
+  margin: 0 auto;
+  max-width: 540px;
+  background: #ffffff !important;
+  border: 1px solid rgba(6,163,182,0.25);
+  border-radius: 16px;
+  padding: 28px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+}
+#app-content {
+  overflow: visible !important;
+}
+#main {
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+/* ── Solicitudes filter chips ────────────────────────────── */
+.sol-filter-chip {
+  padding: 5px 14px;
+  border-radius: 20px;
+  border: 1px solid var(--hero-border);
+  background: transparent;
+  color: var(--hero-text-muted);
+  font-size: 12px;
+  font-family: var(--hero-font);
+  cursor: pointer;
+  transition: var(--hero-transition);
+}
+.sol-filter-chip:hover { background: var(--hero-bg); color: var(--hero-text-primary); }
+.sol-filter-chip.active {
+  background: var(--hero-primary-light);
+  border-color: rgba(6,163,182,0.4);
+  color: var(--hero-primary);
+  font-weight: 600;
+}
+
+html { scroll-behavior: smooth; }
+
+/* ── Kanban ──────────────────────────────────────────────── */
+.kanban-col {
+  background: var(--hero-bg);
+  border-radius: var(--hero-radius);
+  border: 1px solid var(--hero-border);
+  overflow: hidden;
+  min-height: 200px;
+}
+.kanban-col-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 14px;
+  border-bottom: 2px solid var(--col-color, var(--hero-border));
+  background: var(--hero-card-bg);
+}
+.kanban-col-title { font-size: 12px; font-weight: 700; color: var(--hero-text-primary); }
+.kanban-col-count {
+  font-family: var(--mono);
+  font-size: 11px;
+  background: rgba(0,0,0,0.06);
+  padding: 2px 8px;
+  border-radius: 20px;
+  color: var(--hero-text-muted);
+}
+.kanban-cards { padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+.kanban-card {
+  background: var(--hero-card-bg);
+  border: 1px solid var(--hero-border);
+  border-radius: 8px;
+  padding: 12px;
+  cursor: pointer;
+  transition: box-shadow 0.15s, transform 0.15s;
+  border-left: 3px solid var(--card-pcolor, var(--hero-border));
+}
+.kanban-card:hover { box-shadow: 0 3px 12px rgba(0,0,0,0.1); transform: translateY(-1px); }
+.kanban-card-title { font-size: 12px; font-weight: 600; color: var(--hero-text-primary); margin-bottom: 4px; line-height: 1.4; }
+.kanban-card-meta  { font-size: 11px; color: var(--hero-text-muted); }
+.kanban-card-time  { font-size: 10px; font-family: var(--mono); margin-top: 6px; }
+@media (max-width: 900px) {
+  #tickets-kanban { grid-template-columns: 1fr !important; }
+}
+
+/* ── Last updated indicator ─────────────────────────────── */
+.last-updated {
+  font-size: 11px;
+  color: var(--hero-text-muted);
+  font-family: var(--mono, 'Courier New', monospace);
+  margin-bottom: 14px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.last-updated::before {
+  content: '↻';
+  color: var(--hero-primary);
+  font-size: 12px;
+}
+
+</style>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
 
-  <header class="hero-header">
-    <div class="hero-header-inner">
-      <div class="hero-header-brand">
-        <span class="hero-logo">HERO</span>
-        <span class="hero-logo-sub">Insurance USA</span>
-      </div>
-      <h1 class="hero-header-title">Solicitud de Cuenta de Correo</h1>
+<!-- ══ LOGIN SCREEN ════════════════════════════════════════ -->
+<div id="login-screen">
+  <div class="login-card">
+    <div class="login-logo" style="background:transparent;padding:0;"><img src="https://i.ibb.co/tMRCCW07/Hero-Nuevo-Circulo-1.png" style="width:48px;height:48px;border-radius:12px;object-fit:cover;"/></div>
+    <div class="login-title">Hero IT Console</div>
+    <div class="login-sub">Acceso restringido al equipo de IT.<br/>Inicia sesión con tu cuenta corporativa.</div>
+    <div id="g_id_onload"
+      data-client_id="264842910230-gcae4mfdma2sbh4gfrtlickfndrnt5as.apps.googleusercontent.com"
+      data-callback="handleGoogleLogin"
+      data-auto_prompt="false">
     </div>
-  </header>
-
-  <div class="main-wrap">
-
-    <div id="toast" class="toast">
-      <div class="toast-icon">&#10003;</div>
-      <div id="toast-msg">Solicitud enviada. La Direcci&oacute;n recibir&aacute; la notificaci&oacute;n para autorizarla.</div>
+    <div class="g_id_signin"
+      data-type="standard"
+      data-size="large"
+      data-theme="outline"
+      data-text="sign_in_with"
+      data-shape="rectangular"
+      data-logo_alignment="left"
+      data-width="280">
     </div>
+    <div id="login-error" class="login-error"></div>
+    <div style="margin-top:24px;font-family:var(--mono);font-size:10px;color:var(--hero-text-muted);">
+      heroinsuranceusa.com · IT Department
+    </div>
+  </div>
+</div>
 
-    <div class="hero-card">
-      <h2 class="card-heading">Alta o baja de cuenta de correo</h2>
-      <p class="card-desc">
-        Usa este formulario para solicitar la creaci&oacute;n o eliminaci&oacute;n de una cuenta de correo
-        corporativo. La solicitud ser&aacute; enviada a la Direcci&oacute;n para su autorizaci&oacute;n
-        (Procedimiento PROC-IT-001).
-      </p>
+<!-- ══ APP CONTENT ══════════════════════════════════════════ -->
+<div id="app-content">
+<div class="sidebar-overlay" id="sidebar-overlay" onclick="closeSidebar()"></div>
 
-      <!-- Tipo de solicitud -->
-      <div class="type-selector">
-        <div class="type-option selected" data-type="alta" onclick="selectType('alta')">
-          <div class="type-option-label">Alta</div>
-          <div class="type-option-sub">Crear una cuenta nueva</div>
-        </div>
-        <div class="type-option" data-type="baja" onclick="selectType('baja')">
-          <div class="type-option-label">Baja</div>
-          <div class="type-option-sub">Eliminar una cuenta existente</div>
-        </div>
+<!-- ══ SIDEBAR ══════════════════════════════════════════════ -->
+<aside id="sidebar">
+  <div class="sidebar-header">
+    <div class="sidebar-logo">
+      <img src="https://i.ibb.co/tMRCCW07/Hero-Nuevo-Circulo-1.png" style="width:32px;height:32px;border-radius:8px;object-fit:cover;flex-shrink:0;"/>
+      <div>
+        <div class="logo-text">Hero IT Console</div>
+        <div class="logo-sub">heroinsuranceusa.com</div>
       </div>
-
-      <!-- ===== SECCIÓN ALTA ===== -->
-      <div id="section-alta" class="form-section active">
-        <div class="section-title">Datos de la persona</div>
-        <div class="field-row">
-          <div class="hero-field">
-            <label class="hero-label" for="alta-nombre">Nombre <span class="req">*</span></label>
-            <input class="hero-input" type="text" id="alta-nombre" placeholder="Ej. Juan"/>
-          </div>
-          <div class="hero-field">
-            <label class="hero-label" for="alta-apellido">Apellido <span class="req">*</span></label>
-            <input class="hero-input" type="text" id="alta-apellido" placeholder="Ej. P&eacute;rez"/>
-          </div>
-        </div>
-        <div class="field-row">
-          <div class="hero-field">
-            <label class="hero-label" for="alta-cargo">Cargo <span class="req">*</span></label>
-            <input class="hero-input" type="text" id="alta-cargo" placeholder="Ej. Agente de ventas"/>
-          </div>
-          <div class="hero-field">
-            <label class="hero-label" for="alta-area">&Aacute;rea / Departamento <span class="req">*</span></label>
-            <input class="hero-input" type="text" id="alta-area" placeholder="Ej. Ventas"/>
-          </div>
-        </div>
-        <div class="hero-field full">
-          <label class="hero-label" for="alta-correo-personal">Correo personal de contacto <span class="req">*</span></label>
-          <input class="hero-input" type="email" id="alta-correo-personal" placeholder="juan.perez@gmail.com"/>
-          <div class="field-hint">Para enviar las credenciales de acceso a la nueva cuenta.</div>
-        </div>
-        <div class="hero-field full">
-          <label class="hero-label" for="alta-telefono">N&uacute;mero de tel&eacute;fono <span class="req">*</span></label>
-          <input class="hero-input" type="tel" id="alta-telefono" placeholder="(786) 323-6818" maxlength="14" data-format="tel"/>
-        </div>
-      </div>
-
-      <!-- ===== SECCIÓN BAJA ===== -->
-      <div id="section-baja" class="form-section">
-        <div class="section-title">Datos de la cuenta a eliminar</div>
-        <div class="hero-field full">
-          <label class="hero-label" for="baja-nombre">Nombre completo de la persona <span class="req">*</span></label>
-          <input class="hero-input" type="text" id="baja-nombre" placeholder="Ej. Juan P&eacute;rez"/>
-        </div>
-        <div class="hero-field full">
-          <label class="hero-label" for="baja-correo">Cuenta de correo a eliminar <span class="req">*</span></label>
-          <input class="hero-input" type="email" id="baja-correo" placeholder="jperez@heroinsuranceusa.com"/>
-        </div>
-        <div class="field-row">
-          <div class="hero-field">
-            <label class="hero-label" for="baja-cargo">Cargo</label>
-            <input class="hero-input" type="text" id="baja-cargo" placeholder="Ej. Agente de ventas"/>
-          </div>
-          <div class="hero-field">
-            <label class="hero-label" for="baja-area">&Aacute;rea / Departamento</label>
-            <input class="hero-input" type="text" id="baja-area" placeholder="Ej. Ventas"/>
-          </div>
-        </div>
-        <div class="hero-field full">
-          <label class="hero-label" for="baja-motivo">Motivo de la baja <span class="req">*</span></label>
-          <select class="hero-input" id="baja-motivo">
-            <option value="">Selecciona un motivo...</option>
-            <option value="Renuncia">Renuncia</option>
-            <option value="Fin de contrato">Fin de contrato</option>
-            <option value="Despido">Despido</option>
-            <option value="Cambio de rol">Cambio de rol</option>
-            <option value="Otro">Otro</option>
-          </select>
-        </div>
-        <div class="hero-field full">
-          <label class="hero-label" for="baja-detalle">Detalle adicional</label>
-          <textarea class="hero-input" id="baja-detalle" placeholder="Informaci&oacute;n adicional relevante para la baja (opcional)."></textarea>
-        </div>
-      </div>
-
-      <!-- ===== CAMPOS COMUNES ===== -->
-      <div class="section-title">Fecha y solicitante</div>
-      <div class="field-row">
-        <div class="hero-field">
-          <label class="hero-label" for="fecha-requerida">Fecha requerida <span class="req">*</span></label>
-          <input class="hero-input" type="date" id="fecha-requerida"/>
-        </div>
-        <div class="hero-field">
-          <label class="hero-label" for="solicitante-nombre">Tu nombre <span class="req">*</span></label>
-          <input class="hero-input" type="text" id="solicitante-nombre" placeholder="Ej. Ana Mart&iacute;nez"/>
-        </div>
-      </div>
-      <div class="hero-field full">
-        <label class="hero-label" for="solicitante-email">Tu correo corporativo <span class="req">*</span></label>
-        <input class="hero-input" type="email" id="solicitante-email" placeholder="amartinez@heroinsuranceusa.com"/>
-        <div class="field-hint">Debe ser un correo &commat;heroinsuranceusa.com. Idealmente, el gerente del &aacute;rea.</div>
-      </div>
-
-      <button class="hero-btn" id="submit-btn" onclick="registrar()">Enviar solicitud &rarr;</button>
-
-      <div class="notice">
-        <strong>Nota:</strong> ninguna cuenta ser&aacute; creada o eliminada sin la autorizaci&oacute;n previa
-        de la Direcci&oacute;n (Jes&uacute;s Guti&eacute;rrez, Anny Medina o Aurys Rodr&iacute;guez).
-        El seguimiento de esta solicitud queda registrado en el Hero IT Console.
-      </div>
+    </div>
+    <div class="sidebar-user">
+      <div class="user-dot"></div>
+      <span class="user-label">Fernando Romero · IT Admin</span>
     </div>
   </div>
 
-  <footer class="hero-footer">
-    <div class="hero-footer-inner">
-      <span>&copy; Hero Insurance USA</span>
-      <span>Departamento de IT &middot; Herramienta interna</span>
+  <nav>
+    <div class="nav-section-label">Principal</div>
+    <a class="nav-item active" onclick="showPage('dashboard')" href="#">
+      <span class="nav-icon">⬡</span> Dashboard
+    </a>
+
+    <div class="nav-section-label">Gestión IT</div>
+    <a class="nav-item" onclick="showPage('solicitudes')" href="#">
+      <span class="nav-icon">📥</span> Solicitudes de Alta
+    </a>
+    <a class="nav-item" onclick="showPage('tickets')" href="#">
+      <span class="nav-icon">🎫</span> Tickets de Soporte
+    </a>
+    <a class="nav-item" onclick="showPage('dispositivos')" href="#">
+      <span class="nav-icon">💻</span> Dispositivos
+    </a>
+    <a class="nav-item" onclick="showPage('zoho')" href="#">
+      <span class="nav-icon">🔴</span> Zoho Assist
+    </a>
+
+    <div class="nav-section-label">Usuarios</div>
+    <a class="nav-item" onclick="showPage('usuarios')" href="#">
+      <span class="nav-icon">👥</span> Usuarios Workspace
+    </a>
+    <a class="nav-item" onclick="showPage('crear-usuario')" href="#">
+      <span class="nav-icon">➕</span> Crear Usuario
+    </a>
+    <a class="nav-item" onclick="showPage('reset')" href="#">
+      <span class="nav-icon">🔑</span> Reset de Contraseña
+    </a>
+
+
+    <div class="nav-section-label">Registros</div>
+    <a class="nav-item" onclick="showPage('auditoria')" href="#">
+      <span class="nav-icon">🗂️</span> Auditoría
+    </a>
+    <a class="nav-item" onclick="showPage('logs')" href="#">
+      <span class="nav-icon">📋</span> Historial de Logs
+    </a>
+
+    <div class="nav-section-label">Sistema</div>
+    <a class="nav-item" onclick="showPage('offboarding')" href="#">
+      <span class="nav-icon">🚪</span> Offboarding
+    </a>
+    <a class="nav-item" onclick="showPage('licencias')" href="#">
+      <span class="nav-icon">🔑</span> Licencias
+    </a>
+    <a class="nav-item" onclick="showPage('config')" href="#">
+      <span class="nav-icon">⚙️</span> Configuración
+    </a>
+  </nav>
+
+  <div class="sidebar-footer">
+    <div class="version-tag">v1.0.0 · Hero IT Console</div>
+  </div>
+</aside>
+
+<!-- ══ MAIN ═════════════════════════════════════════════════ -->
+<div id="main">
+
+  <!-- Top bar -->
+  <div class="topbar" style="position:relative;">
+    <div style="display:flex;align-items:center;gap:12px;">
+      <button class="btn-hamburger" onclick="toggleSidebar()">☰</button>
+      <div class="topbar-title">Hero IT Console / <span id="current-section-label">Dashboard</span></div>
     </div>
-  </footer>
+    <div class="topbar-right">
+        <button onclick="toggleTheme()" id="btn-theme" title="Cambiar tema" style="background:var(--hero-bg);border:1px solid var(--hero-border);color:var(--hero-text-muted);width:36px;height:36px;border-radius:var(--hero-radius-btn);cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">☀️</button>
+        <!-- Notification bell -->
+        <div style="position:relative;flex-shrink:0;">
+          <button onclick="toggleNotifPanel()" id="btn-notif" title="Notificaciones" style="background:var(--hero-bg);border:1px solid var(--hero-border);color:var(--hero-text-muted);width:36px;height:36px;border-radius:var(--hero-radius-btn);cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center;">🔔</button>
+          <span id="notif-badge" style="display:none;position:absolute;top:-4px;right:-4px;background:var(--hero-danger);color:#fff;font-size:10px;font-weight:700;min-width:18px;height:18px;border-radius:9px;text-align:center;line-height:18px;padding:0 4px;pointer-events:none;"></span>
+        </div>
+        <!-- Notification panel -->
+        <div id="notif-panel" style="display:none;position:absolute;top:56px;right:16px;width:340px;background:var(--hero-card-bg);border:1px solid var(--hero-border);border-radius:14px;box-shadow:0 8px 32px rgba(0,0,0,0.15);z-index:400;overflow:hidden;">
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 16px;border-bottom:1px solid var(--hero-border);">
+            <div style="font-size:13px;font-weight:700;color:var(--hero-text-primary);">Notificaciones</div>
+            <button onclick="clearNotifs()" style="background:transparent;border:none;font-size:11px;color:var(--hero-primary);cursor:pointer;font-family:var(--hero-font);">Limpiar todo</button>
+          </div>
+          <div id="notif-list" style="max-height:360px;overflow-y:auto;">
+            <div id="notif-empty" style="padding:32px;text-align:center;font-size:12px;color:var(--hero-text-muted);">
+              <div style="font-size:28px;margin-bottom:8px;opacity:0.4;">🔔</div>
+              Sin notificaciones nuevas
+            </div>
+          </div>
+        </div>
+        <button onclick="openGlobalSearch()" style="background:var(--hero-bg);border:1px solid var(--hero-border);color:var(--hero-text-muted);padding:6px 12px;border-radius:var(--hero-radius-sm);cursor:pointer;font-size:12px;font-family:var(--hero-font);display:flex;align-items:center;gap:6px;">🔍 <span style="color:var(--hero-text-muted)">Buscar...</span></button>
+      <div class="clock" id="clock"></div>
+      <div id="global-status">● SISTEMA LISTO</div>
+    </div>
+  </div>
 
-<script>
-  var WORKER_URL = 'https://hero-email-worker.broad-fire-d2d6.workers.dev';
-  var currentType = 'alta';
+  <div class="content">
 
-  /* ---- Selector de tipo de solicitud ---- */
-  function selectType(type) {
-    currentType = type;
-    var options = document.getElementsByClassName('type-option');
-    for (var i = 0; i < options.length; i++) {
-      if (options[i].getAttribute('data-type') === type) {
-        options[i].className = 'type-option selected';
-      } else {
-        options[i].className = 'type-option';
-      }
-    }
-    document.getElementById('section-alta').className =
-      (type === 'alta') ? 'form-section active' : 'form-section';
-    document.getElementById('section-baja').className =
-      (type === 'baja') ? 'form-section active' : 'form-section';
-  }
+    <!-- ══ DASHBOARD ══════════════════════════════════════ -->
+    <div class="page active" id="page-dashboard">
+      <div class="section-header">
+        <div class="section-title"><span>//</span> Dashboard</div>
+        <div class="section-desc">Acceso rápido a todas las herramientas de IT.</div>
+      </div>
 
-  /* ---- Formato de teléfono ---- */
-  function formatTel(input) {
-    var digits = input.value.replace(/\D/g, '').slice(0, 10);
-    if (digits.length === 0) {
-      input.value = '';
-    } else if (digits.length <= 3) {
-      input.value = '(' + digits;
-    } else if (digits.length <= 6) {
-      input.value = '(' + digits.slice(0, 3) + ') ' + digits.slice(3);
-    } else {
-      input.value = '(' + digits.slice(0, 3) + ') ' + digits.slice(3, 6) + '-' + digits.slice(6);
-    }
-  }
+      <!-- Stats row -->
+      <div class="stats-row">
+        <div class="stat-chip">
+          <div class="stat-value" id="stat-logs" style="color:var(--hero-primary)">0</div>
+          <div class="stat-label">Acciones en sesión</div>
+        </div>
+        <div class="stat-chip">
+          <div class="stat-value" id="stat-tickets-open">—</div>
+          <div class="stat-label">Tickets abiertos</div>
+        </div>
+        <div class="stat-chip">
+          <div class="stat-value" id="stat-solicitudes-pending">—</div>
+          <div class="stat-label">Solicitudes pendientes</div>
+        </div>
+        <div class="stat-chip">
+          <div class="stat-value" id="stat-devices-count">—</div>
+          <div class="stat-label">Dispositivos registrados</div>
+        </div>
+      </div>
 
-  /* Vincula el formateo de teléfono vía data-attribute (sin inline handlers) */
-  (function () {
-    var telInputs = document.querySelectorAll('input[data-format="tel"]');
-    for (var i = 0; i < telInputs.length; i++) {
-      telInputs[i].addEventListener('input', function (e) {
-        formatTel(e.target);
-      });
-    }
-    /* Fecha mínima = hoy */
-    var fecha = document.getElementById('fecha-requerida');
-    var hoy = new Date();
-    var mm = ('0' + (hoy.getMonth() + 1)).slice(-2);
-    var dd = ('0' + hoy.getDate()).slice(-2);
-    fecha.setAttribute('min', hoy.getFullYear() + '-' + mm + '-' + dd);
-  })();
+      <!-- System status panel -->
+      <div class="info-box" style="margin-bottom:20px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+          <div class="info-box-title" style="margin-bottom:0;">Estado del ecosistema</div>
+          <button class="btn btn-secondary" onclick="checkSystemStatus()" id="btn-check-status" style="font-size:11px;padding:5px 10px;">↺ Verificar</button>
+        </div>
+        <div id="system-status-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;">
+          <div class="status-service" data-service="worker">
+            <div class="status-dot" id="dot-worker"></div>
+            <div>
+              <div class="status-name">Cloudflare Worker</div>
+              <div class="status-detail" id="detail-worker">Sin verificar</div>
+            </div>
+          </div>
+          <div class="status-service" data-service="google">
+            <div class="status-dot" id="dot-google"></div>
+            <div>
+              <div class="status-name">Google Workspace</div>
+              <div class="status-detail" id="detail-google">Sin verificar</div>
+            </div>
+          </div>
+          <div class="status-service" data-service="zoho">
+            <div class="status-dot" id="dot-zoho"></div>
+            <div>
+              <div class="status-name">Zoho Assist</div>
+              <div class="status-detail" id="detail-zoho">Sin verificar</div>
+            </div>
+          </div>
+          <div class="status-service" data-service="resend">
+            <div class="status-dot" id="dot-resend"></div>
+            <div>
+              <div class="status-name">Resend Email</div>
+              <div class="status-detail" id="detail-resend">Sin verificar</div>
+            </div>
+          </div>
+        </div>
+      </div>
 
-  function val(id) {
-    return document.getElementById(id).value.trim();
-  }
+      <div class="cards-grid">
 
-  function esEmailValido(email) {
-    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-  }
+        <div class="action-card" style="--card-color: #f56565">
+          <div class="card-header">
+            <div class="card-icon">📥</div>
+            <span class="card-badge badge-manual">Gestión</span>
+          </div>
+          <div class="card-title">Solicitudes de Alta</div>
+          <div class="card-desc">Revisa y procesa las solicitudes de alta de nuevos agentes enviadas por el equipo de contratos.</div>
+          <button class="btn btn-primary" onclick="showPage('solicitudes')">Ver solicitudes →</button>
+        </div>
 
-  function showToast(msg) {
-    var toast = document.getElementById('toast');
-    document.getElementById('toast-msg').innerHTML = msg;
-    toast.className = 'toast show';
-    window.scrollTo(0, 0);
-    setTimeout(function () { toast.className = 'toast'; }, 5000);
-  }
+        <div class="action-card" style="--card-color: #f0b429">
+          <div class="card-header">
+            <div class="card-icon">🎫</div>
+            <span class="card-badge badge-manual">Soporte</span>
+          </div>
+          <div class="card-title">Tickets de Soporte</div>
+          <div class="card-desc">Gestiona los tickets de soporte técnico del equipo — responde, cambia estado y prioridad.</div>
+          <button class="btn btn-primary" onclick="showPage('tickets')">Ver tickets →</button>
+        </div>
 
-  function registrar() {
-    /* Campos comunes */
-    var fechaRequerida    = val('fecha-requerida');
-    var solicitanteNombre = val('solicitante-nombre');
-    var solicitanteEmail  = val('solicitante-email');
+        <div class="action-card" style="--card-color: #19CDEB">
+          <div class="card-header">
+            <div class="card-icon">💻</div>
+            <span class="card-badge badge-auto">Inventario</span>
+          </div>
+          <div class="card-title">Dispositivos</div>
+          <div class="card-desc">Inventario de equipos con historial de intervenciones, apps instaladas y estado de GCPW.</div>
+          <button class="btn btn-primary" onclick="showPage('dispositivos')">Ver dispositivos →</button>
+        </div>
 
-    if (!fechaRequerida || !solicitanteNombre || !solicitanteEmail) {
-      alert('Por favor completa la fecha y los datos del solicitante.');
-      return;
-    }
-    if (!esEmailValido(solicitanteEmail)) {
-      alert('El correo del solicitante no parece v\u00e1lido.');
-      return;
-    }
+        <div class="action-card" style="--card-color: #a78bfa">
+          <div class="card-header">
+            <div class="card-icon">👥</div>
+            <span class="card-badge badge-auto">Consulta</span>
+          </div>
+          <div class="card-title">Usuarios Workspace</div>
+          <div class="card-desc">Consulta, gestiona y crea usuarios de Google Workspace en tiempo real.</div>
+          <button class="btn btn-primary" onclick="showPage('usuarios')">Ver usuarios →</button>
+        </div>
 
-    /* Payload base — el form interno siempre recoge cargo/área, por lo que
-       lo enviamos como 'empleado' (el form público es el que distingue agente/empleado). */
-    var payload = {
-      tipoSolicitud: currentType,
-      tipoPersona: 'empleado',
-      fechaRequerida: fechaRequerida,
-      solicitanteNombre: solicitanteNombre,
-      solicitanteEmail: solicitanteEmail
-    };
+      </div>
 
-    /* Validación y datos según el tipo */
-    if (currentType === 'alta') {
-      var nombre   = val('alta-nombre');
-      var apellido = val('alta-apellido');
-      var cargo    = val('alta-cargo');
-      var area     = val('alta-area');
-      var correoP  = val('alta-correo-personal');
-      var telefono = val('alta-telefono');
+      <!-- Office Manager + Reporte panel -->
+      <div class="panel-grid" style="margin-bottom:20px;">
+        <div class="info-box">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+            <div class="info-box-title" style="margin-bottom:0;">🏢 Asistencia hoy</div>
+            <button class="btn btn-secondary" onclick="loadOfficeStatus()" style="font-size:11px;padding:5px 10px;">↺</button>
+          </div>
+          <div id="office-status-card">
+            <div style="font-size:12px;color:var(--hero-text-muted);text-align:center;padding:16px;">Presiona ↺ para cargar</div>
+          </div>
+          <a href="https://it916.github.io/office-manager-app/" target="_blank" style="display:block;margin-top:12px;font-size:11px;color:var(--hero-primary);text-align:center;">Abrir Office Manager →</a>
+        </div>
+        <div class="info-box">
+          <div class="info-box-title">📊 Reporte mensual IT</div>
+          <p style="font-size:12px;color:var(--hero-text-muted);margin-bottom:16px;line-height:1.6;">Genera un reporte completo del mes con tickets resueltos, usuarios creados, intervenciones de dispositivos y acciones registradas en Auditoría.</p>
+          <div class="form-group">
+            <label class="form-label">Mes del reporte</label>
+            <input class="form-input" type="month" id="report-month" style="background:var(--hero-card-bg);"/>
+          </div>
+          <button class="btn btn-primary" onclick="generateMonthlyReport()" style="width:100%;margin-top:8px;">
+            ⬇ Generar reporte CSV
+          </button>
+        </div>
+      </div>
 
-      if (!nombre || !apellido || !cargo || !area || !correoP || !telefono) {
-        alert('Por favor completa todos los campos obligatorios del alta.');
-        return;
-      }
-      if (!esEmailValido(correoP)) {
-        alert('El correo personal no parece v\u00e1lido.');
-        return;
-      }
-      if (telefono.replace(/\D/g, '').length !== 10) {
-        alert('Ingresa un n\u00famero de tel\u00e9fono v\u00e1lido de 10 d\u00edgitos.');
-        return;
-      }
-      payload.nombre = nombre;
-      payload.apellido = apellido;
-      payload.cargo = cargo;
-      payload.area = area;
-      payload.correoPersonal = correoP;
-      payload.telefono = telefono;
+      <!-- Recent log mini -->
+      <div class="log-console">
+        <div class="log-console-header">
+          <span class="log-console-title">LOG DE SESIÓN</span>
+          <div class="log-console-dots">
+            <div class="log-dot" style="background:#f56565"></div>
+            <div class="log-dot" style="background:#f0b429"></div>
+            <div class="log-dot" style="background:#22d87a"></div>
+          </div>
+        </div>
+        <div class="log-body" id="log-dashboard">
+          <div class="log-empty">
+            <div class="log-empty-icon">⬡</div>
+            <div class="log-empty-text">Sin actividad aún en esta sesión</div>
+          </div>
+        </div>
+      </div>
+    </div><!-- /dashboard -->
 
-    } else {
-      var bajaNombre  = val('baja-nombre');
-      var bajaCorreo  = val('baja-correo');
-      var bajaMotivo  = val('baja-motivo');
-      var bajaCargo   = val('baja-cargo');
-      var bajaArea    = val('baja-area');
-      var bajaDetalle = val('baja-detalle');
+    <!-- ══ RESET PASSWORD ══════════════════════════════════ -->
+    <div class="page" id="page-reset">
+      <div class="section-header">
+        <div class="section-title"><span>//</span> Reset de <span>Contraseña</span></div>
+        <div class="section-desc">Resetea la contraseña directamente en Google Workspace y notifica al usuario por email.</div>
+      </div>
 
-      if (!bajaNombre || !bajaCorreo || !bajaMotivo) {
-        alert('Por favor completa el nombre, la cuenta a eliminar y el motivo.');
-        return;
-      }
-      if (!esEmailValido(bajaCorreo)) {
-        alert('La cuenta de correo a eliminar no parece v\u00e1lida.');
-        return;
-      }
-      payload.nombre = bajaNombre;
-      payload.correoEliminar = bajaCorreo;
-      payload.motivo = bajaMotivo;
-      payload.cargo = bajaCargo;
-      payload.area = bajaArea;
-      payload.detalle = bajaDetalle;
-    }
+      <div class="panel-grid">
+        <!-- Left: search + form -->
+        <div style="display:flex;flex-direction:column;gap:14px;">
 
-    enviar(payload);
-  }
+          <!-- Step 1: Search user -->
+          <div class="info-box">
+            <div class="info-box-title">① Buscar usuario en Workspace</div>
+            <div style="position:relative;">
+              <input class="form-input" id="rst-search" type="text"
+                placeholder="Nombre o email corporativo..."
+                oninput="filterResetUsers()" autocomplete="off"/>
+              <div id="rst-suggestions" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid rgba(6,163,182,0.3);border-radius:0 0 8px 8px;z-index:50;max-height:200px;overflow-y:auto;box-shadow:0 4px 16px rgba(0,0,0,0.1);"></div>
+            </div>
+            <!-- Selected user card -->
+            <div id="rst-selected" style="display:none;margin-top:12px;padding:12px 14px;background:var(--hero-bg);border-radius:8px;border:1px solid var(--hero-border);">
+              <div style="display:flex;justify-content:space-between;align-items:center;">
+                <div>
+                  <div id="rst-sel-nombre" style="font-size:14px;font-weight:600;color:var(--hero-text-primary);"></div>
+                  <div id="rst-sel-email" style="font-size:12px;color:var(--hero-primary);font-family:var(--mono);margin-top:2px;"></div>
+                  <div id="rst-sel-estado" style="font-size:11px;color:var(--hero-text-muted);margin-top:2px;"></div>
+                </div>
+                <button onclick="clearResetUser()" style="background:transparent;border:none;color:var(--hero-text-muted);cursor:pointer;font-size:18px;">✕</button>
+              </div>
+            </div>
+          </div>
 
-  function enviar(payload) {
-    var btn = document.getElementById('submit-btn');
-    btn.disabled = true;
-    btn.textContent = 'Enviando...';
+          <!-- Step 2: New password -->
+          <div class="info-box">
+            <div class="info-box-title">② Nueva contraseña temporal</div>
+            <div style="display:flex;gap:8px;margin-top:10px;">
+              <input class="form-input" id="rst-new-password" type="text"
+                placeholder="Escribe o genera una contraseña..." style="flex:1;"/>
+              <button class="btn btn-secondary" onclick="generateResetPassword()" title="Generar contraseña segura" style="flex-shrink:0;">⚡ Generar</button>
+            </div>
+            <div style="margin-top:8px;font-size:11px;color:var(--hero-text-muted);">
+              El usuario deberá cambiarla en su próximo inicio de sesión.
+            </div>
+          </div>
 
-    fetch(WORKER_URL + '/solicitud-cuenta', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    })
-    .then(function (resp) {
-      return resp.json().then(function (result) {
-        if (!resp.ok) {
-          throw new Error(result.error || 'Error del servidor');
-        }
-        return result;
-      });
-    })
-    .then(function () {
-      limpiarFormulario();
-      var msg = (payload.tipoSolicitud === 'alta')
-        ? 'Solicitud de alta enviada. La Direcci\u00f3n recibir\u00e1 la notificaci\u00f3n para autorizarla.'
-        : 'Solicitud de baja enviada. La Direcci\u00f3n recibir\u00e1 la notificaci\u00f3n para autorizarla.';
-      showToast(msg);
-    })
-    .catch(function (err) {
-      alert('No se pudo enviar la solicitud: ' + err.message);
-    })
-    .then(function () {
-      btn.disabled = false;
-      btn.innerHTML = 'Enviar solicitud &rarr;';
-    });
-  }
+          <!-- Step 3: Execute -->
+          <button class="btn btn-primary" id="btn-exec-reset" onclick="executeReset()" style="padding:14px;">
+            🔑 Resetear contraseña en Workspace y notificar
+          </button>
+        </div>
 
-  function limpiarFormulario() {
-    var ids = [
-      'alta-nombre', 'alta-apellido', 'alta-cargo', 'alta-area',
-      'alta-correo-personal', 'alta-telefono',
-      'baja-nombre', 'baja-correo', 'baja-motivo', 'baja-cargo',
-      'baja-area', 'baja-detalle',
-      'fecha-requerida', 'solicitante-nombre', 'solicitante-email'
-    ];
-    for (var i = 0; i < ids.length; i++) {
-      document.getElementById(ids[i]).value = '';
-    }
-  }
-</script>
+        <!-- Right: info + log -->
+        <div style="display:flex;flex-direction:column;gap:14px;">
+          <div class="info-box">
+            <div class="info-box-title">¿Qué hace este módulo?</div>
+            <div style="font-size:13px;color:var(--hero-text-body);line-height:1.9;">
+              ① Busca el usuario directamente en Google Workspace<br>
+              ② Cambia la contraseña via Admin API<br>
+              ③ Obliga al usuario a cambiarla al iniciar sesión<br>
+              ④ Envía email de notificación al correo corporativo<br>
+              ⑤ Registra la acción en Auditoría
+            </div>
+          </div>
+          <div class="log-console">
+            <div class="log-console-header">
+              <span class="log-console-title">CONSOLA · RESET</span>
+              <div class="log-console-dots">
+                <div class="log-dot" style="background:#f56565"></div>
+                <div class="log-dot" style="background:#f0b429"></div>
+                <div class="log-dot" style="background:#22d87a"></div>
+              </div>
+            </div>
+            <div class="log-body" id="log-rst">
+              <div class="log-empty">
+                <div class="log-empty-icon">🔑</div>
+                <div class="log-empty-text">Busca un usuario para comenzar</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div><!-- /reset -->
+
+    <!-- ══ USUARIOS WORKSPACE ══════════════════════════════ -->
+    <div class="page" id="page-usuarios">
+      <div class="section-header">
+        <div class="section-title"><span>//</span> Usuarios <span>Workspace</span></div>
+        <div class="section-desc">Lista de todos los usuarios activos en Google Workspace — Hero Insurance USA.</div>
+      </div>
+
+      <div style="display:flex; gap:10px; margin-bottom:16px; flex-wrap:wrap; align-items:center;">
+        <input class="form-input" id="usr-search" type="text" placeholder="Buscar por nombre o email..."
+          oninput="filterUsers()" style="flex:1; min-width:200px; max-width:360px;"/>
+        <button class="btn btn-primary" onclick="loadUsers()" id="btn-load-users">
+          ↺ Cargar usuarios
+        </button>
+        <span id="usr-count" style="font-family:var(--mono); font-size:11px; color:var(--hero-text-muted);"></span>
+      </div>
+
+      <!-- Tabla -->
+      <div style="background:var(--hero-bg-card); border:1px solid var(--hero-border-card); border-radius:12px; overflow:hidden;">
+        <div style="overflow-x:auto;">
+          <table id="usr-table" style="width:100%; border-collapse:collapse; font-size:13px;">
+            <thead>
+              <tr style="border-bottom:1px solid var(--hero-border); background:var(--hero-bg-page);">
+                <th style="padding:11px 16px; text-align:left; font-family:var(--mono); font-size:10px; letter-spacing:1px; color:var(--hero-text-muted); font-weight:500; text-transform:uppercase;">Nombre</th>
+                <th style="padding:11px 16px; text-align:left; font-family:var(--mono); font-size:10px; letter-spacing:1px; color:var(--hero-text-muted); font-weight:500; text-transform:uppercase;">Email</th>
+                <th style="padding:11px 16px; text-align:left; font-family:var(--mono); font-size:10px; letter-spacing:1px; color:var(--hero-text-muted); font-weight:500; text-transform:uppercase;">Estado</th>
+                <th style="padding:11px 16px; text-align:left; font-family:var(--mono); font-size:10px; letter-spacing:1px; color:var(--hero-text-muted); font-weight:500; text-transform:uppercase;">Creado</th>
+                <th style="padding:11px 16px; text-align:left; font-family:var(--mono); font-size:10px; letter-spacing:1px; color:var(--hero-text-muted); font-weight:500; text-transform:uppercase;">Último login</th>
+                <th style="padding:11px 16px; text-align:center; font-family:var(--mono); font-size:10px; letter-spacing:1px; color:var(--hero-text-muted); font-weight:500; text-transform:uppercase;">Acciones</th>
+              </tr>
+            </thead>
+            <tbody id="usr-tbody">
+              <tr>
+                <td colspan="6" style="padding:48px; text-align:center; color:var(--hero-text-muted); font-family:var(--mono); font-size:12px;">
+                  Presiona "Cargar usuarios" para consultar Workspace
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ CREAR USUARIO ══════════════════════════════════ -->
+
+      <!-- Modal gestión de usuario -->
+      <div id="user-modal" style="display:none;position:fixed;inset:0;background:rgba(26,39,51,0.5);z-index:100;overflow-y:auto;padding:24px;">
+        <div style="background:var(--hero-bg-card);border:1px solid rgba(6,163,182,0.3);border-radius:16px;max-width:480px;margin:0 auto;padding:28px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+            <div>
+              <div id="um-nombre" style="font-size:15px;font-weight:600;color:var(--hero-text-primary);"></div>
+              <div id="um-email" style="font-family:var(--mono);font-size:12px;color:var(--hero-primary);margin-top:2px;"></div>
+            </div>
+            <button onclick="closeUserModal()" style="background:transparent;border:1px solid var(--hero-border-card);color:var(--hero-text-body);width:32px;height:32px;border-radius:8px;cursor:pointer;font-size:16px;">✕</button>
+          </div>
+          <div class="info-box" style="margin-bottom:12px;">
+            <div class="info-box-title">🔑 Resetear contraseña</div>
+            <div style="display:flex;gap:8px;margin-top:10px;">
+              <input class="form-input" id="um-new-password" type="text" placeholder="Nueva contraseña temporal" style="flex:1;"/>
+              <button class="btn btn-secondary" onclick="generateUserPassword()" title="Generar">⚡</button>
+            </div>
+            <button class="btn btn-primary" onclick="userAction('reset')" style="width:100%;margin-top:10px;font-size:13px;">🔑 Aplicar reset</button>
+          </div>
+          <div class="info-box" style="margin-bottom:12px;">
+            <div class="info-box-title">⏸ Suspender / Restaurar cuenta</div>
+            <div style="display:flex;gap:8px;margin-top:10px;">
+              <button class="btn btn-secondary" onclick="userAction('suspend')" style="flex:1;font-size:13px;">⏸ Suspender</button>
+              <button class="btn btn-primary" onclick="userAction('restore')" style="flex:1;font-size:13px;">▶ Restaurar</button>
+            </div>
+          </div>
+          <div class="info-box" style="border-color:rgba(245,101,101,0.3);background:rgba(245,101,101,0.04);">
+            <div class="info-box-title" style="color:var(--hero-danger);">⚠️ Eliminar usuario</div>
+            <p style="font-size:12px;color:var(--hero-text-body);margin:8px 0 10px;line-height:1.6;">Esta acción es permanente. El usuario perderá acceso a todos los servicios de Google Workspace.</p>
+            <button class="btn btn-danger" onclick="confirmDeleteUser()" style="width:100%;font-size:13px;">🗑 Eliminar usuario permanentemente</button>
+          </div>
+        </div>
+      </div>
+
+    <div class="page" id="page-crear-usuario">
+      <div class="section-header">
+        <div class="section-title"><span>//</span> Crear <span>Usuario</span></div>
+        <div class="section-desc">Crea un nuevo usuario en Google Workspace y opcionalmente envía el email de onboarding.</div>
+      </div>
+
+      <div class="panel-grid">
+        <div class="info-box">
+          <div class="info-box-title">Datos del nuevo usuario</div>
+          <div class="form-group">
+            <label class="form-label">Nombre</label>
+            <input class="form-input" id="new-nombre" type="text" placeholder="ej: Luis"/>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Apellido</label>
+            <input class="form-input" id="new-apellido" type="text" placeholder="ej: García"/>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Email corporativo</label>
+            <div style="display:flex; align-items:center; gap:0;">
+              <input class="form-input" id="new-email-user" type="text" placeholder="lgarcia"
+                style="border-radius:8px 0 0 8px; border-right:none;"
+                oninput="previewEmail()"/>
+              <span style="background:var(--hero-bg-page); border:1px solid var(--hero-border-card); border-left:none; padding:9px 12px; border-radius:0 8px 8px 0; font-size:13px; color:var(--hero-text-body); white-space:nowrap;">&#64;heroinsuranceusa.com</span>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Contraseña temporal</label>
+            <div style="display:flex; gap:8px;">
+              <input class="form-input" id="new-password" type="text" placeholder="TemporalHero2026*" style="flex:1"/>
+              <button class="btn btn-secondary" onclick="generatePassword()" title="Generar contraseña">⚡</button>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Email personal (para onboarding)</label>
+            <input class="form-input" id="new-email-personal" type="email" placeholder="luis.garcia&#64;gmail.com"/>
+          </div>
+
+          <button class="btn btn-primary" id="btn-crear-usuario" onclick="crearUsuario()" style="width:100%; margin-top:8px;">
+            ➕ Crear usuario en Workspace
+          </button>
+        </div>
+
+        <div style="display:flex; flex-direction:column; gap:16px;">
+          <!-- Preview -->
+          <div class="info-box">
+            <div class="info-box-title">Vista previa</div>
+            <div id="new-preview" style="font-family:var(--mono); font-size:12px; color:var(--hero-text-muted); line-height:2;">
+              Completa el formulario para ver la vista previa
+            </div>
+          </div>
+
+          <!-- Estado -->
+          <div class="info-box" id="new-status-box" style="display:none;">
+            <div class="info-box-title">Estado</div>
+            <div id="new-status"></div>
+          </div>
+
+          <!-- Onboarding (aparece tras crear) -->
+          <div class="info-box" id="new-onboarding-box" style="display:none; border-color:rgba(25,205,235,0.3);">
+            <div class="info-box-title" style="color:var(--hero-primary);">Email de onboarding</div>
+            <p style="font-size:13px; color:var(--hero-text-body); margin:0 0 14px;">Usuario creado. ¿Deseas enviar el email de bienvenida?</p>
+            <div style="display:flex; flex-direction:column; gap:8px;">
+              <button class="btn btn-primary" onclick="sendOnboardingNuevo('empleado')" id="btn-ob-emp">
+                👤 Enviar como Empleado
+              </button>
+              <button class="btn btn-primary" onclick="sendOnboardingNuevo('agente')" id="btn-ob-agt"
+                style="background:rgba(25,205,235,0.15); color:var(--hero-primary); border:1px solid rgba(25,205,235,0.3);">
+                🤝 Enviar como Agente
+              </button>
+              <button class="btn btn-secondary" onclick="skipOnboarding()">
+                Omitir por ahora
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="log-console">
+        <div class="log-console-header">
+          <span class="log-console-title">CONSOLA · CREAR USUARIO</span>
+          <div class="log-console-dots">
+            <div class="log-dot" style="background:#f56565"></div>
+            <div class="log-dot" style="background:#f0b429"></div>
+            <div class="log-dot" style="background:#22d87a"></div>
+          </div>
+        </div>
+        <div class="log-body" id="log-new">
+          <div class="log-empty">
+            <div class="log-empty-icon">➕</div>
+            <div class="log-empty-text">Completa el formulario para crear un usuario</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ SOLICITUDES DE ALTA ═════════════════════════════ -->
+    <div class="page" id="page-solicitudes">
+      <div class="section-header">
+        <div class="section-title"><span>//</span> Solicitudes de <span>Alta</span></div>
+        <div class="section-desc">Solicitudes enviadas desde el formulario de Alta de Agente.</div>
+      </div>
+
+      <!-- Stats row -->
+      <div class="stats-row" style="margin-bottom:16px;">
+        <div class="stat-chip">
+          <div class="stat-value" id="sol-stat-total" style="color:var(--hero-primary);">—</div>
+          <div class="stat-label">Total</div>
+        </div>
+        <div class="stat-chip">
+          <div class="stat-value" id="sol-stat-pending" style="color:var(--hero-warning);">—</div>
+          <div class="stat-label">Pendientes</div>
+        </div>
+        <div class="stat-chip">
+          <div class="stat-value" id="sol-stat-done" style="color:var(--hero-success);">—</div>
+          <div class="stat-label">Procesadas</div>
+        </div>
+      </div>
+
+      <!-- Toolbar -->
+      <div style="display:flex;gap:10px;margin-bottom:16px;align-items:center;flex-wrap:wrap;">
+        <button class="btn btn-secondary" onclick="loadSolicitudes()" id="btn-load-sol" style="font-size:12px;">↺ Actualizar</button>
+        <!-- Filter chips -->
+        <div style="display:flex;gap:6px;">
+          <button class="sol-filter-chip active" data-filter="all"       onclick="setSolFilter('all')">Todas</button>
+          <button class="sol-filter-chip"        data-filter="pendiente" onclick="setSolFilter('pendiente')">Pendientes</button>
+          <button class="sol-filter-chip"        data-filter="procesada" onclick="setSolFilter('procesada')">Procesadas</button>
+        </div>
+        <input class="form-input" id="sol-search" type="text" placeholder="Buscar agente o solicitante..."
+          oninput="renderSolicitudes()" style="max-width:240px;padding:7px 12px;font-size:12px;margin-left:auto;"/>
+        <span id="sol-count" style="font-family:var(--mono);font-size:11px;color:var(--hero-text-muted);"></span>
+      </div>
+
+      <div id="sol-list">
+        <div class="info-box" style="text-align:center;padding:40px;">
+          <div style="font-size:32px;opacity:0.3;margin-bottom:12px;">📥</div>
+          <div style="font-family:var(--mono);font-size:12px;color:var(--hero-text-muted);">Cargando solicitudes...</div>
+        </div>
+      </div>
+
+      <!-- Modal crear usuario desde solicitud -->
+      <div id="sol-modal" style="display:none;position:fixed;inset:0;background:rgba(26,39,51,0.5);z-index:100;overflow-y:auto;padding:24px;">
+        <div style="background:#ffffff;border:1px solid rgba(6,163,182,0.3);border-radius:16px;max-width:540px;margin:0 auto;padding:0;overflow:hidden;">
+          <div style="background:linear-gradient(135deg,#06a3b6,#048395);padding:20px 24px;display:flex;justify-content:space-between;align-items:center;">
+            <div>
+              <div style="font-size:11px;color:rgba(255,255,255,0.75);letter-spacing:1px;text-transform:uppercase;">Crear usuario desde solicitud</div>
+              <div id="sol-modal-nombre" style="font-size:16px;font-weight:700;color:#fff;margin-top:3px;"></div>
+            </div>
+            <button onclick="closeSolModal()" style="background:rgba(255,255,255,0.2);border:none;color:#fff;width:32px;height:32px;border-radius:8px;cursor:pointer;font-size:16px;">✕</button>
+          </div>
+          <div style="padding:24px;">
+            <!-- Solicitante info -->
+            <div class="info-box" style="margin-bottom:16px;padding:12px 14px;">
+              <div style="font-size:10px;color:var(--hero-primary);font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-bottom:6px;">Solicitado por</div>
+              <div id="sol-modal-solicitante" style="font-size:13px;color:var(--hero-text-primary);"></div>
+              <div id="sol-modal-solicitante-email" style="font-size:11px;color:var(--hero-primary);font-family:var(--mono);margin-top:2px;"></div>
+            </div>
+            <!-- Form fields -->
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+              <div class="form-group">
+                <label class="form-label">Nombre</label>
+                <input class="form-input" id="sm-nombre" type="text"/>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Apellido</label>
+                <input class="form-input" id="sm-apellido" type="text"/>
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Email corporativo</label>
+              <div style="display:flex;gap:0;">
+                <input class="form-input" id="sm-email-user" type="text" placeholder="usuario"
+                  oninput="previewSolEmail()" style="border-radius:8px 0 0 8px;border-right:none;"/>
+                <span style="background:var(--hero-bg);border:1px solid var(--hero-border);border-left:none;padding:9px 12px;border-radius:0 8px 8px 0;font-size:13px;color:var(--hero-text-muted);white-space:nowrap;">&#64;heroinsuranceusa.com</span>
+              </div>
+              <div id="sm-email-preview" style="font-size:11px;color:var(--hero-primary);font-family:var(--mono);margin-top:4px;"></div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Contraseña temporal</label>
+              <div style="display:flex;gap:8px;">
+                <input class="form-input" id="sm-password" type="text" placeholder="Contraseña temporal" style="flex:1;"/>
+                <button class="btn btn-secondary" onclick="generateSolPassword()" style="flex-shrink:0;">⚡</button>
+              </div>
+            </div>
+            <div style="display:flex;gap:10px;margin-top:16px;">
+              <button class="btn btn-primary" onclick="crearUsuarioDesdeModal()" id="btn-sm-crear" style="flex:1;">
+                ✓ Crear usuario y notificar
+              </button>
+              <button class="btn btn-secondary" onclick="closeSolModal()">Cancelar</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ TICKETS DE SOPORTE ══════════════════════════════ -->
+    <div class="page" id="page-tickets">
+      <div class="section-header">
+        <div class="section-title"><span>//</span> Tickets de <span>Soporte</span></div>
+        <div class="section-desc">Gestiona solicitudes de soporte — vista Kanban o lista, con notificaciones automáticas al usuario.</div>
+      </div>
+
+      <!-- Toolbar -->
+      <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;align-items:center;">
+        <button class="btn btn-secondary" onclick="loadTickets()" id="btn-load-tickets" style="font-size:12px;">↺ Actualizar</button>
+        <div style="display:flex;border:1px solid var(--hero-border);border-radius:8px;overflow:hidden;">
+          <button id="btn-view-kanban" onclick="setTicketView('kanban')" class="btn" style="border:none;border-radius:0;background:var(--hero-primary);color:#fff;font-size:12px;padding:7px 14px;">⬛ Kanban</button>
+          <button id="btn-view-list"   onclick="setTicketView('list')"   class="btn" style="border:none;border-radius:0;background:transparent;color:var(--hero-text-muted);font-size:12px;padding:7px 14px;">☰ Lista</button>
+        </div>
+        <select id="ticket-filter-prioridad" onchange="filterTickets()" style="background:var(--hero-card-bg);border:1px solid var(--hero-border);color:var(--hero-text-body);padding:7px 12px;border-radius:8px;font-size:12px;font-family:var(--hero-font);">
+          <option value="">Todas las prioridades</option>
+          <option value="Urgente">Urgente</option>
+          <option value="Alta">Alta</option>
+          <option value="Media">Media</option>
+          <option value="Baja">Baja</option>
+        </select>
+        <select id="ticket-filter-categoria" onchange="filterTickets()" style="background:var(--hero-card-bg);border:1px solid var(--hero-border);color:var(--hero-text-body);padding:7px 12px;border-radius:8px;font-size:12px;font-family:var(--hero-font);">
+          <option value="">Todas las categorías</option>
+          <option value="Problema con equipo o hardware">Equipo / Hardware</option>
+          <option value="Acceso a aplicación o plataforma">Acceso / App</option>
+          <option value="Solicitud de software">Software</option>
+          <option value="Otro">Otro</option>
+        </select>
+        <input class="form-input" id="ticket-search" type="text" placeholder="Buscar..." oninput="filterTickets()" style="max-width:200px;padding:7px 12px;font-size:12px;"/>
+        <span id="tickets-count" style="font-family:var(--mono);font-size:11px;color:var(--hero-text-muted);margin-left:auto;"></span>
+        <span id="tickets-last-updated" class="last-updated" style="margin-bottom:0;"></span>
+      </div>
+
+      <!-- Kanban view -->
+      <div id="tickets-kanban" style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;">
+        <div class="kanban-col" id="col-abierto">
+          <div class="kanban-col-header" style="--col-color:#d64545;">
+            <span class="kanban-col-title">🔴 Abierto</span>
+            <span class="kanban-col-count" id="count-abierto">0</span>
+          </div>
+          <div class="kanban-cards" id="cards-abierto"></div>
+        </div>
+        <div class="kanban-col" id="col-en-progreso">
+          <div class="kanban-col-header" style="--col-color:#e8a317;">
+            <span class="kanban-col-title">🟡 En progreso</span>
+            <span class="kanban-col-count" id="count-en-progreso">0</span>
+          </div>
+          <div class="kanban-cards" id="cards-en-progreso"></div>
+        </div>
+        <div class="kanban-col" id="col-resuelto">
+          <div class="kanban-col-header" style="--col-color:#22a06b;">
+            <span class="kanban-col-title">✅ Resuelto</span>
+            <span class="kanban-col-count" id="count-resuelto">0</span>
+          </div>
+          <div class="kanban-cards" id="cards-resuelto"></div>
+        </div>
+      </div>
+
+      <!-- List view (hidden by default) -->
+      <div id="tickets-list" style="display:none;"></div>
+
+      <!-- Ticket detail modal -->
+      <div id="ticket-modal" style="display:none;position:fixed;inset:0;background:rgba(26,39,51,0.5);z-index:100;overflow-y:auto;padding:24px;">
+        <div style="background:#ffffff;border:1px solid rgba(6,163,182,0.3);border-radius:16px;max-width:640px;margin:0 auto;padding:0;overflow:hidden;">
+          <!-- Modal header -->
+          <div style="background:linear-gradient(135deg,#06a3b6,#048395);padding:20px 24px;display:flex;justify-content:space-between;align-items:center;">
+            <div>
+              <div id="modal-ticket-id" style="font-family:var(--mono);font-size:13px;color:rgba(255,255,255,0.8);"></div>
+              <div id="modal-asunto" style="font-size:16px;font-weight:700;color:#fff;margin-top:3px;"></div>
+            </div>
+            <button onclick="closeTicketModal()" style="background:rgba(255,255,255,0.2);border:none;color:#fff;width:32px;height:32px;border-radius:8px;cursor:pointer;font-size:16px;">✕</button>
+          </div>
+          <div style="padding:24px;">
+            <!-- User info + time -->
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
+              <div class="info-box" style="padding:12px 14px;">
+                <div style="font-size:10px;color:var(--hero-primary);font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-bottom:6px;">Usuario</div>
+                <div id="modal-nombre" style="font-size:13px;font-weight:600;color:var(--hero-text-primary);"></div>
+                <div id="modal-email"  style="font-size:11px;color:var(--hero-primary);font-family:var(--mono);margin-top:2px;"></div>
+              </div>
+              <div class="info-box" style="padding:12px 14px;">
+                <div style="font-size:10px;color:var(--hero-primary);font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-bottom:6px;">Detalles</div>
+                <div id="modal-categoria" style="font-size:12px;color:var(--hero-text-body);"></div>
+                <div id="modal-fecha"    style="font-size:10px;color:var(--hero-text-muted);font-family:var(--mono);margin-top:4px;"></div>
+                <div id="modal-elapsed"  style="font-size:10px;font-weight:600;margin-top:3px;"></div>
+              </div>
+            </div>
+
+            <!-- Description -->
+            <div class="info-box" style="padding:14px;margin-bottom:16px;">
+              <div style="font-size:10px;color:var(--hero-primary);font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-bottom:8px;">Descripción</div>
+              <div id="modal-descripcion" style="font-size:13px;color:var(--hero-text-body);line-height:1.7;white-space:pre-wrap;"></div>
+            </div>
+
+            <!-- Historial -->
+            <div id="modal-historial-box" style="display:none;margin-bottom:16px;">
+              <div class="info-box" style="padding:14px;">
+                <div style="font-size:10px;color:var(--hero-primary);font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-bottom:10px;">Historial</div>
+                <div id="modal-historial"></div>
+              </div>
+            </div>
+
+            <!-- Actions -->
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;">
+              <div>
+                <label class="form-label">Estado</label>
+                <select id="modal-estado" class="form-input" style="background:var(--hero-card-bg);">
+                  <option value="abierto">Abierto</option>
+                  <option value="en progreso">En progreso</option>
+                  <option value="resuelto">Resuelto</option>
+                </select>
+              </div>
+              <div>
+                <label class="form-label">Prioridad</label>
+                <select id="modal-prioridad" class="form-input" style="background:var(--hero-card-bg);">
+                  <option value="Baja">Baja</option>
+                  <option value="Media">Media</option>
+                  <option value="Alta">Alta</option>
+                  <option value="Urgente">Urgente</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Quick replies -->
+            <div style="margin-bottom:10px;">
+              <label class="form-label">Respuestas rápidas</label>
+              <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;">
+                <button onclick="setQuickReply('revisando')" class="btn btn-secondary" style="font-size:11px;padding:5px 10px;">📋 Revisando</button>
+                <button onclick="setQuickReply('info')"      class="btn btn-secondary" style="font-size:11px;padding:5px 10px;">❓ Necesito info</button>
+                <button onclick="setQuickReply('resuelto')"  class="btn btn-secondary" style="font-size:11px;padding:5px 10px;">✅ Resuelto</button>
+                <button onclick="setQuickReply('remoto')"    class="btn btn-secondary" style="font-size:11px;padding:5px 10px;">🖥️ Soporte remoto</button>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Respuesta al usuario</label>
+              <textarea id="modal-respuesta" class="form-input" rows="3"
+                placeholder="Escribe tu respuesta... Se enviará por email al usuario."
+                style="resize:vertical;"></textarea>
+            </div>
+
+            <div style="display:flex;gap:10px;margin-top:14px;">
+              <button class="btn btn-primary" id="btn-guardar-ticket" onclick="guardarTicket()" style="flex:1;">
+                💾 Guardar y notificar usuario
+              </button>
+              <button class="btn btn-secondary" onclick="closeTicketModal()">Cancelar</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div><!-- /tickets -->
+
+    <div class="page" id="page-auditoria">
+      <div class="section-header">
+        <div class="section-title"><span>//</span> Auditoría</div>
+        <div class="section-desc">Historial persistente de todas las acciones importantes del sistema.</div>
+      </div>
+
+      <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;align-items:center;">
+        <input class="form-input" id="audit-search" type="text" placeholder="Buscar en el historial..."
+          oninput="searchAudit()" style="flex:1;min-width:200px;max-width:300px;"/>
+        <select id="audit-filter-tipo" onchange="searchAudit()" style="background:var(--hero-bg-card);border:1px solid var(--hero-border-card);color:var(--hero-text-body);padding:8px 12px;border-radius:8px;font-size:12px;font-family:var(--sans);">
+          <option value="">Todos los tipos</option>
+          <option value="email">Emails</option>
+          <option value="reset">Resets</option>
+          <option value="usuario">Usuarios</option>
+          <option value="ticket">Tickets</option>
+        </select>
+        <button class="btn btn-primary" onclick="loadAudit()" id="btn-load-audit">↺ Actualizar</button>
+        <button class="btn btn-secondary" onclick="exportAuditCSV()">⬇ Exportar CSV</button>
+        <span <span id="audit-last-updated" class="last-updated" style="margin-left:8px;margin-bottom:0;"></span>
+        <span id="audit-count" style="font-family:var(--mono);font-size:11px;color:var(--hero-text-muted);margin-left:auto;"></span>
+      </div>
+
+      <div class="log-console">
+        <div class="log-console-header">
+          <span class="log-console-title">HISTORIAL PERSISTENTE DE AUDITORÍA</span>
+          <div class="log-console-dots">
+            <div class="log-dot" style="background:#f56565"></div>
+            <div class="log-dot" style="background:#f0b429"></div>
+            <div class="log-dot" style="background:#22d87a"></div>
+          </div>
+        </div>
+        <div id="audit-body" style="padding:14px 16px;min-height:200px;max-height:600px;overflow-y:auto;">
+          <div class="log-empty">
+            <div class="log-empty-icon">🗂️</div>
+            <div class="log-empty-text">Presiona "Actualizar" para cargar el historial</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="page" id="page-logs">
+      <div class="section-header">
+        <div class="section-title"><span>//</span> Historial de <span>Logs</span></div>
+        <div class="section-desc">Registro de todas las acciones ejecutadas en esta sesión.</div>
+      </div>
+      <div style="display:flex; gap:10px; margin-bottom:16px">
+        <button class="btn btn-secondary" onclick="clearAllLogs()">🗑 Limpiar logs</button>
+      </div>
+      <div class="log-console">
+        <div class="log-console-header">
+          <span class="log-console-title">LOG COMPLETO DE SESIÓN</span>
+          <div class="log-console-dots">
+            <div class="log-dot" style="background:#f56565"></div>
+            <div class="log-dot" style="background:#f0b429"></div>
+            <div class="log-dot" style="background:#22d87a"></div>
+          </div>
+        </div>
+        <div class="log-body" id="log-full" style="max-height: 500px">
+          <div class="log-empty">
+            <div class="log-empty-icon">📋</div>
+            <div class="log-empty-text">Sin actividad registrada en esta sesión</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+
+    <!-- ══ DISPOSITIVOS ════════════════════════════════════ -->
+    <div class="page" id="page-dispositivos">
+      <div class="section-header">
+        <div class="section-title"><span>//</span> Dispositivos</div>
+        <div class="section-desc">Inventario de equipos y registro de intervenciones de soporte técnico.</div>
+      </div>
+
+      <!-- Vista lista / ficha -->
+      <div id="dev-list-view">
+        <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;align-items:center;">
+          <input class="form-input" id="dev-search" type="text" placeholder="Buscar dispositivo o usuario..."
+            oninput="filterDevices()" style="flex:1;min-width:180px;max-width:280px;"/>
+          <select id="dev-filter-estado" onchange="filterDevices()" style="background:var(--hero-bg-card);border:1px solid var(--hero-border-card);color:var(--hero-text-body);padding:8px 12px;border-radius:8px;font-size:12px;font-family:var(--sans);">
+            <option value="">Todos los estados</option>
+            <option value="activo">Activo</option>
+            <option value="en reparación">En reparación</option>
+            <option value="dado de baja">Dado de baja</option>
+          </select>
+          <select id="dev-filter-tipo" onchange="filterDevices()" style="background:var(--hero-bg-card);border:1px solid var(--hero-border-card);color:var(--hero-text-body);padding:8px 12px;border-radius:8px;font-size:12px;font-family:var(--sans);">
+            <option value="">Todos los tipos</option>
+            <option value="laptop">Laptop</option>
+            <option value="desktop">Desktop</option>
+            <option value="teléfono">Teléfono</option>
+          </select>
+          <button class="btn btn-primary" onclick="showDeviceForm()">➕ Nuevo dispositivo</button>
+          <span <span id="devices-last-updated" class="last-updated" style="margin-left:8px;margin-bottom:0;"></span>
+        <span id="dev-count" style="font-family:var(--mono);font-size:11px;color:var(--hero-text-muted);margin-left:auto;"></span>
+        </div>
+        <div id="dev-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px;">
+          <div class="info-box" style="text-align:center;padding:40px;grid-column:1/-1;">
+            <div style="font-size:36px;opacity:0.3;margin-bottom:12px;">💻</div>
+            <div style="font-family:var(--mono);font-size:12px;color:var(--hero-text-muted);">Cargando dispositivos...</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Ficha de dispositivo -->
+      <div id="dev-detail-view" style="display:none;">
+        <div style="display:flex;gap:10px;align-items:center;margin-bottom:20px;">
+          <button class="btn btn-secondary" onclick="closeDeviceDetail()">← Volver</button>
+          <div id="dev-detail-title" style="font-size:16px;font-weight:600;color:var(--hero-text-primary);"></div>
+          <button class="btn btn-secondary" onclick="exportDeviceReport()" style="margin-left:auto;">⬇ Exportar reporte</button>
+        </div>
+
+        <div class="panel-grid" style="margin-bottom:16px;">
+          <!-- Info del dispositivo -->
+          <div class="info-box">
+            <div class="info-box-title">Información del equipo</div>
+            <div id="dev-detail-info" style="font-size:13px;color:var(--hero-text-body);line-height:2;"></div>
+            <button class="btn btn-secondary" onclick="showEditDevice()" style="margin-top:14px;font-size:12px;">✏️ Editar</button>
+          </div>
+          <!-- Apps instaladas -->
+          <div class="info-box">
+            <div class="info-box-title">Aplicaciones instaladas</div>
+            <div id="dev-detail-apps" style="font-size:13px;color:var(--hero-text-body);"></div>
+          </div>
+        </div>
+
+        <!-- Registrar intervención -->
+        <div class="info-box" style="margin-bottom:16px;">
+          <div class="info-box-title">Registrar intervención</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:10px;">
+            <div class="form-group">
+              <label class="form-label">Tipo</label>
+              <select id="int-tipo" style="width:100%;background:var(--hero-bg-page);border:1px solid var(--hero-border-card);color:var(--hero-text-primary);padding:9px 12px;border-radius:8px;font-size:13px;font-family:var(--sans);">
+                <option value="Instalación de software">Instalación de software</option>
+                <option value="Reparación o diagnóstico">Reparación o diagnóstico</option>
+                <option value="Soporte remoto">Soporte remoto</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Descripción breve</label>
+              <input class="form-input" id="int-descripcion" type="text" placeholder="ej: Instalé Chrome, reparé teclado..."/>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Notas adicionales (opcional)</label>
+            <textarea class="form-input" id="int-notas" rows="2" placeholder="Detalles, observaciones, próximos pasos..." style="resize:vertical;"></textarea>
+          </div>
+          <button class="btn btn-primary" onclick="registrarIntervencion()" id="btn-int" style="margin-top:4px;">
+            ✓ Registrar intervención
+          </button>
+        </div>
+
+        <!-- Historial -->
+        <div class="log-console">
+          <div class="log-console-header">
+            <span class="log-console-title">HISTORIAL DE INTERVENCIONES</span>
+            <div class="log-console-dots">
+              <div class="log-dot" style="background:#f56565"></div>
+              <div class="log-dot" style="background:#f0b429"></div>
+              <div class="log-dot" style="background:#22d87a"></div>
+            </div>
+          </div>
+          <div id="dev-historial" style="padding:14px 16px;min-height:120px;max-height:400px;overflow-y:auto;">
+            <div class="log-empty"><div class="log-empty-icon">📋</div><div class="log-empty-text">Sin intervenciones registradas</div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Modal nuevo/editar dispositivo -->
+      <div id="dev-modal" style="display:none;position:fixed;inset:0;background:rgba(26,39,51,0.5);z-index:100;overflow-y:auto;padding:24px;">
+        <div style="background:var(--hero-bg-card);border:1px solid rgba(6,163,182,0.3);border-radius:16px;max-width:540px;margin:0 auto;padding:28px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+            <div id="dev-modal-title" style="font-size:15px;font-weight:600;color:var(--hero-text-primary);">Nuevo dispositivo</div>
+            <button onclick="closeDeviceModal()" style="background:transparent;border:1px solid var(--hero-border-card);color:var(--hero-text-body);width:32px;height:32px;border-radius:8px;cursor:pointer;font-size:16px;">✕</button>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+            <div class="form-group">
+              <label class="form-label">Nombre / Hostname *</label>
+              <input class="form-input" id="dev-f-nombre" type="text" placeholder="ej: HERO-LAPTOP-01"/>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Tipo *</label>
+              <select id="dev-f-tipo" style="width:100%;background:var(--hero-bg-page);border:1px solid var(--hero-border-card);color:var(--hero-text-primary);padding:9px 12px;border-radius:8px;font-size:13px;font-family:var(--sans);">
+                <option value="laptop">Laptop</option>
+                <option value="desktop">Desktop</option>
+                <option value="teléfono">Teléfono</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Usuario asignado</label>
+              <input class="form-input" id="dev-f-usuario" type="text" placeholder="ej: Luis García"/>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Sistema operativo</label>
+              <input class="form-input" id="dev-f-so" type="text" placeholder="ej: Windows 11 Pro 23H2"/>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Estado</label>
+              <select id="dev-f-estado" style="width:100%;background:var(--hero-bg-page);border:1px solid var(--hero-border-card);color:var(--hero-text-primary);padding:9px 12px;border-radius:8px;font-size:13px;font-family:var(--sans);">
+                <option value="activo">Activo</option>
+                <option value="en reparación">En reparación</option>
+                <option value="dado de baja">Dado de baja</option>
+              </select>
+            </div>
+            <div class="form-group" style="display:flex;align-items:center;gap:10px;padding-top:24px;">
+              <input type="checkbox" id="dev-f-gcpw" style="width:18px;height:18px;accent-color:var(--hero-primary);cursor:pointer;"/>
+              <label for="dev-f-gcpw" style="font-size:13px;color:var(--hero-text-body);cursor:pointer;font-family:var(--sans);text-transform:none;letter-spacing:0;">GCPW activado</label>
+            </div>
+          </div>
+          <div class="form-group" style="margin-top:4px;">
+            <label class="form-label">Aplicaciones instaladas</label>
+            <textarea class="form-input" id="dev-f-apps" rows="3"
+              placeholder="Una app por línea:&#10;Google Chrome&#10;Zoom&#10;ExpressVPN" style="resize:vertical;"></textarea>
+            <div style="font-size:11px;color:var(--hero-text-muted);margin-top:4px;">Escribe una aplicación por línea</div>
+          </div>
+          <div style="display:flex;gap:10px;margin-top:16px;">
+            <button class="btn btn-primary" id="btn-dev-save" onclick="saveDevice()" style="flex:1;">💾 Guardar dispositivo</button>
+            <button class="btn btn-secondary" onclick="closeDeviceModal()">Cancelar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+
+    <!-- ══ ZOHO ASSIST ═════════════════════════════════════ -->
+    <div class="page" id="page-zoho">
+      <div class="section-header">
+        <div class="section-title"><span>//</span> Zoho <span>Assist</span></div>
+        <div class="section-desc">Dispositivos de Acceso Desatendido — estado en tiempo real e inicio de sesión remota.</div>
+      </div>
+
+      <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;align-items:center;">
+        <input class="form-input" id="zoho-search" type="text" placeholder="Buscar dispositivo..."
+          oninput="filterZohoDevices()" style="flex:1;min-width:180px;max-width:280px;"/>
+        <select id="zoho-filter-status" onchange="filterZohoDevices()" style="background:var(--hero-bg-card);border:1px solid var(--hero-border-card);color:var(--hero-text-body);padding:8px 12px;border-radius:8px;font-size:12px;font-family:var(--sans);">
+          <option value="">Todos</option>
+          <option value="online">Online</option>
+          <option value="offline">Offline</option>
+        </select>
+        <span <span id="zoho-last-updated" class="last-updated" style="margin-left:8px;margin-bottom:0;"></span>
+        <span id="zoho-count" style="font-family:var(--mono);font-size:11px;color:var(--hero-text-muted);margin-left:auto;"></span>
+      </div>
+
+      <div id="zoho-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px;">
+        <div class="info-box" style="text-align:center;padding:40px;grid-column:1/-1;">
+          <div style="font-size:36px;opacity:0.3;margin-bottom:12px;">🔴</div>
+          <div style="font-family:var(--mono);font-size:12px;color:var(--hero-text-muted);">Cargando dispositivos de Zoho Assist...</div>
+        </div>
+      </div>
+    </div>
+
+
+    <!-- ══ OFFBOARDING ═════════════════════════════════════ -->
+    <div class="page" id="page-offboarding">
+      <div class="section-header">
+        <div class="section-title"><span>//</span> <span>Offboarding</span></div>
+        <div class="section-desc">Proceso de baja de un empleado o agente. Cada paso queda registrado en Auditoría.</div>
+      </div>
+
+      <!-- Seleccionar usuario -->
+      <div class="info-box" style="margin-bottom:16px;">
+        <div class="info-box-title">👤 Usuario a dar de baja</div>
+        <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-top:10px;">
+          <div style="flex:1;min-width:200px;">
+            <label class="form-label">Buscar en Google Workspace</label>
+            <input class="form-input" id="ob-search" type="text" placeholder="Nombre o email..."
+              oninput="filterOffboardingUsers()" autocomplete="off"/>
+            <div id="ob-user-suggestions" style="position:absolute;background:var(--hero-card-bg);border:1px solid rgba(6,163,182,0.3);border-radius:var(--hero-radius-sm);z-index:50;min-width:280px;max-height:200px;overflow-y:auto;display:none;box-shadow:0 4px 16px rgba(0,0,0,0.1);"></div>
+          </div>
+          <div style="flex:1;min-width:200px;">
+            <label class="form-label">Tipo de baja</label>
+            <select id="ob-tipo" class="form-input" style="background:var(--hero-card-bg);">
+              <option value="Empleado">Empleado</option>
+              <option value="Agente">Agente</option>
+            </select>
+          </div>
+        </div>
+        <div id="ob-selected-user" style="display:none;margin-top:12px;padding:12px;background:var(--hero-bg);border-radius:var(--hero-radius-sm);border:1px solid var(--hero-border);">
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <div>
+              <div id="ob-user-name" style="font-size:14px;font-weight:600;color:var(--hero-text-primary);"></div>
+              <div id="ob-user-email" style="font-size:12px;color:var(--hero-primary);font-family:var(--mono);margin-top:2px;"></div>
+            </div>
+            <button onclick="clearOffboardingUser()" style="background:transparent;border:none;color:var(--hero-text-muted);cursor:pointer;font-size:18px;">✕</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Checklist -->
+      <div class="info-box" style="margin-bottom:16px;" id="ob-checklist-box">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+          <div class="info-box-title" style="margin-bottom:0;">✅ Checklist de offboarding</div>
+          <div id="ob-progress-label" style="font-family:var(--mono);font-size:11px;color:var(--hero-text-muted);">0 / 8 completados</div>
+        </div>
+        <div id="ob-steps" style="display:flex;flex-direction:column;gap:8px;">
+          <!-- Steps rendered by JS -->
+        </div>
+      </div>
+
+      <!-- Notas y confirmar -->
+      <div class="info-box">
+        <div class="info-box-title">📋 Notas del proceso</div>
+        <textarea class="form-input" id="ob-notas" rows="3" placeholder="Motivo de la baja, observaciones, fecha efectiva..." style="resize:vertical;margin-top:10px;"></textarea>
+        <div style="display:flex;gap:10px;margin-top:14px;">
+          <button class="btn btn-primary" onclick="executeOffboarding()" id="btn-ob-execute" style="flex:1;">
+            🚪 Ejecutar offboarding
+          </button>
+          <button class="btn btn-secondary" onclick="resetOffboarding()">Limpiar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ LICENCIAS & SOFTWARE ════════════════════════════ -->
+    <div class="page" id="page-licencias">
+      <div class="section-header">
+        <div class="section-title"><span>//</span> Licencias & <span>Software</span></div>
+        <div class="section-desc">Registro de licencias activas, fechas de vencimiento y costos.</div>
+      </div>
+
+      <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;align-items:center;">
+        <button class="btn btn-primary" onclick="showLicenciaForm()">➕ Nueva licencia</button>
+        <span id="lic-count" style="font-family:var(--mono);font-size:11px;color:var(--hero-text-muted);margin-left:auto;"></span>
+      </div>
+
+      <div id="lic-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px;">
+        <div class="info-box" style="text-align:center;padding:40px;grid-column:1/-1;">
+          <div style="font-size:36px;opacity:0.3;margin-bottom:12px;">🔑</div>
+          <div style="font-family:var(--mono);font-size:12px;color:var(--hero-text-muted);">Cargando licencias...</div>
+        </div>
+      </div>
+
+      <!-- Modal licencia -->
+      <div id="lic-modal" style="display:none;position:fixed;inset:0;background:rgba(26,39,51,0.5);z-index:100;overflow-y:auto;padding:24px;">
+        <div style="background:#ffffff;border:1px solid rgba(6,163,182,0.3);border-radius:16px;max-width:540px;margin:0 auto;padding:28px;box-shadow:0 8px 32px rgba(0,0,0,0.15);">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+            <div id="lic-modal-title" style="font-size:15px;font-weight:600;color:var(--hero-text-primary);">Nueva licencia</div>
+            <button onclick="closeLicenciaModal()" style="background:transparent;border:1px solid var(--hero-border);color:var(--hero-text-muted);width:32px;height:32px;border-radius:8px;cursor:pointer;font-size:16px;">✕</button>
+          </div>
+
+          <!-- Sección: Info general -->
+          <div style="font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--hero-primary);margin-bottom:10px;">Información general</div>
+          <div class="form-group">
+            <label class="form-label">Nombre del software *</label>
+            <input class="form-input" id="lic-f-nombre" type="text" placeholder="ej: Zoho Assist, ClickUp, Canva..."/>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+            <div class="form-group">
+              <label class="form-label">Plan / Tier</label>
+              <input class="form-input" id="lic-f-plan" type="text" placeholder="ej: Professional, Team..."/>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Tipo de suscripción</label>
+              <select id="lic-f-tipo-sub" class="form-input" style="background:var(--hero-card-bg);">
+                <option value="mensual">Mensual</option>
+                <option value="anual">Anual</option>
+                <option value="única">Pago único</option>
+                <option value="gratis">Gratis / Trial</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Costo (USD)</label>
+              <input class="form-input" id="lic-f-costo" type="number" placeholder="0.00" step="0.01"/>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Usuarios incluidos</label>
+              <input class="form-input" id="lic-f-usuarios" type="number" placeholder="ej: 5"/>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Fecha de vencimiento</label>
+              <input class="form-input" id="lic-f-vencimiento" type="date"/>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Estado</label>
+              <select id="lic-f-estado" class="form-input" style="background:var(--hero-card-bg);">
+                <option value="activa">Activa</option>
+                <option value="trial">Trial</option>
+                <option value="vencida">Vencida</option>
+                <option value="cancelada">Cancelada</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Sección: Credenciales -->
+          <div style="font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--hero-primary);margin:16px 0 10px;">Credenciales de acceso <span style="font-weight:400;color:var(--hero-text-muted);text-transform:none;letter-spacing:0;">(opcional)</span></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+            <div class="form-group">
+              <label class="form-label">Usuario / Email</label>
+              <input class="form-input" id="lic-f-cred-usuario" type="text" placeholder="usuario@heroinsuranceusa.com"/>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Contraseña</label>
+              <div style="position:relative;">
+                <input class="form-input" id="lic-f-cred-password" type="password" placeholder="••••••••" style="padding-right:36px;"/>
+                <button onclick="toggleLicPassword()" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:transparent;border:none;cursor:pointer;font-size:14px;color:var(--hero-text-muted);" id="btn-toggle-lic-pwd">👁</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Sección: Código de licencia -->
+          <div style="font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--hero-primary);margin:16px 0 10px;">Código de licencia <span style="font-weight:400;color:var(--hero-text-muted);text-transform:none;letter-spacing:0;">(opcional)</span></div>
+          <div class="form-group">
+            <input class="form-input" id="lic-f-codigo" type="text" placeholder="ej: XXXX-XXXX-XXXX-XXXX" style="font-family:var(--mono);letter-spacing:1px;"/>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Notas</label>
+            <input class="form-input" id="lic-f-notas" type="text" placeholder="Cuenta asociada, contacto de soporte, URL de acceso..."/>
+          </div>
+
+          <div style="background:rgba(232,163,23,0.08);border:1px solid rgba(232,163,23,0.3);border-radius:8px;padding:10px 14px;margin-bottom:16px;font-size:11px;color:var(--hero-text-muted);line-height:1.5;">
+            🔒 Las credenciales y el código se guardan en Cloudflare KV cifrado. Solo tú puedes verlos desde esta consola.
+          </div>
+
+          <div style="display:flex;gap:10px;">
+            <button class="btn btn-primary" onclick="saveLicencia()" id="btn-lic-save" style="flex:1;">💾 Guardar</button>
+            <button class="btn btn-secondary" onclick="closeLicenciaModal()">Cancelar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ CONFIG ══════════════════════════════════════════ -->
+    <div class="page" id="page-config">
+      <div class="section-header">
+        <div class="section-title"><span>//</span> Configuración</div>
+        <div class="section-desc">Variables del sistema y URLs de conexión con Apps Script.</div>
+      </div>
+
+
+      <div class="info-box" style="margin-bottom:16px">
+        <div class="info-box-title">Cloudflare Worker · Conexión con Resend</div>
+        <div class="url-notice" style="margin-bottom:14px; margin-top:4px">
+          <div class="url-notice-icon">🔒</div>
+          <div class="url-notice-text">
+            El API Key de Resend está guardado de forma segura en el Worker de Cloudflare.
+            No necesitas configurar nada aquí — solo verifica que la conexión funcione.
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Worker URL</label>
+          <input class="form-input" value="https://hero-email-worker.broad-fire-d2d6.workers.dev" readonly style="opacity:0.6;cursor:default;"/>
+        </div>
+        <div style="margin-top:4px">
+          <button class="btn btn-primary" onclick="testConexion()">🔌 Probar conexión</button>
+        </div>
+      </div>
+
+      <div class="info-box">
+        <div class="info-box-title">Estado actual del sistema</div>
+        <div class="config-row">
+          <span class="config-key">Servicio de email</span>
+          <span class="config-val">Resend API</span>
+        </div>
+        <div class="config-row">
+          <span class="config-key">Remitente</span>
+          <span class="config-val"><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="7c15083c14190e1315120f090e1d121f19090f1d521f1311">[email&#160;protected]</a></span>
+        </div>
+        <div class="config-row">
+          <span class="config-key">Scripts integrados</span>
+          <span class="config-val">3 activos</span>
+        </div>
+        <div class="config-row">
+          <span class="config-key">Worker</span>
+          <span class="config-val" style="color:var(--hero-success)">Configurado</span>
+        </div>
+        <div class="config-row">
+          <span class="config-key">Último test de conexión</span>
+          <span class="config-val" id="cfg-last-test">—</span>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /content -->
+</div><!-- /main -->
+
+
+  <!-- ══ BÚSQUEDA GLOBAL ══════════════════════════════════════ -->
+  <div id="global-search-overlay" onclick="if(event.target===this)closeGlobalSearch()">
+    <div id="global-search-box">
+      <input id="global-search-input" type="text" placeholder="Buscar tickets, solicitudes, dispositivos, usuarios..."
+        oninput="onGlobalSearch()" onkeydown="if(event.key==='Escape')closeGlobalSearch()"/>
+      <div id="global-search-results"></div>
+      <div style="padding:10px 16px;background:var(--hero-bg);border-top:1px solid var(--hero-border);font-size:10px;color:var(--hero-text-muted);">
+        ESC para cerrar · Enter para navegar
+      </div>
+    </div>
+  </div>
+</div><!-- /app-content -->
+
+<!-- Toast -->
+<div id="toast"></div>
+
+<script src="hero-it-console.js"></script>
 </body>
 </html>
