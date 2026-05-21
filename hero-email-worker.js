@@ -138,6 +138,7 @@ export default {
           nombre: u.name?.fullName || '', email: u.primaryEmail || '',
           estado: u.suspended ? 'suspendido' : 'activo',
           creado: u.creationTime || '', ultimoLogin: u.lastLoginTime || '',
+          orgUnitPath: u.orgUnitPath || '/',
         }));
         return json({ users }, 200, cors);
       } catch (err) { return json({ error: err.message }, 500, cors); }

@@ -1828,13 +1828,14 @@ async function loadUsers() {
     allUsers = data.users || [];
     window._workspaceUsers = allUsers; // cache for global search
     addLog('Usuarios cargados: ' + allUsers.length, 'success');
+    populateOuFilter(allUsers);
     renderUsers(allUsers);
 
   } catch (err) {
     addLog('Error al cargar usuarios: ' + err.message, 'error');
     showToast('Error al cargar usuarios');
     document.getElementById('usr-tbody').innerHTML =
-      '<tr><td colspan="6" style="padding:32px;text-align:center;color:var(--hero-error);font-family:var(--mono);font-size:12px;">Error: ' + err.message + '</td></tr>';
+      '<tr><td colspan="7" style="padding:32px;text-align:center;color:var(--hero-error);font-family:var(--mono);font-size:12px;">Error: ' + err.message + '</td></tr>';
   }
 
   btn.disabled = false;
@@ -1846,7 +1847,7 @@ function renderUsers(users) {
   document.getElementById('usr-count').textContent = users.length + ' usuario' + (users.length !== 1 ? 's' : '');
 
   if (!users.length) {
-    tbody.innerHTML = '<tr><td colspan="6" style="padding:32px;text-align:center;color:var(--hero-text-muted);font-family:var(--mono);font-size:12px;">Sin resultados</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="7" style="padding:32px;text-align:center;color:var(--hero-text-muted);font-family:var(--mono);font-size:12px;">Sin resultados</td></tr>';
     return;
   }
 
@@ -1858,10 +1859,12 @@ function renderUsers(users) {
       ? new Date(u.ultimoLogin).toLocaleDateString('es-MX', { year:'numeric', month:'short', day:'numeric' })
       : 'Nunca';
     const rowBg = i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.02)';
+    const ouLabel = !u.orgUnitPath || u.orgUnitPath === '/' ? '—' : u.orgUnitPath.replace(/^\//, '');
 
     return '<tr style="border-bottom:1px solid var(--hero-border-card);background:' + rowBg + ';">' +
       '<td style="padding:10px 16px;color:var(--hero-text-primary);">' + u.nombre + '</td>' +
       '<td style="padding:10px 16px;font-family:var(--mono);font-size:12px;color:var(--hero-primary);">' + u.email + '</td>' +
+      '<td style="padding:10px 16px;font-family:var(--mono);font-size:11px;color:var(--hero-text-body);">' + ouLabel + '</td>' +
       '<td style="padding:10px 16px;">' +
         '<span style="font-family:var(--mono);font-size:10px;padding:3px 8px;border-radius:20px;background:' + estadoBg + ';color:' + estadoColor + ';">' + u.estado + '</span>' +
       '</td>' +
@@ -1877,12 +1880,28 @@ function renderUsers(users) {
   }).join('');
 }
 
+function populateOuFilter(users) {
+  const sel = document.getElementById('usr-filter-ou');
+  if (!sel) return;
+  const prev = sel.value;
+  const ous = Array.from(new Set(users.map(u => u.orgUnitPath || '/'))).sort();
+  sel.innerHTML = '<option value="">OU: Todas</option>' +
+    ous.map(ou => {
+      const label = ou === '/' ? '/ (raíz)' : ou;
+      return '<option value="' + ou.replace(/"/g, '&quot;') + '">' + label + '</option>';
+    }).join('');
+  if (prev && ous.includes(prev)) sel.value = prev;
+}
+
 function filterUsers() {
   const q = document.getElementById('usr-search').value.toLowerCase();
+  const ou = document.getElementById('usr-filter-ou')?.value || '';
   if (!allUsers.length) return;
-  const filtered = allUsers.filter(u =>
-    u.nombre.toLowerCase().includes(q) || u.email.toLowerCase().includes(q)
-  );
+  const filtered = allUsers.filter(u => {
+    const matchText = u.nombre.toLowerCase().includes(q) || u.email.toLowerCase().includes(q);
+    const matchOu = !ou || (u.orgUnitPath || '/') === ou;
+    return matchText && matchOu;
+  });
   renderUsers(filtered);
 }
 

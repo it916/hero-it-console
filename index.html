@@ -1117,6 +1117,9 @@ html { scroll-behavior: smooth; }
       <div style="display:flex; gap:10px; margin-bottom:16px; flex-wrap:wrap; align-items:center;">
         <input class="form-input" id="usr-search" type="text" placeholder="Buscar por nombre o email..."
           oninput="filterUsers()" style="flex:1; min-width:200px; max-width:360px;"/>
+        <select class="form-input" id="usr-filter-ou" onchange="filterUsers()" style="min-width:200px;">
+          <option value="">OU: Todas</option>
+        </select>
         <button class="btn btn-primary" onclick="loadUsers()" id="btn-load-users">
           ↺ Cargar usuarios
         </button>
@@ -1131,6 +1134,7 @@ html { scroll-behavior: smooth; }
               <tr style="border-bottom:1px solid var(--hero-border); background:var(--hero-bg-page);">
                 <th style="padding:11px 16px; text-align:left; font-family:var(--mono); font-size:10px; letter-spacing:1px; color:var(--hero-text-muted); font-weight:500; text-transform:uppercase;">Nombre</th>
                 <th style="padding:11px 16px; text-align:left; font-family:var(--mono); font-size:10px; letter-spacing:1px; color:var(--hero-text-muted); font-weight:500; text-transform:uppercase;">Email</th>
+                <th style="padding:11px 16px; text-align:left; font-family:var(--mono); font-size:10px; letter-spacing:1px; color:var(--hero-text-muted); font-weight:500; text-transform:uppercase;">OU</th>
                 <th style="padding:11px 16px; text-align:left; font-family:var(--mono); font-size:10px; letter-spacing:1px; color:var(--hero-text-muted); font-weight:500; text-transform:uppercase;">Estado</th>
                 <th style="padding:11px 16px; text-align:left; font-family:var(--mono); font-size:10px; letter-spacing:1px; color:var(--hero-text-muted); font-weight:500; text-transform:uppercase;">Creado</th>
                 <th style="padding:11px 16px; text-align:left; font-family:var(--mono); font-size:10px; letter-spacing:1px; color:var(--hero-text-muted); font-weight:500; text-transform:uppercase;">Último login</th>
@@ -1139,7 +1143,7 @@ html { scroll-behavior: smooth; }
             </thead>
             <tbody id="usr-tbody">
               <tr>
-                <td colspan="6" style="padding:48px; text-align:center; color:var(--hero-text-muted); font-family:var(--mono); font-size:12px;">
+                <td colspan="7" style="padding:48px; text-align:center; color:var(--hero-text-muted); font-family:var(--mono); font-size:12px;">
                   Presiona "Cargar usuarios" para consultar Workspace
                 </td>
               </tr>
