@@ -317,8 +317,15 @@ async function runGlobalSearch() {
 
 // ── Notificaciones push ───────────────────────────────────────
 let notifInterval = null;
-let lastTicketCount = -1;
-let lastSolicitudCount = -1;
+// Conteos persistidos en localStorage para que tickets/solicitudes que
+// lleguen mientras la Console está cerrada generen notificación al reabrir.
+// La primera vez que cargas la Console (sin valor guardado) usa -1, lo que
+// suprime la notif inicial (evita spam de "tienes N pendientes" al primer login).
+const _LS_TICKETS = 'hero_lastTicketCount';
+const _LS_SOL     = 'hero_lastSolicitudCount';
+let lastTicketCount    = parseInt(localStorage.getItem(_LS_TICKETS) || '-1', 10);
+let lastSolicitudCount = parseInt(localStorage.getItem(_LS_SOL)     || '-1', 10);
+let isFirstPoll = true;
 
 async function requestNotificationPermission() {
   if (!('Notification' in window)) return;
@@ -449,23 +456,32 @@ async function pollForUpdates() {
 
     if (lastTicketCount >= 0 && openTickets > lastTicketCount) {
       const diff = openTickets - lastTicketCount;
+      const sufijo = diff > 1 ? 's' : '';
       addNotif('ticket',
-        diff + ' ticket' + (diff > 1 ? 's' : '') + ' nuevo' + (diff > 1 ? 's' : ''),
-        'Se ' + (diff > 1 ? 'abrieron' : 'abrió') + ' ' + diff + ' ticket' + (diff > 1 ? 's' : '') + ' de soporte',
+        diff + ' ticket' + sufijo + ' nuevo' + sufijo,
+        isFirstPoll
+          ? 'Llegaron ' + diff + ' ticket' + sufijo + ' desde tu última visita'
+          : 'Se ' + (diff > 1 ? 'abrieron' : 'abrió') + ' ' + diff + ' ticket' + sufijo + ' de soporte',
         function() { showPage('tickets'); }
       );
     }
     if (lastSolicitudCount >= 0 && pendingSolicitud > lastSolicitudCount) {
       const diff = pendingSolicitud - lastSolicitudCount;
+      const plural = diff > 1 ? 'es' : '';
       addNotif('solicitud',
-        diff + ' solicitud' + (diff > 1 ? 'es' : '') + ' de alta',
-        'Nueva' + (diff > 1 ? 's' : '') + ' solicitud' + (diff > 1 ? 'es' : '') + ' pendiente' + (diff > 1 ? 's' : '') + ' de procesar',
+        diff + ' solicitud' + plural + ' de alta/baja',
+        isFirstPoll
+          ? 'Llegaron ' + diff + ' solicitud' + plural + ' desde tu última visita'
+          : 'Nueva' + (diff > 1 ? 's' : '') + ' solicitud' + plural + ' pendiente' + plural + ' de procesar',
         function() { showPage('solicitudes'); }
       );
     }
 
     lastTicketCount    = openTickets;
     lastSolicitudCount = pendingSolicitud;
+    localStorage.setItem(_LS_TICKETS, String(openTickets));
+    localStorage.setItem(_LS_SOL,     String(pendingSolicitud));
+    isFirstPoll = false;
     updateTabBadge(openTickets + pendingSolicitud);
 
     const elT = document.getElementById('stat-tickets-open');
