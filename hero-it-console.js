@@ -856,21 +856,24 @@ function buildOnboardingEmail(nombre, email, password, tipo) {
     + '<p style="margin:6px 0 0;font-family:Trebuchet MS,Arial,sans-serif;font-size:11px;color:#b08a00;">Deber&aacute;s cambiarla al iniciar sesi&oacute;n por primera vez.</p>'
     + '</div></div>'
 
-    // Steps
-    + '<div style="margin-bottom:24px;">'
-    + '<p style="margin:0 0 16px;font-family:Trebuchet MS,Arial,sans-serif;font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:' + P + ';">&#128204; C&oacute;mo iniciar sesi&oacute;n</p>'
-    + pasosHtml
-    + '</div>'
-
-    // Security
-    + '<div style="background:#fff5f5;border-radius:10px;border:1px solid #ffd4d4;padding:16px 20px;margin-bottom:24px;">'
-    + '<p style="margin:0 0 8px;font-family:Trebuchet MS,Arial,sans-serif;font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#c0392b;">&#128274; Pol&iacute;ticas de seguridad</p>'
-    + '<ul style="margin:0;padding:0 0 0 16px;font-family:Trebuchet MS,Arial,sans-serif;font-size:13px;color:#4a5568;line-height:1.9;">'
-    + '<li>Tu cuenta es personal e intransferible</li>'
-    + '<li>Nunca compartas tu contrase&ntilde;a con nadie</li>'
-    + '<li>La informaci&oacute;n de clientes es estrictamente confidencial</li>'
-    + '<li>Reporta cualquier actividad sospechosa a IT de inmediato</li>'
-    + '</ul></div>'
+    // Pasos de inicio de sesión + políticas: solo para empleados.
+    // El correo de agente va directo de credenciales al botón de soporte.
+    + (tipo === 'agente' ? '' : (
+        // Steps
+        '<div style="margin-bottom:24px;">'
+      + '<p style="margin:0 0 16px;font-family:Trebuchet MS,Arial,sans-serif;font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:' + P + ';">&#128204; C&oacute;mo iniciar sesi&oacute;n</p>'
+      + pasosHtml
+      + '</div>'
+        // Security
+      + '<div style="background:#fff5f5;border-radius:10px;border:1px solid #ffd4d4;padding:16px 20px;margin-bottom:24px;">'
+      + '<p style="margin:0 0 8px;font-family:Trebuchet MS,Arial,sans-serif;font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#c0392b;">&#128274; Pol&iacute;ticas de seguridad</p>'
+      + '<ul style="margin:0;padding:0 0 0 16px;font-family:Trebuchet MS,Arial,sans-serif;font-size:13px;color:#4a5568;line-height:1.9;">'
+      + '<li>Tu cuenta es personal e intransferible</li>'
+      + '<li>Nunca compartas tu contrase&ntilde;a con nadie</li>'
+      + '<li>La informaci&oacute;n de clientes es estrictamente confidencial</li>'
+      + '<li>Reporta cualquier actividad sospechosa a IT de inmediato</li>'
+      + '</ul></div>'
+      ))
 
     // Support
     + '<div style="background:linear-gradient(135deg,#f0f8fa,#e8f4f6);border-radius:10px;border:1px solid #c8e8ec;padding:18px 20px;text-align:center;">'
