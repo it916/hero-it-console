@@ -1035,34 +1035,6 @@ async function userAction(action) {
   }
 }
 
-async function confirmDeleteUser() {
-  if (!currentUserEmail) return;
-  const email = currentUserEmail;
-  const nombre = document.getElementById('um-nombre').textContent;
-
-  if (!confirm('¿Estás seguro de que deseas eliminar permanentemente a ' + nombre + ' (' + email + ')?\n\nEsta acción no se puede deshacer.')) return;
-
-  addLog('Eliminando usuario ' + email + '...', 'warn');
-  try {
-    const resp = await authFetch(WORKER_URL + '/user-action', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, action: 'delete' })
-    });
-    const result = await resp.json();
-    if (!resp.ok) throw new Error(result.error || 'Error al eliminar');
-
-    addLog('Usuario eliminado: ' + nombre + ' (' + email + ')', 'warn');
-    auditLog('usuario', 'Usuario eliminado de Workspace: ' + nombre, email);
-    showToast('Usuario eliminado');
-    closeUserModal();
-    loadUsers();
-  } catch (err) {
-    addLog('Error: ' + err.message, 'error');
-    showToast('Error: ' + err.message);
-  }
-}
-
 // ── Módulo Auditoría ──────────────────────────────────────────
 let allAuditEntradas = [];
 

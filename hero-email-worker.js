@@ -747,19 +747,13 @@ export default {
         const token = await getGoogleToken(env);
         const userUrl = 'https://admin.googleapis.com/admin/directory/v1/users/' + encodeURIComponent(email);
 
+        // PROC-IT-001: solo suspender — el borrado permanente no está permitido
+        // desde la Console (se hace manualmente en Google Admin si hiciera falta).
         let body = {};
-        if (action === 'reset')    body = { password: newPassword, changePasswordAtNextLogin: true };
-        if (action === 'suspend')  body = { suspended: true };
-        if (action === 'restore')  body = { suspended: false };
-        if (action === 'delete') {
-          const resp = await fetch(userUrl, {
-            method: 'DELETE',
-            headers: { 'Authorization': 'Bearer ' + token },
-          });
-          if (resp.status === 204 || resp.ok) return json({ ok: true }, 200, cors);
-          const err = await resp.json();
-          return json({ error: err.error?.message || 'Error al eliminar' }, resp.status, cors);
-        }
+        if      (action === 'reset')   body = { password: newPassword, changePasswordAtNextLogin: true };
+        else if (action === 'suspend') body = { suspended: true };
+        else if (action === 'restore') body = { suspended: false };
+        else return json({ error: 'Acción no permitida: ' + action }, 400, cors);
 
         const resp = await fetch(userUrl, {
           method: 'PATCH',
