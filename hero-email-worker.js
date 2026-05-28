@@ -601,12 +601,12 @@ export default {
               + '<h2 style="color:#fff;margin:0;font-size:18px;">Nuevo Ticket de Soporte</h2>'
               + '<p style="color:rgba(255,255,255,0.7);margin:4px 0 0;font-size:13px;">' + ticketId + '</p></div>'
               + '<div style="background:#f7faff;padding:24px;border:1px solid #e2eaf8;border-top:none;border-radius:0 0 12px 12px;">'
-              + '<p><strong>De:</strong> ' + nombre + ' (' + email + ')</p>'
-              + '<p><strong>Categoría:</strong> ' + categoria + '</p>'
-              + '<p><strong>Prioridad:</strong> <span style="color:' + color + ';font-weight:700;">' + prioridad + '</span></p>'
-              + '<p><strong>Asunto:</strong> ' + asunto + '</p>'
+              + '<p><strong>De:</strong> ' + esc(nombre) + ' (' + esc(email) + ')</p>'
+              + '<p><strong>Categoría:</strong> ' + esc(categoria) + '</p>'
+              + '<p><strong>Prioridad:</strong> <span style="color:' + color + ';font-weight:700;">' + esc(prioridad) + '</span></p>'
+              + '<p><strong>Asunto:</strong> ' + esc(asunto) + '</p>'
               + '<hr style="border:none;border-top:1px solid #e2eaf8;margin:16px 0;"/>'
-              + '<p style="color:#4a5568;line-height:1.7;">' + descripcion.split('\n').join('<br/>') + '</p>'
+              + '<p style="color:#4a5568;line-height:1.7;">' + esc(descripcion).split('\n').join('<br/>') + '</p>'
               + '</div></div>',
             text: '[' + ticketId + '] ' + asunto + '\nDe: ' + nombre + ' (' + email + ')\nCategoria: ' + categoria + '\nPrioridad: ' + prioridad + '\n\n' + descripcion,
           }),
@@ -627,13 +627,13 @@ export default {
               + '<h1 style="color:#fff;margin:0;font-size:22px;font-weight:900;">Ticket recibido</h1>'
               + '<p style="color:rgba(255,255,255,0.85);margin:8px 0 0;font-size:13px;">Tu solicitud ha sido registrada correctamente.</p></div>'
               + '<div style="padding:32px 40px;">'
-              + '<p style="font-size:15px;color:#2d3748;">Hola <strong>' + nombre + '</strong>, hemos recibido tu solicitud de soporte.</p>'
+              + '<p style="font-size:15px;color:#2d3748;">Hola <strong>' + esc(nombre) + '</strong>, hemos recibido tu solicitud de soporte.</p>'
               + '<div style="background:#f7faff;border-radius:12px;border:1px solid #e2eaf8;padding:20px;margin:20px 0;">'
               + '<p style="margin:0 0 8px;font-size:11px;font-weight:900;letter-spacing:2px;color:#06a3b6;text-transform:uppercase;">Detalles del ticket</p>'
               + '<p style="margin:0 0 6px;font-family:monospace;font-size:16px;font-weight:700;color:#06a3b6;">' + ticketId + '</p>'
-              + '<p style="margin:0 0 4px;font-size:13px;color:#4a5568;"><strong>Asunto:</strong> ' + asunto + '</p>'
-              + '<p style="margin:0 0 4px;font-size:13px;color:#4a5568;"><strong>Categoría:</strong> ' + categoria + '</p>'
-              + '<p style="margin:0;font-size:13px;"><strong>Prioridad:</strong> <span style="color:' + color + ';font-weight:700;">' + prioridad + '</span></p>'
+              + '<p style="margin:0 0 4px;font-size:13px;color:#4a5568;"><strong>Asunto:</strong> ' + esc(asunto) + '</p>'
+              + '<p style="margin:0 0 4px;font-size:13px;color:#4a5568;"><strong>Categoría:</strong> ' + esc(categoria) + '</p>'
+              + '<p style="margin:0;font-size:13px;"><strong>Prioridad:</strong> <span style="color:' + color + ';font-weight:700;">' + esc(prioridad) + '</span></p>'
               + '</div>'
               + '<p style="font-size:13px;color:#4a5568;line-height:1.6;">Nuestro equipo de IT revisará tu solicitud y te contactará pronto.</p>'
               + '</div>'
@@ -688,7 +688,7 @@ export default {
         const ticketInfo = '<div style="background:#f7faff;border-radius:10px;border:1px solid #d8e1ea;padding:16px;margin:16px 0;">'
           + '<p style="margin:0 0 4px;font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#06a3b6;">Ticket</p>'
           + '<p style="margin:0;font-family:monospace;font-size:15px;font-weight:700;color:#06a3b6;">' + ticket.ticketId + '</p>'
-          + '<p style="margin:4px 0 0;font-size:13px;color:#444;">' + ticket.asunto + '</p></div>';
+          + '<p style="margin:4px 0 0;font-size:13px;color:#444;">' + esc(ticket.asunto) + '</p></div>';
 
         // Notify on status change
         if (estado && estado !== estadoAnterior) {
@@ -703,7 +703,7 @@ export default {
                 from: 'Fernando Romero <it' + '@' + 'heroinsuranceusa.com>',
                 to: [ticket.email],
                 subject: '[' + ticket.ticketId + '] ' + msg.titulo,
-                html: buildEmail(msg.titulo, ticket.ticketId + ' · ' + ticket.asunto, msg.body),
+                html: buildEmail(msg.titulo, ticket.ticketId + ' · ' + esc(ticket.asunto), msg.body),
                 text: msg.titulo + ' - ' + ticket.ticketId,
               }),
             });
@@ -715,11 +715,11 @@ export default {
           ticket.respuesta = respuesta;
           ticket.fechaRespuesta = new Date().toISOString();
           ticket.historial.push({ tipo: 'respuesta', fecha: new Date().toISOString() });
-          const replyBody = '<p style="font-size:14px;color:#444;">Hola <strong>' + ticket.nombre + '</strong>, el equipo IT respondió tu solicitud.</p>'
+          const replyBody = '<p style="font-size:14px;color:#444;">Hola <strong>' + esc(ticket.nombre) + '</strong>, el equipo IT respondió tu solicitud.</p>'
             + ticketInfo
             + '<div style="background:#f7faff;border-radius:10px;border:1px solid #d8e1ea;padding:16px;margin:16px 0;">'
             + '<p style="margin:0 0 8px;font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#06a3b6;">Respuesta</p>'
-            + '<p style="margin:0;font-size:13px;color:#444;line-height:1.7;">' + respuesta.split('\n').join('<br/>') + '</p></div>'
+            + '<p style="margin:0;font-size:13px;color:#444;line-height:1.7;">' + esc(respuesta).split('\n').join('<br/>') + '</p></div>'
             + '<p style="font-size:13px;color:#777;">Estado: <strong style="color:' + (estadoColores[ticket.estado]||'#444') + ';">' + ticket.estado + '</strong></p>';
           await fetch('https://api.resend.com/emails', {
             method: 'POST',
@@ -728,7 +728,7 @@ export default {
               from: 'Fernando Romero <it' + '@' + 'heroinsuranceusa.com>',
               to: [ticket.email],
               subject: 'Re: [' + ticket.ticketId + '] ' + ticket.asunto,
-              html: buildEmail('Respuesta a tu ticket', ticket.ticketId + ' · ' + ticket.asunto, replyBody),
+              html: buildEmail('Respuesta a tu ticket', ticket.ticketId + ' · ' + esc(ticket.asunto), replyBody),
               text: 'Respuesta: ' + respuesta,
             }),
           });
@@ -1078,11 +1078,11 @@ function buildAuthorizePage({ titulo, mensaje, detalle, color, icono }) {
 
 
 function buildStatusMsgs(estado, ticket, ticketInfo) {
-  const nom = ticket.nombre;
+  const nom = esc(ticket.nombre);
   const res = ticket.respuesta || '';
   const resHtml = res ? '<div style="background:#f7faff;border-radius:10px;border:1px solid #d8e1ea;padding:16px;margin:16px 0;">'
     + '<p style="margin:0 0 8px;font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#06a3b6;">Resolucion</p>'
-    + '<p style="margin:0;font-size:13px;color:#444;line-height:1.7;">' + res.split('\n').join('<br/>') + '</p></div>' : '';
+    + '<p style="margin:0;font-size:13px;color:#444;line-height:1.7;">' + esc(res).split('\n').join('<br/>') + '</p></div>' : '';
   return {
     'en progreso': {
       titulo: 'Estamos atendiendo tu caso',
