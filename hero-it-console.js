@@ -780,10 +780,14 @@ async function testConexion() {
 
 // ── Email templates ───────────────────────────────────────────
 function buildEmailEmpleado(nombre, email, password) {
-  return buildOnboardingEmail(nombre, email, password);
+  return buildOnboardingEmail(nombre, email, password, 'empleado');
 }
 
 function buildEmailAgente(nombre, email, password) {
+  return buildOnboardingEmail(nombre, email, password, 'agente');
+}
+
+function buildOnboardingEmail(nombre, email, password, tipo) {
   var P    = '#06a3b6';
   var P2   = '#048395';
   var LOGO = 'https://i.ibb.co/PvS31B1z/shield-low.png';
@@ -828,7 +832,7 @@ function buildEmailAgente(nombre, email, password) {
     + '<img src="' + LOGO + '" width="64" height="64" style="width:64px;height:64px;display:block;border-radius:50%;border:3px solid rgba(255,255,255,0.4);box-shadow:0 4px 20px rgba(0,0,0,0.2);"/>'
     + '</td>'
     + '<td valign="middle">'
-    + '<div style="font-family:Trebuchet MS,Arial,sans-serif;font-size:10px;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:rgba(255,255,255,0.7);margin-bottom:6px;">Hero Insurance USA &nbsp;&bull;&nbsp; Agente</div>'
+    + '<div style="font-family:Trebuchet MS,Arial,sans-serif;font-size:10px;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:rgba(255,255,255,0.7);margin-bottom:6px;">Hero Insurance USA &nbsp;&bull;&nbsp; ' + (tipo === 'empleado' ? 'Empleado' : 'Agente') + '</div>'
     + '<h1 style="margin:0 0 5px;font-family:Trebuchet MS,Arial,sans-serif;font-size:24px;font-weight:700;color:#fff;line-height:1.2;">&iexcl;Bienvenido al equipo, ' + nombre + '!</h1>'
     + '<p style="margin:0;font-family:Trebuchet MS,Arial,sans-serif;font-size:13px;color:rgba(255,255,255,0.8);">Tu cuenta corporativa ha sido creada y est&aacute; lista para usar.</p>'
     + '</td>'
