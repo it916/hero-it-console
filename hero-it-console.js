@@ -351,14 +351,14 @@ async function runGlobalSearch() {
     });
   }
   if (!found.length) {
-    results.innerHTML = '<div style="text-align:center;padding:24px;color:var(--hero-text-muted);font-size:13px;">Sin resultados para "' + q + '"</div>';
+    results.innerHTML = '<div style="text-align:center;padding:24px;color:var(--hero-text-muted);font-size:13px;">Sin resultados para "' + escHtml(q) + '"</div>';
     return;
   }
   results.innerHTML = found.map(f =>
     '<div onclick="' + f.action + ';closeGlobalSearch()" style="display:flex;align-items:flex-start;gap:10px;padding:12px 16px;cursor:pointer;border-bottom:1px solid var(--hero-border);transition:background 0.15s;" onmouseover="this.style.background=\'var(--hero-bg)\'" onmouseout="this.style.background=\'\'"> '
     + '<span style="font-size:11px;padding:2px 8px;background:var(--hero-bg);border:1px solid var(--hero-border);border-radius:20px;color:var(--hero-text-muted);white-space:nowrap;flex-shrink:0;">' + f.type + '</span>'
-    + '<div><div style="font-size:13px;font-weight:600;color:var(--hero-text-primary);">' + f.title + '</div>'
-    + '<div style="font-size:11px;color:var(--hero-text-muted);margin-top:2px;">' + f.sub + '</div></div></div>'
+    + '<div><div style="font-size:13px;font-weight:600;color:var(--hero-text-primary);">' + escHtml(f.title) + '</div>'
+    + '<div style="font-size:11px;color:var(--hero-text-muted);margin-top:2px;">' + escHtml(f.sub) + '</div></div></div>'
   ).join('');
 }
 
@@ -588,6 +588,18 @@ function addLog(message, type = 'info', consoleId = null) {
       specific.scrollTop = specific.scrollHeight;
     }
   }
+}
+
+// ── Escape HTML ───────────────────────────────────────────────
+// Para insertar de forma segura texto con innerHTML. Los formularios públicos
+// (tickets y solicitudes) son la fuente principal de datos no confiables.
+function escHtml(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 
 // ── Toast ─────────────────────────────────────────────────────
@@ -1241,11 +1253,11 @@ function renderKanban(tickets) {
       const pc = PRIORIDAD_COLOR[t.prioridad] || PRIORIDAD_COLOR.Media;
       const elapsed = getElapsedTime(t.fecha);
       const elColor = getElapsedColor(t.fecha, t.estado);
-      return '<div class="kanban-card" style="--card-pcolor:' + pc.color + ';" onclick="openTicketModal(\'' + t.id + '\')">' 
-        + '<div class="kanban-card-title">' + t.asunto + '</div>'
-        + '<div class="kanban-card-meta">' + t.nombre + ' · ' + t.categoria + '</div>'
+      return '<div class="kanban-card" style="--card-pcolor:' + pc.color + ';" onclick="openTicketModal(\'' + t.id + '\')">'
+        + '<div class="kanban-card-title">' + escHtml(t.asunto) + '</div>'
+        + '<div class="kanban-card-meta">' + escHtml(t.nombre) + ' · ' + escHtml(t.categoria) + '</div>'
         + '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;">'
-        + '<span style="font-size:10px;padding:2px 7px;border-radius:20px;background:' + pc.bg + ';color:' + pc.color + ';font-weight:600;">' + t.prioridad + '</span>'
+        + '<span style="font-size:10px;padding:2px 7px;border-radius:20px;background:' + pc.bg + ';color:' + pc.color + ';font-weight:600;">' + escHtml(t.prioridad) + '</span>'
         + '<span class="kanban-card-time" style="color:' + elColor + ';">⏱ ' + elapsed + '</span>'
         + '</div></div>';
     }).join('');
@@ -1263,18 +1275,18 @@ function renderTicketList(tickets) {
     const pc = PRIORIDAD_COLOR[t.prioridad] || PRIORIDAD_COLOR.Media;
     const elapsed = getElapsedTime(t.fecha);
     const elColor = getElapsedColor(t.fecha, t.estado);
-    return '<div class="action-card" style="margin-bottom:10px;cursor:pointer;--card-color:' + (estadoColor[t.estado]||'var(--hero-border)') + ';" onclick="openTicketModal(\'' + t.id + '\'">'
+    return '<div class="action-card" style="margin-bottom:10px;cursor:pointer;--card-color:' + (estadoColor[t.estado]||'var(--hero-border)') + ';" onclick="openTicketModal(\'' + t.id + '\')">'
       + '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px;">'
       + '<div style="display:flex;align-items:center;gap:8px;">'
-      + '<span style="font-family:var(--mono);font-size:11px;color:var(--hero-primary);">' + t.ticketId + '</span>'
-      + '<span style="font-size:10px;padding:2px 7px;border-radius:20px;background:' + pc.bg + ';color:' + pc.color + ';font-weight:600;">' + t.prioridad + '</span>'
+      + '<span style="font-family:var(--mono);font-size:11px;color:var(--hero-primary);">' + escHtml(t.ticketId) + '</span>'
+      + '<span style="font-size:10px;padding:2px 7px;border-radius:20px;background:' + pc.bg + ';color:' + pc.color + ';font-weight:600;">' + escHtml(t.prioridad) + '</span>'
       + '</div>'
       + '<div style="display:flex;align-items:center;gap:8px;">'
       + '<span style="font-size:10px;color:' + elColor + ';font-family:var(--mono);">⏱ ' + elapsed + '</span>'
-      + '<span style="font-size:10px;padding:2px 8px;border-radius:20px;background:rgba(0,0,0,0.05);color:' + (estadoColor[t.estado]||'#444') + ';">' + t.estado + '</span>'
+      + '<span style="font-size:10px;padding:2px 8px;border-radius:20px;background:rgba(0,0,0,0.05);color:' + (estadoColor[t.estado]||'#444') + ';">' + escHtml(t.estado) + '</span>'
       + '</div></div>'
-      + '<div style="font-size:13px;font-weight:600;color:var(--hero-text-primary);margin-bottom:3px;">' + t.asunto + '</div>'
-      + '<div style="font-size:12px;color:var(--hero-text-muted);">' + t.nombre + ' · ' + t.categoria + '</div>'
+      + '<div style="font-size:13px;font-weight:600;color:var(--hero-text-primary);margin-bottom:3px;">' + escHtml(t.asunto) + '</div>'
+      + '<div style="font-size:12px;color:var(--hero-text-muted);">' + escHtml(t.nombre) + ' · ' + escHtml(t.categoria) + '</div>'
       + '</div>';
   }).join('');
 }
@@ -1476,8 +1488,8 @@ function renderSolicitudes() {
     // Datos de empleado (cargo/área) si aplica
     const cargoAreaHtml = (tipoPersona === 'empleado' && (s.cargo || s.area))
       ? '<div style="display:flex;gap:14px;font-size:12px;color:var(--hero-text-muted);margin-bottom:6px;">'
-        + (s.cargo ? '<span><strong style="color:var(--hero-text-body);">Cargo:</strong> ' + s.cargo + '</span>' : '')
-        + (s.area  ? '<span><strong style="color:var(--hero-text-body);">Área:</strong> '   + s.area  + '</span>' : '')
+        + (s.cargo ? '<span><strong style="color:var(--hero-text-body);">Cargo:</strong> ' + escHtml(s.cargo) + '</span>' : '')
+        + (s.area  ? '<span><strong style="color:var(--hero-text-body);">Área:</strong> '   + escHtml(s.area)  + '</span>' : '')
         + '</div>'
       : '';
 
@@ -1485,19 +1497,20 @@ function renderSolicitudes() {
     const detalleBloque = isBaja
       ? '<div style="background:rgba(214,69,69,0.06);border-left:3px solid var(--hero-danger);padding:10px 12px;border-radius:6px;margin:8px 0 12px;">'
         + '<div style="font-size:10px;font-weight:700;letter-spacing:2px;color:var(--hero-danger);text-transform:uppercase;margin-bottom:4px;">Motivo</div>'
-        + '<div style="font-size:12px;color:var(--hero-text-body);line-height:1.5;">' + (s.motivo || '—') + '</div>'
-        + (s.detalle ? '<div style="font-size:12px;color:var(--hero-text-muted);margin-top:6px;"><strong>Detalle:</strong> ' + s.detalle + '</div>' : '')
+        + '<div style="font-size:12px;color:var(--hero-text-body);line-height:1.5;">' + escHtml(s.motivo || '—') + '</div>'
+        + (s.detalle ? '<div style="font-size:12px;color:var(--hero-text-muted);margin-top:6px;"><strong>Detalle:</strong> ' + escHtml(s.detalle) + '</div>' : '')
         + '</div>'
       : '<div style="display:flex;gap:16px;font-size:12px;color:var(--hero-text-muted);margin-bottom:14px;">'
-        + (s.telefono       ? '<span>📞 ' + s.telefono + '</span>' : '')
-        + (s.fechaRequerida ? '<span>📅 Requerida: ' + s.fechaRequerida + '</span>' : '')
+        + (s.telefono       ? '<span>📞 ' + escHtml(s.telefono) + '</span>' : '')
+        + (s.fechaRequerida ? '<span>📅 Requerida: ' + escHtml(s.fechaRequerida) + '</span>' : '')
         + '</div>';
 
     // Botonera: distinta según tipo
-    const safeSolEmail  = (s.solicitanteEmail  || '').replace(/'/g, '\\\'');
-    const safeSolNombre = (s.solicitanteNombre || '').replace(/'/g, '\\\'');
-    const safeTitulo    = titulo.replace(/'/g, '\\\'');
-    const safeCorreoEl  = (s.correoEliminar || '').replace(/'/g, '\\\'');
+    const escAttr = v => String(v == null ? '' : v).replace(/'/g, '\\\'').replace(/"/g, '&quot;');
+    const safeSolEmail  = escAttr(s.solicitanteEmail);
+    const safeSolNombre = escAttr(s.solicitanteNombre);
+    const safeTitulo    = escAttr(titulo);
+    const safeCorreoEl  = escAttr(s.correoEliminar);
 
     let acciones = '';
     if (isOpen) {
@@ -1523,9 +1536,9 @@ function renderSolicitudes() {
       +       '<span style="font-family:var(--mono);font-size:9px;font-weight:700;padding:2px 8px;border-radius:12px;background:' + tipoBg + ';color:' + tipoColor + ';letter-spacing:1px;">' + tipoLabel + '</span>'
       +       '<span style="font-family:var(--mono);font-size:9px;font-weight:700;padding:2px 8px;border-radius:12px;background:' + personaBg + ';color:' + personaColor + ';letter-spacing:1px;">' + tipoPersona.toUpperCase() + '</span>'
       +     '</div>'
-      +     '<div style="font-size:15px;font-weight:600;color:var(--hero-text-primary);">' + titulo + '</div>'
+      +     '<div style="font-size:15px;font-weight:600;color:var(--hero-text-primary);">' + escHtml(titulo) + '</div>'
       +     (correoMostrar
-              ? '<div style="font-family:var(--mono);font-size:11px;color:' + (isBaja ? 'var(--hero-danger)' : 'var(--hero-primary)') + ';margin-top:2px;"><span style="color:var(--hero-text-muted);">' + correoLabel + ':</span> ' + correoMostrar + '</div>'
+              ? '<div style="font-family:var(--mono);font-size:11px;color:' + (isBaja ? 'var(--hero-danger)' : 'var(--hero-primary)') + ';margin-top:2px;"><span style="color:var(--hero-text-muted);">' + correoLabel + ':</span> ' + escHtml(correoMostrar) + '</div>'
               : '')
       +   '</div>'
       +   '<div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">'
@@ -1536,8 +1549,8 @@ function renderSolicitudes() {
       + cargoAreaHtml
       + '<div style="font-size:12px;color:var(--hero-text-body);margin-bottom:6px;">'
       +   '<span style="color:var(--hero-text-muted);">Solicitado por: </span>'
-      +   '<strong>' + (s.solicitanteNombre || 'No especificado') + '</strong>'
-      +   (s.solicitanteEmail ? ' <span style="font-family:var(--mono);font-size:11px;color:var(--hero-primary);">(' + s.solicitanteEmail + ')</span>' : '')
+      +   '<strong>' + escHtml(s.solicitanteNombre || 'No especificado') + '</strong>'
+      +   (s.solicitanteEmail ? ' <span style="font-family:var(--mono);font-size:11px;color:var(--hero-primary);">(' + escHtml(s.solicitanteEmail) + ')</span>' : '')
       + '</div>'
       + autorizadaHtml
       + detalleBloque
