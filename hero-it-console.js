@@ -911,8 +911,8 @@ function buildEmailReset(nombre, emailCorp, password) {
   return '<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"/><style>body{margin:0;padding:0;background:#f0f4f8;font-family:Arial,sans-serif;}</style></head><body style="margin:0;padding:0;background:#f0f4f8;">'
   + '<table cellspacing="0" cellpadding="0" border="0" width="100%" style="background:#f0f4f8;"><tr><td style="padding:32px 16px;">'
   + '<table cellspacing="0" cellpadding="0" border="0" width="600" align="center" style="background:#fff;border-radius:16px;overflow:hidden;">'
-  + '<tr><td style="background:linear-gradient(135deg,#0A1628,#0065F3);padding:36px 40px;text-align:center;">'
-  + '<img src="https://i.imgur.com/mZDIi6V.png" width="160" style="display:block;margin:0 auto 20px;"/>'
+  + '<tr><td style="background:linear-gradient(135deg,#06a3b6,#048395);padding:36px 40px;text-align:center;">'
+  + '<img src="https://i.ibb.co/Gr4mzLv/Nuevo-Logo-Cuadrado-compress.png" width="120" style="display:block;margin:0 auto 20px;"/>'
   + '<h1 style="margin:0;font-size:24px;font-weight:900;color:#fff;">Restablecimiento de Contrasena</h1>'
   + '<p style="margin:8px 0 0;font-size:13px;color:rgba(255,255,255,0.75);">Se ha generado una nueva contrasena temporal.</p></td></tr>'
   + '<tr><td style="padding:36px 40px;">'
@@ -921,11 +921,11 @@ function buildEmailReset(nombre, emailCorp, password) {
   + '<p style="margin:0 0 4px;font-size:11px;font-weight:700;color:#b08a00;text-transform:uppercase;letter-spacing:1px;">Aviso de seguridad</p>'
   + '<p style="margin:0;font-size:13px;color:#7a5f00;">Si no solicitaste este cambio, contacta de inmediato al equipo de IT.</p></div>'
   + '<div style="background:#f7faff;border-radius:12px;border:1px solid #e2eaf8;margin-bottom:20px;">'
-  + '<div style="padding:12px 20px;background:#eef4ff;border-radius:12px 12px 0 0;font-size:11px;font-weight:900;letter-spacing:2px;color:#0065F3;text-transform:uppercase;">Nuevas credenciales</div>'
+  + '<div style="padding:12px 20px;background:#eef4ff;border-radius:12px 12px 0 0;font-size:11px;font-weight:900;letter-spacing:2px;color:#06a3b6;text-transform:uppercase;">Nuevas credenciales</div>'
   + '<div style="padding:18px 20px;">'
   + '<div style="padding:12px;background:#fff;border-radius:8px;border:1px solid #dde8ff;margin-bottom:10px;">'
   + '<div style="font-size:10px;font-weight:700;color:#8fa6cc;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;">Correo corporativo</div>'
-  + '<div style="font-family:monospace;font-size:14px;font-weight:700;color:#0065F3;">' + emailCorp + '</div></div>'
+  + '<div style="font-family:monospace;font-size:14px;font-weight:700;color:#06a3b6;">' + emailCorp + '</div></div>'
   + '<div style="padding:12px;background:#f0fff4;border-radius:8px;border:1px solid #9ae6b4;">'
   + '<div style="font-size:10px;font-weight:700;color:#276749;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;">Nueva contrasena temporal</div>'
   + '<div style="font-family:monospace;font-size:14px;font-weight:700;color:#22543d;">' + (password || 'Se te asignara una contrasena al iniciar sesion') + '</div></div>'
@@ -933,7 +933,7 @@ function buildEmailReset(nombre, emailCorp, password) {
   + '<div style="background:#eef4ff;border-radius:12px;border:1px solid #c5deff;padding:18px 20px;margin-bottom:20px;">'
   + '<p style="margin:0 0 4px;font-size:13px;font-weight:700;color:#1a202c;">Necesitas ayuda?</p>'
   + '<p style="margin:0 0 10px;font-size:12px;color:#4a5568;">Si no reconoces esta solicitud, contacta al equipo de IT de inmediato.</p>'
-  + '<a href="https://forms.gle/8dkvmbgAFwqVx2Mj9" style="display:inline-block;padding:10px 20px;background:#0065F3;color:#fff;font-size:12px;font-weight:700;text-decoration:none;border-radius:8px;">Contactar soporte IT</a></div>'
+  + '<a href="https://forms.gle/8dkvmbgAFwqVx2Mj9" style="display:inline-block;padding:10px 20px;background:#06a3b6;color:#fff;font-size:12px;font-weight:700;text-decoration:none;border-radius:8px;">Contactar soporte IT</a></div>'
   + '<div style="text-align:center;padding:12px;background:#f7faff;border-radius:10px;border:1px solid #e2eaf8;">'
   + '<p style="margin:0;font-family:monospace;font-size:11px;color:#a0aec0;">Solicitud procesada el ' + fecha + ' (ET)</p></div>'
   + '</td></tr>'
@@ -1449,7 +1449,7 @@ function renderSolicitudes() {
     const isOpen       = isPending || isAuthorized; // estados accionables por IT
     let estadoColor, estadoBg;
     if (isPending)         { estadoColor = 'var(--hero-warning)'; estadoBg = 'rgba(232,163,23,0.1)'; }
-    else if (isAuthorized) { estadoColor = 'var(--hero-primary)'; estadoBg = 'rgba(0,101,243,0.12)'; }
+    else if (isAuthorized) { estadoColor = 'var(--hero-primary)'; estadoBg = 'rgba(6,163,182,0.12)'; }
     else                   { estadoColor = 'var(--hero-success)'; estadoBg = 'rgba(34,160,107,0.1)'; }
 
     const elapsed = getElapsedTime(s.fecha);
@@ -1460,7 +1460,7 @@ function renderSolicitudes() {
     const tipoPersona   = s.tipoPersona === 'empleado' ? 'empleado' : 'agente';
     const tipoLabel     = isBaja ? 'BAJA' : 'ALTA';
     const tipoColor     = isBaja ? 'var(--hero-danger)' : 'var(--hero-primary)';
-    const tipoBg        = isBaja ? 'rgba(214,69,69,0.1)' : 'rgba(0,101,243,0.1)';
+    const tipoBg        = isBaja ? 'rgba(214,69,69,0.1)' : 'rgba(6,163,182,0.1)';
     let cardColor;
     if (isPending)         cardColor = isBaja ? 'var(--hero-danger)' : 'var(--hero-warning)';
     else if (isAuthorized) cardColor = 'var(--hero-primary)';
@@ -1470,7 +1470,7 @@ function renderSolicitudes() {
 
     // Bloque "Autorizada por X el Y" cuando aplica
     const autorizadaHtml = (isAuthorized || s.autorizadaPor)
-      ? '<div style="background:rgba(0,101,243,0.06);border-left:3px solid var(--hero-primary);padding:8px 12px;border-radius:6px;margin:0 0 10px;font-size:12px;color:var(--hero-text-body);">'
+      ? '<div style="background:rgba(6,163,182,0.06);border-left:3px solid var(--hero-primary);padding:8px 12px;border-radius:6px;margin:0 0 10px;font-size:12px;color:var(--hero-text-body);">'
         + '<span style="color:var(--hero-primary);font-weight:600;">✓ Autorizada</span>'
         + (s.autorizadaPor ? ' por <strong>' + s.autorizadaPor + '</strong>' : '')
         + (s.autorizadaFecha
@@ -1587,7 +1587,7 @@ async function rechazarSolicitud(id, solEmail, solNombre, persona, tipo) {
         html: '<div style="font-family:Trebuchet MS,Arial,sans-serif;max-width:600px;background:#f0f4f8;padding:32px 16px;">'
           + '<div style="background:#fff;border-radius:16px;overflow:hidden;">'
           + '<div style="background:linear-gradient(135deg,#06a3b6,#048395);padding:24px 32px;">'
-          + '<img src="https://i.ibb.co/tMRCCW07/Hero-Nuevo-Circulo-1.png" width="48" style="border-radius:50%;display:block;margin:0 auto 12px;"/>'
+          + '<img src="https://i.ibb.co/Gr4mzLv/Nuevo-Logo-Cuadrado-compress.png" width="120" style="display:block;margin:0 auto 12px;"/>'
           + '<h2 style="color:#fff;margin:0;text-align:center;font-size:18px;">Solicitud no procesada</h2></div>'
           + '<div style="padding:24px 32px;">'
           + '<p style="font-size:14px;color:#444;">Hola <strong>' + (solNombre||'') + '</strong>, la solicitud de ' + tipoLabel + ' para <strong>' + persona + '</strong> no pudo ser procesada en este momento.</p>'
@@ -2028,7 +2028,7 @@ function renderUsers(users) {
       '<td style="padding:10px 16px;text-align:center;">' +
         '<div style="display:flex;gap:6px;justify-content:center;">' +
         '<button onclick="copyEmail(\'' + u.email + '\')" style="background:transparent;border:1px solid var(--hero-border-card);color:var(--hero-text-body);padding:4px 8px;border-radius:6px;font-size:11px;cursor:pointer;" title="Copiar email">📋</button>' +
-        '<button onclick="openUserModal(\'' + u.email + '\',\'' + u.nombre + '\')" style="background:rgba(0,101,243,0.1);border:1px solid rgba(0,101,243,0.3);color:var(--hero-primary);padding:4px 8px;border-radius:6px;font-size:11px;cursor:pointer;" title="Gestionar">⚙️</button>' +
+        '<button onclick="openUserModal(\'' + u.email + '\',\'' + u.nombre + '\')" style="background:rgba(6,163,182,0.1);border:1px solid rgba(6,163,182,0.3);color:var(--hero-primary);padding:4px 8px;border-radius:6px;font-size:11px;cursor:pointer;" title="Gestionar">⚙️</button>' +
         '</div>' +
       '</td>' +
     '</tr>';
