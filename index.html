@@ -803,6 +803,9 @@ html { scroll-behavior: smooth; }
     <a class="nav-item" onclick="showPage('crear-usuario')" href="#">
       <span class="nav-icon">➕</span> Crear Usuario
     </a>
+    <a class="nav-item" onclick="showPage('onboarding')" href="#">
+      <span class="nav-icon">✉️</span> Enviar Onboarding
+    </a>
     <a class="nav-item" onclick="showPage('reset')" href="#">
       <span class="nav-icon">🔑</span> Reset de Contraseña
     </a>
@@ -1279,6 +1282,89 @@ html { scroll-behavior: smooth; }
           <div class="log-empty">
             <div class="log-empty-icon">➕</div>
             <div class="log-empty-text">Completa el formulario para crear un usuario</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ ENVIAR ONBOARDING ═══════════════════════════════ -->
+    <div class="page" id="page-onboarding">
+      <div class="section-header">
+        <div class="section-title"><span>//</span> Enviar <span>Onboarding</span></div>
+        <div class="section-desc">Envía (o reenvía) el correo de bienvenida a un empleado o agente sin necesidad de crear la cuenta. La cuenta de Workspace no se toca.</div>
+      </div>
+
+      <div class="panel-grid">
+        <div class="info-box">
+          <div class="info-box-title">Datos del destinatario</div>
+          <div class="form-group">
+            <label class="form-label">Nombre completo</label>
+            <input class="form-input" id="onb-nombre" type="text" placeholder="ej: Luis García" oninput="onbPreview()"/>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Tipo de correo</label>
+            <select class="form-input" id="onb-tipo" onchange="onbPreview()">
+              <option value="empleado">Empleado (onboarding completo)</option>
+              <option value="agente">Agente (acceso básico)</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Correo corporativo</label>
+            <div style="display:flex; align-items:center; gap:0;">
+              <input class="form-input" id="onb-email-user" type="text" placeholder="lgarcia"
+                style="border-radius:8px 0 0 8px; border-right:none;"
+                oninput="onbPreview()"/>
+              <span style="background:var(--hero-bg-page); border:1px solid var(--hero-border-card); border-left:none; padding:9px 12px; border-radius:0 8px 8px 0; font-size:13px; color:var(--hero-text-body); white-space:nowrap;">&#64;heroinsuranceusa.com</span>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Correo personal (destino del mensaje)</label>
+            <input class="form-input" id="onb-email-personal" type="email" placeholder="luis.garcia&#64;gmail.com" oninput="onbPreview()"/>
+          </div>
+
+          <div class="form-group">
+            <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size:13px; color:var(--hero-text-body);">
+              <input type="checkbox" id="onb-incluir-pass" onchange="onbTogglePassword()" style="width:16px; height:16px; cursor:pointer;"/>
+              Incluir contraseña temporal en el correo
+            </label>
+          </div>
+          <div class="form-group" id="onb-pass-group" style="display:none;">
+            <label class="form-label">Contraseña temporal</label>
+            <div style="display:flex; gap:8px;">
+              <input class="form-input" id="onb-password" type="text" placeholder="TemporalHero2026*" style="flex:1" oninput="onbPreview()"/>
+              <button class="btn btn-secondary" onclick="onbGenPassword()" title="Generar contraseña">⚡</button>
+            </div>
+            <p style="font-size:11px; color:var(--hero-text-muted); margin:6px 0 0;">Si la dejas sin marcar, el correo dirá que la contraseña se asignará al iniciar sesión (útil para reenvíos).</p>
+          </div>
+
+          <button class="btn btn-primary" id="btn-onb-enviar" onclick="enviarOnboarding()" style="width:100%; margin-top:8px;">
+            ✉️ Enviar correo de onboarding
+          </button>
+        </div>
+
+        <div style="display:flex; flex-direction:column; gap:16px;">
+          <div class="info-box">
+            <div class="info-box-title">Vista previa</div>
+            <div id="onb-preview" style="font-family:var(--mono); font-size:12px; color:var(--hero-text-muted); line-height:2;">
+              Completa el formulario para ver la vista previa
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="log-console">
+        <div class="log-console-header">
+          <span class="log-console-title">CONSOLA · ENVIAR ONBOARDING</span>
+          <div class="log-console-dots">
+            <div class="log-dot" style="background:#f56565"></div>
+            <div class="log-dot" style="background:#f0b429"></div>
+            <div class="log-dot" style="background:#22d87a"></div>
+          </div>
+        </div>
+        <div class="log-body" id="log-onb">
+          <div class="log-empty">
+            <div class="log-empty-icon">✉️</div>
+            <div class="log-empty-text">Completa el formulario para enviar el correo de onboarding</div>
           </div>
         </div>
       </div>

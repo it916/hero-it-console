@@ -110,7 +110,8 @@ const pageLabels = {
   'solicitudes': 'Solicitudes de Alta',
   'tickets': 'Tickets de Soporte',
   'auditoria': 'Auditoría',
-  'crear-usuario': 'Crear Usuario'
+  'crear-usuario': 'Crear Usuario',
+  'onboarding': 'Enviar Onboarding'
 };
 
 // ── Sidebar móvil ─────────────────────────────────────────────
@@ -1853,6 +1854,94 @@ function resetCrearUsuario() {
   document.getElementById('new-preview').innerHTML = 'Completa el formulario para ver la vista previa';
   document.getElementById('new-status-box').style.display = 'none';
   nuevoUsuario = null;
+}
+
+// ── Página Enviar Onboarding (standalone) ────────────────────
+// Reenvía el correo de bienvenida empleado/agente SIN crear la cuenta.
+// Reusa las plantillas buildEmailEmpleado/buildEmailAgente.
+function onbTogglePassword() {
+  const on = document.getElementById('onb-incluir-pass').checked;
+  document.getElementById('onb-pass-group').style.display = on ? 'block' : 'none';
+  onbPreview();
+}
+
+function onbGenPassword() {
+  const upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+  const lower = 'abcdefghjkmnpqrstuvwxyz';
+  const digits = '23456789';
+  const special = '!@#*$';
+  let pwd = upper[Math.floor(Math.random()*upper.length)]
+    + lower[Math.floor(Math.random()*lower.length)]
+    + digits[Math.floor(Math.random()*digits.length)]
+    + special[Math.floor(Math.random()*special.length)];
+  const all = upper + lower + digits + special;
+  for (let i = 0; i < 8; i++) pwd += all[Math.floor(Math.random()*all.length)];
+  pwd = pwd.split('').sort(() => Math.random()-0.5).join('');
+  document.getElementById('onb-password').value = pwd;
+  navigator.clipboard?.writeText(pwd).catch(()=>{});
+  showToast('Contraseña generada y copiada');
+  onbPreview();
+}
+
+function onbPreview() {
+  const prev = document.getElementById('onb-preview');
+  if (!prev) return;
+  const nombre   = document.getElementById('onb-nombre').value.trim();
+  const tipo     = document.getElementById('onb-tipo').value;
+  const user     = document.getElementById('onb-email-user').value.trim();
+  const personal = document.getElementById('onb-email-personal').value.trim();
+  const incluir  = document.getElementById('onb-incluir-pass').checked;
+  const pass     = document.getElementById('onb-password').value.trim();
+  const corp     = user ? user + atSign + 'heroinsuranceusa.com' : '—';
+  prev.innerHTML =
+      'Tipo: <strong>' + (tipo === 'empleado' ? 'Empleado' : 'Agente') + '</strong><br>'
+    + 'Para: <strong>' + (nombre || '—') + '</strong><br>'
+    + 'Cuenta: ' + corp + '<br>'
+    + 'Enviar a: ' + (personal || '—') + '<br>'
+    + 'Contraseña: ' + (incluir ? (pass || '(genera una con ⚡)') : 'no se incluye en el correo');
+}
+
+async function enviarOnboarding() {
+  const nombre   = document.getElementById('onb-nombre').value.trim();
+  const tipo     = document.getElementById('onb-tipo').value;
+  const user     = document.getElementById('onb-email-user').value.trim();
+  const personal = document.getElementById('onb-email-personal').value.trim();
+  const incluir  = document.getElementById('onb-incluir-pass').checked;
+  const pass     = incluir ? document.getElementById('onb-password').value.trim() : '';
+
+  if (!nombre)   { showToast('Falta el nombre completo'); return; }
+  if (!user)     { showToast('Falta el usuario del correo corporativo'); return; }
+  if (!personal) { showToast('Falta el correo personal (destino)'); return; }
+  if (incluir && !pass) { showToast('Marcaste incluir contraseña pero está vacía'); return; }
+
+  const emailCorp = user + atSign + 'heroinsuranceusa.com';
+  const btn = document.getElementById('btn-onb-enviar');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Enviando...';
+  addLog('Enviando onboarding ' + tipo + ' a ' + personal + '...', 'info', 'log-onb');
+
+  try {
+    const html = tipo === 'empleado'
+      ? buildEmailEmpleado(nombre, emailCorp, pass)
+      : buildEmailAgente(nombre, emailCorp, pass);
+    const asunto = tipo === 'empleado'
+      ? 'Bienvenido(a) a Hero Insurance USA - Informacion de acceso'
+      : 'Bienvenido(a) a Hero Insurance USA - Acceso de Agente';
+
+    await sendViaResend({
+      to: personal, subject: asunto, html,
+      text: 'Bienvenido ' + nombre + '. Correo corporativo: ' + emailCorp,
+    });
+
+    addLog('Onboarding enviado a ' + personal, 'success', 'log-onb');
+    showToast('Correo de onboarding enviado');
+    auditLog('usuario', 'Onboarding (' + tipo + ') enviado a ' + nombre, emailCorp + ' → ' + personal);
+  } catch (err) {
+    addLog('Error enviando onboarding: ' + err.message, 'error', 'log-onb');
+    showToast('Error al enviar: ' + err.message);
+  }
+  btn.disabled = false;
+  btn.innerHTML = '✉️ Enviar correo de onboarding';
 }
 
 // ── Módulo Usuarios Workspace ─────────────────────────────────
