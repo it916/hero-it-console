@@ -2,7 +2,8 @@ const atSign = '@';
 // ── Google OAuth ──────────────────────────────────────────────
 const ALLOWED_EMAIL = 'it' + atSign + 'heroinsuranceusa.com';
 
-function handleGoogleLogin(response) {
+async function handleGoogleLogin(response) {
+  const errEl = document.getElementById('login-error');
   try {
     // Decode JWT payload
     const payload = JSON.parse(atob(response.credential.split('.')[1]));
@@ -11,18 +12,32 @@ function handleGoogleLogin(response) {
     const picture = payload.picture || '';
 
     if (email.toLowerCase() !== ALLOWED_EMAIL.toLowerCase()) {
-      const errEl = document.getElementById('login-error');
       errEl.style.display = 'block';
       errEl.textContent = 'Acceso denegado. Esta consola es exclusiva para ' + ALLOWED_EMAIL + '. Iniciaste sesión como: ' + email;
       return;
     }
 
+    // Intercambia el ID token de Google por un pase de sesión del Worker.
+    const resp = await fetch(WORKER_URL + '/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ credential: response.credential })
+    });
+    const data = await resp.json();
+    if (!resp.ok || !data.token) {
+      errEl.style.display = 'block';
+      errEl.textContent = 'No se pudo iniciar sesión: ' + (data.error || ('error ' + resp.status));
+      return;
+    }
+
     // Store session
+    HERO_TOKEN = data.token;
+    sessionStorage.setItem('hero_token', data.token);
     sessionStorage.setItem('hero_auth', JSON.stringify({ email, nombre, picture, ts: Date.now() }));
     showApp(nombre, picture);
   } catch(e) {
-    document.getElementById('login-error').style.display = 'block';
-    document.getElementById('login-error').textContent = 'Error al verificar identidad: ' + e.message;
+    errEl.style.display = 'block';
+    errEl.textContent = 'Error al verificar identidad: ' + e.message;
   }
 }
 
@@ -47,14 +62,17 @@ function showApp(nombre, picture) {
 function checkExistingSession() {
   try {
     const stored = sessionStorage.getItem('hero_auth');
-    if (!stored) return false;
+    const token  = sessionStorage.getItem('hero_token');
+    if (!stored || !token) return false;
     const { email, nombre, picture, ts } = JSON.parse(stored);
     // Session valid for 8 hours
     if (Date.now() - ts > 8 * 60 * 60 * 1000) {
       sessionStorage.removeItem('hero_auth');
+      sessionStorage.removeItem('hero_token');
       return false;
     }
     if (email.toLowerCase() !== ALLOWED_EMAIL.toLowerCase()) return false;
+    HERO_TOKEN = token;
     showApp(nombre, picture);
     return true;
   } catch(e) { return false; }
@@ -160,6 +178,34 @@ updateClock();
 // ── Worker URL ────────────────────────────────────────────────
 const WORKER_URL = 'https://hero-email-worker.broad-fire-d2d6.workers.dev';
 
+// ── Pase de sesión + fetch autenticado ───────────────────────
+// El pase lo emite el Worker al iniciar sesión (ver handleGoogleLogin) y se
+// reenvía en cada llamada de administración. authFetch lo adjunta solo.
+let HERO_TOKEN = sessionStorage.getItem('hero_token') || null;
+
+async function authFetch(url, opts = {}) {
+  const headers = Object.assign({}, opts.headers || {});
+  if (HERO_TOKEN) headers['Authorization'] = 'Bearer ' + HERO_TOKEN;
+  const resp = await fetch(url, Object.assign({}, opts, { headers }));
+  if (resp.status === 401) handleAuthExpired();
+  return resp;
+}
+
+// Si el Worker rechaza el pase (expiró o es inválido), cerramos sesión y
+// volvemos a la pantalla de login.
+function handleAuthExpired() {
+  if (!HERO_TOKEN) return;
+  HERO_TOKEN = null;
+  sessionStorage.removeItem('hero_token');
+  sessionStorage.removeItem('hero_auth');
+  if (notifInterval) { clearInterval(notifInterval); notifInterval = null; }
+  const login = document.getElementById('login-screen');
+  const app   = document.getElementById('app-content');
+  if (login) login.style.display = 'flex';
+  if (app)   app.style.display = 'none';
+  try { showToast('Tu sesión expiró. Vuelve a iniciar sesión.'); } catch (_) {}
+}
+
 // ── Panel de estado del ecosistema ───────────────────────────
 async function checkSystemStatus() {
   const btn = document.getElementById('btn-check-status');
@@ -178,7 +224,7 @@ async function checkSystemStatus() {
   // 1. Worker ping
   try {
     const t0 = Date.now();
-    const r = await fetch(WORKER_URL + '/audit?limit=1');
+    const r = await authFetch(WORKER_URL + '/audit?limit=1');
     if (r.ok) setStatus('worker', 'ok', 'Online · ' + (Date.now()-t0) + 'ms');
     else setStatus('worker', 'error', 'Error ' + r.status);
   } catch { setStatus('worker', 'error', 'Sin respuesta'); }
@@ -186,7 +232,7 @@ async function checkSystemStatus() {
   // 2. Google Workspace
   try {
     const t0 = Date.now();
-    const r = await fetch(WORKER_URL + '/users');
+    const r = await authFetch(WORKER_URL + '/users');
     const d = await r.json();
     if (r.ok && d.users) setStatus('google', 'ok', d.users.length + ' usuarios · ' + (Date.now()-t0) + 'ms');
     else setStatus('google', 'error', d.error || 'Error');
@@ -195,7 +241,7 @@ async function checkSystemStatus() {
   // 3. Zoho Assist
   try {
     const t0 = Date.now();
-    const r = await fetch(WORKER_URL + '/zoho/devices');
+    const r = await authFetch(WORKER_URL + '/zoho/devices');
     const d = await r.json();
     if (r.ok) setStatus('zoho', 'ok', d.devices.length + ' dispositivos · ' + (Date.now()-t0) + 'ms');
     else setStatus('zoho', 'error', d.error || 'Error');
@@ -204,7 +250,7 @@ async function checkSystemStatus() {
   // 4. Resend — test via Worker general email endpoint availability
   try {
     // We just check that worker responds to POST /  without crashing
-    const r = await fetch(WORKER_URL + '/ticket?limit=1');
+    const r = await authFetch(WORKER_URL + '/ticket?limit=1');
     if (r.ok) setStatus('resend', 'ok', 'Activo vía Worker');
     else setStatus('resend', 'error', 'Error ' + r.status);
   } catch { setStatus('resend', 'error', 'Sin respuesta'); }
@@ -216,7 +262,7 @@ async function checkSystemStatus() {
 async function loadDashboardCounters() {
   try {
     // Tickets abiertos
-    const tResp = await fetch(WORKER_URL + '/ticket');
+    const tResp = await authFetch(WORKER_URL + '/ticket');
     if (tResp.ok) {
       const tData = await tResp.json();
       const open = (tData.tickets || []).filter(t => t.estado === 'abierto').length;
@@ -226,7 +272,7 @@ async function loadDashboardCounters() {
   } catch {}
   try {
     // Solicitudes pendientes
-    const sResp = await fetch(WORKER_URL + '/alta-agente');
+    const sResp = await authFetch(WORKER_URL + '/alta-agente');
     if (sResp.ok) {
       const sData = await sResp.json();
       const pending = (sData.solicitudes || []).filter(s => s.estado === 'pendiente').length;
@@ -236,7 +282,7 @@ async function loadDashboardCounters() {
   } catch {}
   try {
     // Dispositivos
-    const dResp = await fetch(WORKER_URL + '/device');
+    const dResp = await authFetch(WORKER_URL + '/device');
     if (dResp.ok) {
       const dData = await dResp.json();
       const el = document.getElementById('stat-devices-count');
@@ -268,7 +314,7 @@ async function runGlobalSearch() {
   results.innerHTML = '<div style="text-align:center;padding:20px;"><span class="spinner"></span></div>';
   const found = [];
   try {
-    const r = await fetch(WORKER_URL + '/ticket');
+    const r = await authFetch(WORKER_URL + '/ticket');
     if (r.ok) {
       const d = await r.json();
       (d.tickets || []).forEach(t => {
@@ -278,7 +324,7 @@ async function runGlobalSearch() {
     }
   } catch {}
   try {
-    const r = await fetch(WORKER_URL + '/alta-agente');
+    const r = await authFetch(WORKER_URL + '/alta-agente');
     if (r.ok) {
       const d = await r.json();
       (d.solicitudes || []).forEach(s => {
@@ -288,7 +334,7 @@ async function runGlobalSearch() {
     }
   } catch {}
   try {
-    const r = await fetch(WORKER_URL + '/device');
+    const r = await authFetch(WORKER_URL + '/device');
     if (r.ok) {
       const d = await r.json();
       (d.devices || []).forEach(dev => {
@@ -445,8 +491,8 @@ function updateTabBadge(total) {
 async function pollForUpdates() {
   try {
     const [tResp, sResp] = await Promise.all([
-      fetch(WORKER_URL + '/ticket'),
-      fetch(WORKER_URL + '/alta-agente')
+      authFetch(WORKER_URL + '/ticket'),
+      authFetch(WORKER_URL + '/alta-agente')
     ]);
     const tData = tResp.ok ? await tResp.json() : { tickets: [] };
     const sData = sResp.ok ? await sResp.json() : { solicitudes: [] };
@@ -499,7 +545,7 @@ function startPolling() {
 
 async function auditLog(tipo, descripcion, detalle = null) {
   try {
-    await fetch(WORKER_URL + '/audit', {
+    await authFetch(WORKER_URL + '/audit', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ tipo, descripcion, detalle, usuario: 'Fernando Romero' })
@@ -507,7 +553,7 @@ async function auditLog(tipo, descripcion, detalle = null) {
   } catch(e) { console.warn('auditLog error:', e.message); }
 }
 async function sendViaResend({ to, subject, html, text }) {
-  const resp = await fetch(WORKER_URL, {
+  const resp = await authFetch(WORKER_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ to, subject, html, text })
@@ -663,7 +709,7 @@ async function executeReset() {
 
   try {
     // 1. Reset en Workspace
-    const resp = await fetch(WORKER_URL + '/user-action', {
+    const resp = await authFetch(WORKER_URL + '/user-action', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email: rstSelectedUser.email, action: 'reset', newPassword: password })
@@ -702,7 +748,7 @@ function saveConfig() {
 async function testConexion() {
   addLog('Enviando email de prueba via Worker...', 'info');
   try {
-    const resp = await fetch(WORKER_URL, {
+    const resp = await authFetch(WORKER_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -929,7 +975,7 @@ async function userAction(action) {
   addLog('Ejecutando ' + labels[action] + ' para ' + email + '...', 'info');
 
   try {
-    const resp = await fetch(WORKER_URL + '/user-action', {
+    const resp = await authFetch(WORKER_URL + '/user-action', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, action, newPassword })
@@ -978,7 +1024,7 @@ async function confirmDeleteUser() {
 
   addLog('Eliminando usuario ' + email + '...', 'warn');
   try {
-    const resp = await fetch(WORKER_URL + '/user-action', {
+    const resp = await authFetch(WORKER_URL + '/user-action', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, action: 'delete' })
@@ -1139,7 +1185,7 @@ async function loadTickets() {
   const btn = document.getElementById('btn-load-tickets');
   if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>'; }
   try {
-    const resp = await fetch(WORKER_URL + '/ticket');
+    const resp = await authFetch(WORKER_URL + '/ticket');
     const data = await resp.json();
     if (!resp.ok) throw new Error(data.error || 'Error');
     allTickets = data.tickets || [];
@@ -1282,7 +1328,7 @@ async function guardarTicket() {
     const estado    = document.getElementById('modal-estado').value;
     const prioridad = document.getElementById('modal-prioridad').value;
     const respuesta = document.getElementById('modal-respuesta').value.trim();
-    const resp = await fetch(WORKER_URL + '/ticket/update', {
+    const resp = await authFetch(WORKER_URL + '/ticket/update', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id: currentTicketId, estado, prioridad, respuesta: respuesta || null })
@@ -1319,7 +1365,7 @@ async function loadSolicitudes() {
   const btn = document.getElementById('btn-load-sol');
   if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>'; }
   try {
-    const resp = await fetch(WORKER_URL + '/alta-agente');
+    const resp = await authFetch(WORKER_URL + '/alta-agente');
     const data = await resp.json();
     if (!resp.ok) throw new Error(data.error || 'Error');
     allSolicitudes = data.solicitudes || [];
@@ -1495,7 +1541,7 @@ function renderSolicitudes() {
 
 async function resolverSolicitud(id, estado) {
   try {
-    await fetch(WORKER_URL + '/alta-agente/resolver', {
+    await authFetch(WORKER_URL + '/alta-agente/resolver', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id, estado })
     });
@@ -1509,7 +1555,7 @@ async function rechazarSolicitud(id, solEmail, solNombre, persona, tipo) {
   const tipoLabel = tipo === 'baja' ? 'baja' : 'alta';
   if (!confirm('¿Rechazar la solicitud de ' + tipoLabel + ' para ' + persona + '?\n\nSe notificará al solicitante.')) return;
   try {
-    await fetch(WORKER_URL + '/alta-agente/resolver', {
+    await authFetch(WORKER_URL + '/alta-agente/resolver', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id, estado: 'rechazada' })
     });
@@ -1547,13 +1593,13 @@ async function suspenderDesdeSolicitud(id, correoEliminar, persona) {
     + '(la eliminación definitiva es un paso manual posterior).\n\n'
     + 'La solicitud quedará marcada como procesada.')) return;
   try {
-    const resp = await fetch(WORKER_URL + '/user-action', {
+    const resp = await authFetch(WORKER_URL + '/user-action', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email: correoEliminar, action: 'suspend' })
     });
     const data = await resp.json();
     if (!resp.ok) throw new Error(data.error || 'Error al suspender');
-    await fetch(WORKER_URL + '/alta-agente/resolver', {
+    await authFetch(WORKER_URL + '/alta-agente/resolver', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id, estado: 'procesada' })
     });
@@ -1631,7 +1677,7 @@ async function crearUsuarioDesdeModal() {
 
   try {
     // Create user in Workspace
-    const resp = await fetch(WORKER_URL + '/create-user', {
+    const resp = await authFetch(WORKER_URL + '/create-user', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         nombre, apellido, email, password,
@@ -1716,7 +1762,7 @@ async function crearUsuario() {
   addLog('Creando usuario ' + emailCorp + ' en Workspace...', 'info', 'log-new');
 
   try {
-    const resp = await fetch(WORKER_URL + '/create-user', {
+    const resp = await authFetch(WORKER_URL + '/create-user', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -1820,7 +1866,7 @@ async function loadUsers() {
   addLog('Consultando usuarios de Google Workspace...', 'info');
 
   try {
-    const resp = await fetch(WORKER_URL + '/users');
+    const resp = await authFetch(WORKER_URL + '/users');
     const data = await resp.json();
 
     if (!resp.ok) throw new Error(data.error || 'Error del Worker');
@@ -1933,7 +1979,7 @@ const INT_TIPO_COLOR = {
 
 async function loadDevices() {
   try {
-    const resp = await fetch(WORKER_URL + '/device');
+    const resp = await authFetch(WORKER_URL + '/device');
     const data = await resp.json();
     if (!resp.ok) throw new Error(data.error || 'Error');
     allDevices = data.devices || [];
@@ -2069,7 +2115,7 @@ async function registrarIntervencion() {
   btn.innerHTML = '<span class="spinner"></span> Guardando...';
 
   try {
-    const resp = await fetch(WORKER_URL + '/device/intervencion', {
+    const resp = await authFetch(WORKER_URL + '/device/intervencion', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id: currentDeviceId, tipo, descripcion, notas })
@@ -2142,7 +2188,7 @@ async function saveDevice() {
       ? { id: editingDeviceId, nombre, tipo, usuario, so, gcpw, apps, estado }
       : { nombre, tipo, usuario, so, gcpw, apps, estado };
 
-    const resp = await fetch(WORKER_URL + endpoint, {
+    const resp = await authFetch(WORKER_URL + endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body)
@@ -2206,7 +2252,7 @@ async function loadZohoDevices() {
   const grid = document.getElementById('zoho-grid');
   grid.innerHTML = '<div class="info-box" style="text-align:center;padding:40px;grid-column:1/-1;"><span class="spinner"></span></div>';
   try {
-    const resp = await fetch(WORKER_URL + '/zoho/devices');
+    const resp = await authFetch(WORKER_URL + '/zoho/devices');
     const data = await resp.json();
     if (!resp.ok) throw new Error(data.error || 'Error');
     allZohoDevices = Array.isArray(data.devices) ? data.devices : [];
@@ -2403,7 +2449,7 @@ async function executeOffboarding() {
 
   // Step 1: Auto-suspend Workspace account
   try {
-    const r = await fetch(WORKER_URL + '/user-action', {
+    const r = await authFetch(WORKER_URL + '/user-action', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email: obSelectedUser.email, action: 'suspend' })
     });
@@ -2430,7 +2476,7 @@ let allLicencias = [];
 
 async function loadLicencias() {
   try {
-    const r = await fetch(WORKER_URL + '/licencia');
+    const r = await authFetch(WORKER_URL + '/licencia');
     const d = await r.json();
     allLicencias = d.licencias || [];
     renderLicencias();
@@ -2607,7 +2653,7 @@ async function saveLicencia() {
   const btn = document.getElementById('btn-lic-save');
   btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>';
   try {
-    const r = await fetch(WORKER_URL + '/licencia', {
+    const r = await authFetch(WORKER_URL + '/licencia', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         id: editingLicId || undefined,
@@ -2632,7 +2678,7 @@ async function saveLicencia() {
 async function deleteLicencia(id, nombre) {
   if (!confirm('¿Eliminar la licencia de ' + nombre + '?')) return;
   try {
-    await fetch(WORKER_URL + '/licencia/delete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) });
+    await authFetch(WORKER_URL + '/licencia/delete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) });
     showToast('Licencia eliminada');
     auditLog('licencia', 'Licencia eliminada: ' + nombre);
     loadLicencias();
@@ -2691,7 +2737,7 @@ async function generateMonthlyReport() {
 
   try {
     // Tickets del mes
-    const tResp = await fetch(WORKER_URL + '/ticket');
+    const tResp = await authFetch(WORKER_URL + '/ticket');
     if (tResp.ok) {
       const tData = await tResp.json();
       const tickets = (tData.tickets || []).filter(t => {
@@ -2711,7 +2757,7 @@ async function generateMonthlyReport() {
 
   try {
     // Auditoría del mes
-    const aResp = await fetch(WORKER_URL + '/audit?limit=500');
+    const aResp = await authFetch(WORKER_URL + '/audit?limit=500');
     if (aResp.ok) {
       const aData = await aResp.json();
       const entradas = (aData.entradas || []).filter(e => {
@@ -2730,7 +2776,7 @@ async function generateMonthlyReport() {
 
   try {
     // Dispositivos con intervenciones del mes
-    const dResp = await fetch(WORKER_URL + '/device');
+    const dResp = await authFetch(WORKER_URL + '/device');
     if (dResp.ok) {
       const dData = await dResp.json();
       const intervencionesMes = [];

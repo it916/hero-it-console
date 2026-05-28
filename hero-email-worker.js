@@ -19,12 +19,43 @@ export default {
     const cors = {
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     };
     if (request.method === 'OPTIONS') return new Response(null, { headers: cors });
 
     const url = new URL(request.url);
     const path = url.pathname;
+
+    // ── POST /auth/login — intercambia el ID token de Google por un pase de sesión ──
+    // El Console manda el `credential` (ID token JWT) que Google le dio al iniciar
+    // sesión. Lo verificamos contra Google y, si el email es el autorizado, emitimos
+    // un pase firmado con HMAC (válido 8 h) que el Console reenvía en cada llamada.
+    if (request.method === 'POST' && path === '/auth/login') {
+      try {
+        const { credential } = await request.json();
+        if (!credential) return json({ error: 'Falta credential' }, 400, cors);
+        const claims = await verifyGoogleIdToken(credential);
+        const email = (claims.email || '').toLowerCase();
+        if (email !== ALLOWED_EMAIL) return json({ error: 'Acceso denegado' }, 403, cors);
+        const token = await mintSession(env, email);
+        return json({ token, email, nombre: claims.name || '' }, 200, cors);
+      } catch (err) {
+        return json({ error: 'No se pudo verificar la sesión: ' + err.message }, 401, cors);
+      }
+    }
+
+    // ── Gate de autorización ──────────────────────────────────
+    // Todo es privado salvo las rutas públicas (formularios y links de email).
+    // Las privadas exigen un pase de sesión válido (Authorization: Bearer …).
+    const isPublicRoute =
+         (request.method === 'POST' && path === '/ticket')
+      || (request.method === 'POST' && path === '/solicitud-cuenta')
+      || (request.method === 'POST' && path === '/alta-agente')
+      || (request.method === 'GET'  && path === '/solicitud-cuenta/autorizar');
+    if (!isPublicRoute) {
+      const authedEmail = await requireAuth(request, env);
+      if (!authedEmail) return json({ error: 'No autorizado' }, 401, cors);
+    }
 
     // ── GET /zoho/debug — ver respuesta raw de Zoho ───────────
     if (request.method === 'GET' && path === '/zoho/debug') {
@@ -930,6 +961,72 @@ async function verifyAuth(env, id, email, sig) {
   let diff = 0;
   for (let i = 0; i < expected.length; i++) diff |= expected.charCodeAt(i) ^ sig.charCodeAt(i);
   return diff === 0;
+}
+
+// ── Autenticación del Console (pase de sesión) ───────────────
+// Solo este email puede usar la consola de administración.
+const ALLOWED_EMAIL   = 'it@heroinsuranceusa.com';
+// Client ID público de Google OAuth (el mismo que usa index.html).
+const GOOGLE_CLIENT_ID = '264842910230-gcae4mfdma2sbh4gfrtlickfndrnt5as.apps.googleusercontent.com';
+const SESSION_TTL_SEC  = 8 * 60 * 60; // 8 horas
+
+// Verifica el ID token de Google usando el endpoint oficial tokeninfo.
+// Devuelve los claims (email, name, …) o lanza error si el token no es válido.
+async function verifyGoogleIdToken(credential) {
+  const resp = await fetch('https://oauth2.googleapis.com/tokeninfo?id_token=' + encodeURIComponent(credential));
+  if (!resp.ok) throw new Error('Token rechazado por Google');
+  const claims = await resp.json();
+  if (claims.aud !== GOOGLE_CLIENT_ID) throw new Error('Audiencia inválida');
+  if (claims.email_verified !== 'true' && claims.email_verified !== true) throw new Error('Email no verificado');
+  return claims;
+}
+
+function b64urlEncode(str) {
+  return btoa(unescape(encodeURIComponent(str)))
+    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+function b64urlDecode(b64) {
+  const pad = b64.length % 4 === 0 ? '' : '='.repeat(4 - (b64.length % 4));
+  return decodeURIComponent(escape(atob(b64.replace(/-/g, '+').replace(/_/g, '/') + pad)));
+}
+
+// Emite un pase de sesión firmado: payloadBase64.firmaHMAC
+async function mintSession(env, email) {
+  if (!env.AUTH_HMAC_SECRET) throw new Error('Falta AUTH_HMAC_SECRET');
+  const payload = b64urlEncode(JSON.stringify({
+    email, exp: Math.floor(Date.now() / 1000) + SESSION_TTL_SEC,
+  }));
+  const sig = await hmacSign(env.AUTH_HMAC_SECRET, 'session.' + payload);
+  return payload + '.' + sig;
+}
+
+// Valida un pase de sesión. Devuelve el email si es válido y no expiró, o null.
+async function verifySession(env, token) {
+  if (!token || !env.AUTH_HMAC_SECRET) return null;
+  const dot = token.lastIndexOf('.');
+  if (dot < 0) return null;
+  const payloadB64 = token.slice(0, dot);
+  const sig        = token.slice(dot + 1);
+  const expected   = await hmacSign(env.AUTH_HMAC_SECRET, 'session.' + payloadB64);
+  if (expected.length !== sig.length) return null;
+  let diff = 0;
+  for (let i = 0; i < expected.length; i++) diff |= expected.charCodeAt(i) ^ sig.charCodeAt(i);
+  if (diff !== 0) return null;
+  let data;
+  try { data = JSON.parse(b64urlDecode(payloadB64)); } catch { return null; }
+  if (!data.exp || data.exp < Math.floor(Date.now() / 1000)) return null;
+  if ((data.email || '').toLowerCase() !== ALLOWED_EMAIL) return null;
+  return data.email;
+}
+
+// Lee el pase del header Authorization y lo valida.
+async function requireAuth(request, env) {
+  try {
+    const h = request.headers.get('Authorization') || '';
+    const token = h.startsWith('Bearer ') ? h.slice(7).trim() : '';
+    if (!token) return null;
+    return await verifySession(env, token);
+  } catch { return null; }
 }
 
 function htmlResponse(html, status = 200, cors = {}) {
