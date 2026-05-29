@@ -530,7 +530,6 @@ export default {
             body: JSON.stringify({
               from: 'Fernando Romero <it@heroinsuranceusa.com>',
               to:   [auth.email],
-              cc:   ['it@heroinsuranceusa.com'],
               subject: subject,
               html:    html,
               text:    textoPlano + '\n\nAutorizar: ' + (link || '(usa la Hero IT Console)'),
