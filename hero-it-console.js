@@ -791,32 +791,107 @@ async function testConexion() {
 }
 
 // ── Email templates ───────────────────────────────────────────
-function buildEmailEmpleado(nombre, email, password) {
-  return buildOnboardingEmail(nombre, email, password, 'empleado');
+function buildEmailEmpleado(nombre, email, password, lang) {
+  return buildOnboardingEmail(nombre, email, password, 'empleado', lang);
 }
 
-function buildEmailAgente(nombre, email, password) {
-  return buildOnboardingEmail(nombre, email, password, 'agente');
+function buildEmailAgente(nombre, email, password, lang) {
+  return buildOnboardingEmail(nombre, email, password, 'agente', lang);
 }
 
-function buildOnboardingEmail(nombre, email, password, tipo) {
+// Asunto y texto plano del correo de onboarding según idioma (es | en).
+function onboardingSubject(tipo, lang) {
+  var en = (lang === 'en');
+  if (tipo === 'empleado')
+    return en ? 'Welcome to Hero Insurance USA - Account access information'
+              : 'Bienvenido(a) a Hero Insurance USA - Informacion de acceso';
+  return en ? 'Welcome to Hero Insurance USA - Agent access'
+            : 'Bienvenido(a) a Hero Insurance USA - Acceso de Agente';
+}
+
+function onboardingText(nombre, email, lang) {
+  return (lang === 'en')
+    ? 'Welcome ' + nombre + '. Email: ' + email
+    : 'Bienvenido ' + nombre + '. Correo: ' + email;
+}
+
+function buildOnboardingEmail(nombre, email, password, tipo, lang) {
+  lang = (lang === 'en') ? 'en' : 'es';
   var P    = '#06a3b6';
   var P2   = '#048395';
   var LOGO = 'https://i.ibb.co/PvS31B1z/shield-low.png';
   var SOPORTE_URL = 'https://it916.github.io/hero-it-console/soporte.html';
 
-  var pasos = [
-    ['1', '&#128187;',  'Abre Google Chrome',
-     'Te recomendamos usar Google Chrome como navegador principal. Si no lo tienes instalado, desc&aacute;rgalo desde <a href="https://www.google.com/chrome" style="color:' + P + ';font-weight:700;">google.com/chrome</a>.'],
-    ['2', '&#128274;', 'Inicia sesi&oacute;n con tus credenciales',
-     'Ve a <a href="https://mail.google.com" style="color:' + P + ';font-weight:700;">mail.google.com</a> e ingresa tu correo corporativo y la contrase&ntilde;a temporal. Google te pedir&aacute; que la cambies de inmediato &mdash; elige una contrase&ntilde;a segura que no hayas usado antes.'],
-    ['3', '&#128241;', 'Activa la verificaci&oacute;n en dos pasos',
-     'Es obligatorio proteger tu cuenta corporativa. Ve a <a href="https://myaccount.google.com/security" style="color:' + P + ';font-weight:700;">myaccount.google.com</a> &rarr; Seguridad &rarr; Verificaci&oacute;n en dos pasos y sigue los pasos.'],
-    ['4', '&#128100;', 'Completa tu perfil de Google',
-     'Agrega tu foto de perfil en <a href="https://myaccount.google.com" style="color:' + P + ';font-weight:700;">myaccount.google.com</a> para que el equipo pueda identificarte f&aacute;cilmente en las comunicaciones.'],
-  ];
+  // Textos del correo en español (es) e inglés (en). Cada idioma incluye sus 4 pasos de inicio de sesión.
+  var STR = {
+    es: {
+      htmlLang:    'es',
+      role:        (tipo === 'empleado' ? 'Empleado' : 'Agente'),
+      welcome:     '&iexcl;Bienvenido al equipo, ' + nombre + '!',
+      welcomeSub:  'Tu cuenta corporativa ha sido creada y est&aacute; lista para usar.',
+      credsTitle:  '&#128274; Tus credenciales de acceso',
+      corpEmail:   'Correo corporativo',
+      tempPass:    'Contrase&ntilde;a temporal',
+      passFallback:'(se asignar&aacute; al iniciar sesi&oacute;n)',
+      passNote:    'Deber&aacute;s cambiarla al iniciar sesi&oacute;n por primera vez.',
+      stepsTitle:  '&#128204; C&oacute;mo iniciar sesi&oacute;n',
+      secTitle:    '&#128274; Pol&iacute;ticas de seguridad',
+      secItems: [
+        'Tu cuenta es personal e intransferible',
+        'Nunca compartas tu contrase&ntilde;a con nadie',
+        'La informaci&oacute;n de clientes es estrictamente confidencial',
+        'Reporta cualquier actividad sospechosa a IT de inmediato'
+      ],
+      supportQ:    '&iquest;Tienes alg&uacute;n problema para acceder?',
+      supportSub:  'El equipo de IT est&aacute; disponible para ayudarte.',
+      supportBtn:  'Abrir ticket de soporte &rarr;',
+      steps: [
+        ['1', '&#128187;', 'Abre Google Chrome',
+         'Te recomendamos usar Google Chrome como navegador principal. Si no lo tienes instalado, desc&aacute;rgalo desde <a href="https://www.google.com/chrome" style="color:' + P + ';font-weight:700;">google.com/chrome</a>.'],
+        ['2', '&#128274;', 'Inicia sesi&oacute;n con tus credenciales',
+         'Ve a <a href="https://mail.google.com" style="color:' + P + ';font-weight:700;">mail.google.com</a> e ingresa tu correo corporativo y la contrase&ntilde;a temporal. Google te pedir&aacute; que la cambies de inmediato &mdash; elige una contrase&ntilde;a segura que no hayas usado antes.'],
+        ['3', '&#128241;', 'Activa la verificaci&oacute;n en dos pasos',
+         'Es obligatorio proteger tu cuenta corporativa. Ve a <a href="https://myaccount.google.com/security" style="color:' + P + ';font-weight:700;">myaccount.google.com</a> &rarr; Seguridad &rarr; Verificaci&oacute;n en dos pasos y sigue los pasos.'],
+        ['4', '&#128100;', 'Completa tu perfil de Google',
+         'Agrega tu foto de perfil en <a href="https://myaccount.google.com" style="color:' + P + ';font-weight:700;">myaccount.google.com</a> para que el equipo pueda identificarte f&aacute;cilmente en las comunicaciones.']
+      ]
+    },
+    en: {
+      htmlLang:    'en',
+      role:        (tipo === 'empleado' ? 'Employee' : 'Agent'),
+      welcome:     'Welcome to the team, ' + nombre + '!',
+      welcomeSub:  'Your corporate account has been created and is ready to use.',
+      credsTitle:  '&#128274; Your access credentials',
+      corpEmail:   'Corporate email',
+      tempPass:    'Temporary password',
+      passFallback:'(will be set at first sign-in)',
+      passNote:    'You will be asked to change it the first time you sign in.',
+      stepsTitle:  '&#128204; How to sign in',
+      secTitle:    '&#128274; Security policies',
+      secItems: [
+        'Your account is personal and non-transferable',
+        'Never share your password with anyone',
+        'Client information is strictly confidential',
+        'Report any suspicious activity to IT immediately'
+      ],
+      supportQ:    'Having trouble signing in?',
+      supportSub:  'The IT team is here to help.',
+      supportBtn:  'Open a support ticket &rarr;',
+      steps: [
+        ['1', '&#128187;', 'Open Google Chrome',
+         'We recommend using Google Chrome as your main browser. If you do not have it installed, download it from <a href="https://www.google.com/chrome" style="color:' + P + ';font-weight:700;">google.com/chrome</a>.'],
+        ['2', '&#128274;', 'Sign in with your credentials',
+         'Go to <a href="https://mail.google.com" style="color:' + P + ';font-weight:700;">mail.google.com</a> and enter your corporate email and the temporary password. Google will ask you to change it right away &mdash; choose a strong password you have not used before.'],
+        ['3', '&#128241;', 'Turn on 2-step verification',
+         'Protecting your corporate account is mandatory. Go to <a href="https://myaccount.google.com/security" style="color:' + P + ';font-weight:700;">myaccount.google.com</a> &rarr; Security &rarr; 2-Step Verification and follow the steps.'],
+        ['4', '&#128100;', 'Complete your Google profile',
+         'Add your profile photo at <a href="https://myaccount.google.com" style="color:' + P + ';font-weight:700;">myaccount.google.com</a> so the team can easily identify you in communications.']
+      ]
+    }
+  };
+  var t = STR[lang];
 
-  var pasosHtml = pasos.map(function(p) {
+  var pasosHtml = t.steps.map(function(p) {
     return '<table cellspacing="0" cellpadding="0" border="0" width="100%" style="margin-bottom:14px;">'
       + '<tr valign="top">'
       + '<td width="44" style="padding-right:12px;padding-top:2px;">'
@@ -830,7 +905,7 @@ function buildOnboardingEmail(nombre, email, password, tipo) {
       + '</table>';
   }).join('');
 
-  return '<!DOCTYPE html><html><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/></head>'
+  return '<!DOCTYPE html><html lang="' + t.htmlLang + '"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/></head>'
     + '<body style="margin:0;padding:0;background:#f0f4f8;font-family:Trebuchet MS,Arial,sans-serif;">'
     + '<table cellspacing="0" cellpadding="0" border="0" width="100%" style="background:#f0f4f8;"><tr><td style="padding:32px 16px;">'
     + '<table cellspacing="0" cellpadding="0" border="0" width="600" align="center" style="background:#fff;border-radius:20px;overflow:hidden;box-shadow:0 8px 32px rgba(6,163,182,0.12);">'
@@ -844,9 +919,9 @@ function buildOnboardingEmail(nombre, email, password, tipo) {
     + '<img src="' + LOGO + '" width="64" height="64" style="width:64px;height:64px;display:block;border-radius:50%;border:3px solid rgba(255,255,255,0.4);box-shadow:0 4px 20px rgba(0,0,0,0.2);"/>'
     + '</td>'
     + '<td valign="middle">'
-    + '<div style="font-family:Trebuchet MS,Arial,sans-serif;font-size:10px;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:rgba(255,255,255,0.7);margin-bottom:6px;">Hero Insurance USA &nbsp;&bull;&nbsp; ' + (tipo === 'empleado' ? 'Empleado' : 'Agente') + '</div>'
-    + '<h1 style="margin:0 0 5px;font-family:Trebuchet MS,Arial,sans-serif;font-size:24px;font-weight:700;color:#fff;line-height:1.2;">&iexcl;Bienvenido al equipo, ' + nombre + '!</h1>'
-    + '<p style="margin:0;font-family:Trebuchet MS,Arial,sans-serif;font-size:13px;color:rgba(255,255,255,0.8);">Tu cuenta corporativa ha sido creada y est&aacute; lista para usar.</p>'
+    + '<div style="font-family:Trebuchet MS,Arial,sans-serif;font-size:10px;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:rgba(255,255,255,0.7);margin-bottom:6px;">Hero Insurance USA &nbsp;&bull;&nbsp; ' + t.role + '</div>'
+    + '<h1 style="margin:0 0 5px;font-family:Trebuchet MS,Arial,sans-serif;font-size:24px;font-weight:700;color:#fff;line-height:1.2;">' + t.welcome + '</h1>'
+    + '<p style="margin:0;font-family:Trebuchet MS,Arial,sans-serif;font-size:13px;color:rgba(255,255,255,0.8);">' + t.welcomeSub + '</p>'
     + '</td>'
     + '</tr></table>'
     + '</td></tr></table>'
@@ -857,15 +932,15 @@ function buildOnboardingEmail(nombre, email, password, tipo) {
 
     // Credentials
     + '<div style="background:linear-gradient(135deg,#f0f8fa,#e8f4f6);border-radius:14px;border:1px solid #c8e8ec;padding:20px;margin-bottom:24px;">'
-    + '<p style="margin:0 0 14px;font-family:Trebuchet MS,Arial,sans-serif;font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:' + P + ';">&#128274; Tus credenciales de acceso</p>'
+    + '<p style="margin:0 0 14px;font-family:Trebuchet MS,Arial,sans-serif;font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:' + P + ';">' + t.credsTitle + '</p>'
     + '<div style="background:#fff;border-radius:8px;border:1px solid #d8e1ea;padding:12px 16px;margin-bottom:10px;">'
-    + '<p style="margin:0 0 3px;font-family:Trebuchet MS,Arial,sans-serif;font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#7a8494;">Correo corporativo</p>'
+    + '<p style="margin:0 0 3px;font-family:Trebuchet MS,Arial,sans-serif;font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#7a8494;">' + t.corpEmail + '</p>'
     + '<p style="margin:0;font-family:Courier New,monospace;font-size:14px;font-weight:700;color:' + P + ';">' + email + '</p>'
     + '</div>'
     + '<div style="background:#fffbf0;border-radius:8px;border:1px solid #f0d080;padding:12px 16px;">'
-    + '<p style="margin:0 0 3px;font-family:Trebuchet MS,Arial,sans-serif;font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#b08a00;">Contrase&ntilde;a temporal</p>'
-    + '<p style="margin:0;font-family:Courier New,monospace;font-size:16px;font-weight:700;color:#7a5f00;letter-spacing:2px;">' + (password || '(se asignar&aacute; al iniciar sesi&oacute;n)') + '</p>'
-    + '<p style="margin:6px 0 0;font-family:Trebuchet MS,Arial,sans-serif;font-size:11px;color:#b08a00;">Deber&aacute;s cambiarla al iniciar sesi&oacute;n por primera vez.</p>'
+    + '<p style="margin:0 0 3px;font-family:Trebuchet MS,Arial,sans-serif;font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#b08a00;">' + t.tempPass + '</p>'
+    + '<p style="margin:0;font-family:Courier New,monospace;font-size:16px;font-weight:700;color:#7a5f00;letter-spacing:2px;">' + (password || t.passFallback) + '</p>'
+    + '<p style="margin:6px 0 0;font-family:Trebuchet MS,Arial,sans-serif;font-size:11px;color:#b08a00;">' + t.passNote + '</p>'
     + '</div></div>'
 
     // Pasos de inicio de sesión + políticas: solo para empleados.
@@ -873,25 +948,22 @@ function buildOnboardingEmail(nombre, email, password, tipo) {
     + (tipo === 'agente' ? '' : (
         // Steps
         '<div style="margin-bottom:24px;">'
-      + '<p style="margin:0 0 16px;font-family:Trebuchet MS,Arial,sans-serif;font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:' + P + ';">&#128204; C&oacute;mo iniciar sesi&oacute;n</p>'
+      + '<p style="margin:0 0 16px;font-family:Trebuchet MS,Arial,sans-serif;font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:' + P + ';">' + t.stepsTitle + '</p>'
       + pasosHtml
       + '</div>'
         // Security
       + '<div style="background:#fff5f5;border-radius:10px;border:1px solid #ffd4d4;padding:16px 20px;margin-bottom:24px;">'
-      + '<p style="margin:0 0 8px;font-family:Trebuchet MS,Arial,sans-serif;font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#c0392b;">&#128274; Pol&iacute;ticas de seguridad</p>'
+      + '<p style="margin:0 0 8px;font-family:Trebuchet MS,Arial,sans-serif;font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#c0392b;">' + t.secTitle + '</p>'
       + '<ul style="margin:0;padding:0 0 0 16px;font-family:Trebuchet MS,Arial,sans-serif;font-size:13px;color:#4a5568;line-height:1.9;">'
-      + '<li>Tu cuenta es personal e intransferible</li>'
-      + '<li>Nunca compartas tu contrase&ntilde;a con nadie</li>'
-      + '<li>La informaci&oacute;n de clientes es estrictamente confidencial</li>'
-      + '<li>Reporta cualquier actividad sospechosa a IT de inmediato</li>'
+      + t.secItems.map(function(s){ return '<li>' + s + '</li>'; }).join('')
       + '</ul></div>'
       ))
 
     // Support
     + '<div style="background:linear-gradient(135deg,#f0f8fa,#e8f4f6);border-radius:10px;border:1px solid #c8e8ec;padding:18px 20px;text-align:center;">'
-    + '<p style="margin:0 0 4px;font-family:Trebuchet MS,Arial,sans-serif;font-size:14px;font-weight:700;color:#1a1a1a;">&iquest;Tienes alg&uacute;n problema para acceder?</p>'
-    + '<p style="margin:0 0 14px;font-family:Trebuchet MS,Arial,sans-serif;font-size:12px;color:#777;">El equipo de IT est&aacute; disponible para ayudarte.</p>'
-    + '<a href="' + SOPORTE_URL + '" style="display:inline-block;padding:10px 24px;background:' + P + ';color:#fff;font-family:Trebuchet MS,Arial,sans-serif;font-size:13px;font-weight:700;text-decoration:none;border-radius:8px;">Abrir ticket de soporte &rarr;</a>'
+    + '<p style="margin:0 0 4px;font-family:Trebuchet MS,Arial,sans-serif;font-size:14px;font-weight:700;color:#1a1a1a;">' + t.supportQ + '</p>'
+    + '<p style="margin:0 0 14px;font-family:Trebuchet MS,Arial,sans-serif;font-size:12px;color:#777;">' + t.supportSub + '</p>'
+    + '<a href="' + SOPORTE_URL + '" style="display:inline-block;padding:10px 24px;background:' + P + ';color:#fff;font-family:Trebuchet MS,Arial,sans-serif;font-size:13px;font-weight:700;text-decoration:none;border-radius:8px;">' + t.supportBtn + '</a>'
     + '</div>'
 
     + '</td></tr>'
@@ -1685,13 +1757,14 @@ async function crearUsuarioDesdeModal() {
     await resolverSolicitud(solModalData.id, 'procesada');
 
     // Send onboarding email (al correo personal indicado en la solicitud)
+    const lang = document.getElementById('sm-lang').value;
     const destinoPersonal = solModalData.correoPersonal || solModalData.correo;
     if (destinoPersonal) {
       await sendViaResend({
         to: destinoPersonal,
-        subject: 'Bienvenido(a) a Hero Insurance USA - Acceso de Agente',
-        html: buildEmailAgente(nombre + ' ' + apellido, email, password),
-        text: 'Bienvenido ' + nombre + '. Tu correo: ' + email,
+        subject: onboardingSubject('agente', lang),
+        html: buildEmailAgente(nombre + ' ' + apellido, email, password, lang),
+        text: onboardingText(nombre, email, lang),
       });
     }
 
@@ -1810,15 +1883,14 @@ async function sendOnboardingNuevo(tipo) {
   addLog('Enviando onboarding ' + tipo + ' a ' + nuevoUsuario.emailPersonal, 'info', 'log-new');
 
   try {
+    const lang = document.getElementById('new-lang').value;
     const htmlBody = tipo === 'empleado'
-      ? buildEmailEmpleado(nuevoUsuario.nombre, nuevoUsuario.email, nuevoUsuario.password)
-      : buildEmailAgente(nuevoUsuario.nombre, nuevoUsuario.email, nuevoUsuario.password);
-    const asunto = tipo === 'empleado'
-      ? 'Bienvenido(a) a Hero Insurance USA - Informacion de acceso'
-      : 'Bienvenido(a) a Hero Insurance USA - Acceso de Agente';
+      ? buildEmailEmpleado(nuevoUsuario.nombre, nuevoUsuario.email, nuevoUsuario.password, lang)
+      : buildEmailAgente(nuevoUsuario.nombre, nuevoUsuario.email, nuevoUsuario.password, lang);
+    const asunto = onboardingSubject(tipo, lang);
 
     await sendViaResend({ to: nuevoUsuario.emailPersonal, subject: asunto, html: htmlBody,
-      text: 'Bienvenido ' + nuevoUsuario.nombre + '. Correo: ' + nuevoUsuario.email });
+      text: onboardingText(nuevoUsuario.nombre, nuevoUsuario.email, lang) });
 
     addLog('Onboarding enviado a ' + nuevoUsuario.emailPersonal, 'success', 'log-new');
     showToast('Email de onboarding enviado');
@@ -1880,6 +1952,7 @@ function onbPreview() {
   if (!prev) return;
   const nombre   = document.getElementById('onb-nombre').value.trim();
   const tipo     = document.getElementById('onb-tipo').value;
+  const lang     = document.getElementById('onb-lang').value;
   const user     = document.getElementById('onb-email-user').value.trim();
   const personal = document.getElementById('onb-email-personal').value.trim();
   const incluir  = document.getElementById('onb-incluir-pass').checked;
@@ -1887,6 +1960,7 @@ function onbPreview() {
   const corp     = user ? user + atSign + 'heroinsuranceusa.com' : '—';
   prev.innerHTML =
       'Tipo: <strong>' + (tipo === 'empleado' ? 'Empleado' : 'Agente') + '</strong><br>'
+    + 'Idioma: <strong>' + (lang === 'en' ? 'Inglés' : 'Español') + '</strong><br>'
     + 'Para: <strong>' + (nombre || '—') + '</strong><br>'
     + 'Cuenta: ' + corp + '<br>'
     + 'Enviar a: ' + (personal || '—') + '<br>'
@@ -1913,16 +1987,15 @@ async function enviarOnboarding() {
   addLog('Enviando onboarding ' + tipo + ' a ' + personal + '...', 'info', 'log-onb');
 
   try {
+    const lang = document.getElementById('onb-lang').value;
     const html = tipo === 'empleado'
-      ? buildEmailEmpleado(nombre, emailCorp, pass)
-      : buildEmailAgente(nombre, emailCorp, pass);
-    const asunto = tipo === 'empleado'
-      ? 'Bienvenido(a) a Hero Insurance USA - Informacion de acceso'
-      : 'Bienvenido(a) a Hero Insurance USA - Acceso de Agente';
+      ? buildEmailEmpleado(nombre, emailCorp, pass, lang)
+      : buildEmailAgente(nombre, emailCorp, pass, lang);
+    const asunto = onboardingSubject(tipo, lang);
 
     await sendViaResend({
       to: personal, subject: asunto, html,
-      text: 'Bienvenido ' + nombre + '. Correo corporativo: ' + emailCorp,
+      text: onboardingText(nombre, emailCorp, lang),
     });
 
     addLog('Onboarding enviado a ' + personal, 'success', 'log-onb');
