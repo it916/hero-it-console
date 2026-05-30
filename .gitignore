@@ -3,7 +3,7 @@
 
 # Settings locales de Claude Code (no van al repo)
 .claude/
-CLAUDE_CODE_CONTEXT.md
+CLAUDE.md
 
 # Node modules si en algún momento usamos npm en este proyecto
 node_modules/
