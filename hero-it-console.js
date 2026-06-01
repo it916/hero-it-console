@@ -2509,8 +2509,69 @@ function renderSessionLogs() {
   body.scrollTop = body.scrollHeight;
 }
 
+// ── A11y: foco y teclado para modales ────────────────────────
+// Detecta automáticamente cuando un [role="dialog"][aria-modal="true"]
+// cambia entre display:none y display:block via MutationObserver. Al abrir:
+// guarda lastFocus, mueve foco al primer focusable y atrapa Tab. Al cerrar:
+// restaura lastFocus. ESC global cierra cualquier dialog visible llamando
+// a data-close-fn. Esto evita refactorizar cada función openXxx existente.
+function _isModalVisible(modal) {
+  const display = modal.style.display || getComputedStyle(modal).display;
+  return display !== 'none';
+}
+function _getFocusables(container) {
+  const sel = 'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+  return Array.from(container.querySelectorAll(sel))
+    .filter(el => el.offsetParent !== null || el === document.activeElement);
+}
+function _setupModalA11y(modal) {
+  let lastFocus = null;
+  let trapHandler = null;
+  let wasVisible = _isModalVisible(modal);
+
+  const onVisible = () => {
+    lastFocus = document.activeElement;
+    const focusables = _getFocusables(modal);
+    if (focusables.length) setTimeout(() => { try { focusables[0].focus(); } catch (_) {} }, 0);
+    trapHandler = (e) => {
+      if (e.key !== 'Tab') return;
+      const f = _getFocusables(modal);
+      if (!f.length) return;
+      const first = f[0], last = f[f.length - 1];
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    };
+    modal.addEventListener('keydown', trapHandler);
+  };
+  const onHidden = () => {
+    if (trapHandler) { modal.removeEventListener('keydown', trapHandler); trapHandler = null; }
+    if (lastFocus && typeof lastFocus.focus === 'function') { try { lastFocus.focus(); } catch (_) {} }
+    lastFocus = null;
+  };
+
+  new MutationObserver(() => {
+    const visible = _isModalVisible(modal);
+    if (visible && !wasVisible) onVisible();
+    else if (!visible && wasVisible) onHidden();
+    wasVisible = visible;
+  }).observe(modal, { attributes: true, attributeFilter: ['style', 'class'] });
+}
+function installModalA11y() {
+  const modals = document.querySelectorAll('[role="dialog"][aria-modal="true"]');
+  modals.forEach(_setupModalA11y);
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    const visible = Array.from(modals).find(_isModalVisible);
+    if (!visible) return;
+    const fnName = visible.getAttribute('data-close-fn');
+    if (fnName && typeof window[fnName] === 'function') window[fnName]();
+    else visible.style.display = 'none';
+  });
+}
+
 // ── Init ──────────────────────────────────────────────────────
 (function init() {
+  installModalA11y();
   // Check existing session first
   if (!checkExistingSession()) {
     // Show login screen - already visible by default

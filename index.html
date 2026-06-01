@@ -663,6 +663,23 @@ nav { padding: 12px; flex: 1; }
 
 html { scroll-behavior: smooth; }
 
+/* ── A11y: foco visible para navegación por teclado ────────── */
+/* Solo se muestra cuando el foco vino del teclado (Tab), no del mouse. */
+*:focus { outline: none; }
+*:focus-visible {
+  outline: 2px solid var(--hero-primary);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+/* Anuncio sólo para lectores de pantalla (no afecta layout visual) */
+.sr-only {
+  position: absolute !important;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0,0,0,0);
+  white-space: nowrap; border: 0;
+}
+
 /* ── Kanban ──────────────────────────────────────────────── */
 .kanban-col {
   background: var(--hero-bg);
@@ -835,20 +852,20 @@ html { scroll-behavior: smooth; }
 </aside>
 
 <!-- ══ MAIN ═════════════════════════════════════════════════ -->
-<div id="main">
+<main id="main">
 
   <!-- Top bar -->
   <div class="topbar" style="position:relative;">
     <div style="display:flex;align-items:center;gap:12px;">
-      <button class="btn-hamburger" onclick="toggleSidebar()">☰</button>
+      <button class="btn-hamburger" onclick="toggleSidebar()" aria-label="Abrir menú lateral">☰</button>
       <div class="topbar-title">Hero IT Console / <span id="current-section-label">Dashboard</span></div>
     </div>
     <div class="topbar-right">
-        <button onclick="toggleTheme()" id="btn-theme" title="Cambiar tema" style="background:var(--hero-bg);border:1px solid var(--hero-border);color:var(--hero-text-muted);width:36px;height:36px;border-radius:var(--hero-radius-btn);cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">☀️</button>
+        <button onclick="toggleTheme()" id="btn-theme" title="Cambiar tema" aria-label="Cambiar tema claro/oscuro" style="background:var(--hero-bg);border:1px solid var(--hero-border);color:var(--hero-text-muted);width:36px;height:36px;border-radius:var(--hero-radius-btn);cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">☀️</button>
         <!-- Notification bell -->
         <div style="position:relative;flex-shrink:0;">
-          <button onclick="toggleNotifPanel()" id="btn-notif" title="Notificaciones" style="background:var(--hero-bg);border:1px solid var(--hero-border);color:var(--hero-text-muted);width:36px;height:36px;border-radius:var(--hero-radius-btn);cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center;">🔔</button>
-          <span id="notif-badge" style="display:none;position:absolute;top:-4px;right:-4px;background:var(--hero-danger);color:#fff;font-size:10px;font-weight:700;min-width:18px;height:18px;border-radius:9px;text-align:center;line-height:18px;padding:0 4px;pointer-events:none;"></span>
+          <button onclick="toggleNotifPanel()" id="btn-notif" title="Notificaciones" aria-label="Centro de notificaciones" aria-haspopup="true" style="background:var(--hero-bg);border:1px solid var(--hero-border);color:var(--hero-text-muted);width:36px;height:36px;border-radius:var(--hero-radius-btn);cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center;">🔔</button>
+          <span id="notif-badge" role="status" aria-live="polite" aria-atomic="true" style="display:none;position:absolute;top:-4px;right:-4px;background:var(--hero-danger);color:#fff;font-size:10px;font-weight:700;min-width:18px;height:18px;border-radius:9px;text-align:center;line-height:18px;padding:0 4px;pointer-events:none;"></span>
         </div>
         <!-- Notification panel -->
         <div id="notif-panel" style="display:none;position:absolute;top:56px;right:16px;width:340px;background:var(--hero-card-bg);border:1px solid var(--hero-border);border-radius:14px;box-shadow:0 8px 32px rgba(0,0,0,0.15);z-index:400;overflow:hidden;">
@@ -863,7 +880,7 @@ html { scroll-behavior: smooth; }
             </div>
           </div>
         </div>
-        <button onclick="openGlobalSearch()" style="background:var(--hero-bg);border:1px solid var(--hero-border);color:var(--hero-text-muted);padding:6px 12px;border-radius:var(--hero-radius-sm);cursor:pointer;font-size:12px;font-family:var(--hero-font);display:flex;align-items:center;gap:6px;">🔍 <span style="color:var(--hero-text-muted)">Buscar...</span></button>
+        <button onclick="openGlobalSearch()" aria-label="Búsqueda global (tickets, solicitudes, dispositivos, usuarios)" style="background:var(--hero-bg);border:1px solid var(--hero-border);color:var(--hero-text-muted);padding:6px 12px;border-radius:var(--hero-radius-sm);cursor:pointer;font-size:12px;font-family:var(--hero-font);display:flex;align-items:center;gap:6px;"><span aria-hidden="true">🔍</span> <span style="color:var(--hero-text-muted)">Buscar...</span></button>
       <div class="clock" id="clock"></div>
       <div id="global-status">● SISTEMA LISTO</div>
     </div>
@@ -1157,14 +1174,14 @@ html { scroll-behavior: smooth; }
     <!-- ══ CREAR USUARIO ══════════════════════════════════ -->
 
       <!-- Modal gestión de usuario -->
-      <div id="user-modal" style="display:none;position:fixed;inset:0;background:rgba(26,39,51,0.5);z-index:100;overflow-y:auto;padding:24px;">
+      <div id="user-modal" role="dialog" aria-modal="true" aria-labelledby="um-nombre" data-close-fn="closeUserModal" style="display:none;position:fixed;inset:0;background:rgba(26,39,51,0.5);z-index:100;overflow-y:auto;padding:24px;">
         <div style="background:var(--hero-bg-card);border:1px solid rgba(6,163,182,0.3);border-radius:16px;max-width:480px;margin:0 auto;padding:28px;">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
             <div>
               <div id="um-nombre" style="font-size:15px;font-weight:600;color:var(--hero-text-primary);"></div>
               <div id="um-email" style="font-family:var(--mono);font-size:12px;color:var(--hero-primary);margin-top:2px;"></div>
             </div>
-            <button onclick="closeUserModal()" style="background:transparent;border:1px solid var(--hero-border-card);color:var(--hero-text-body);width:32px;height:32px;border-radius:8px;cursor:pointer;font-size:16px;">✕</button>
+            <button onclick="closeUserModal()" aria-label="Cerrar" style="background:transparent;border:1px solid var(--hero-border-card);color:var(--hero-text-body);width:32px;height:32px;border-radius:8px;cursor:pointer;font-size:16px;">✕</button>
           </div>
           <div class="info-box" style="margin-bottom:12px;">
             <div class="info-box-title">🔑 Resetear contraseña</div>
@@ -1422,14 +1439,14 @@ html { scroll-behavior: smooth; }
       </div>
 
       <!-- Modal crear usuario desde solicitud -->
-      <div id="sol-modal" style="display:none;position:fixed;inset:0;background:rgba(26,39,51,0.5);z-index:100;overflow-y:auto;padding:24px;">
+      <div id="sol-modal" role="dialog" aria-modal="true" aria-labelledby="sol-modal-nombre" data-close-fn="closeSolModal" style="display:none;position:fixed;inset:0;background:rgba(26,39,51,0.5);z-index:100;overflow-y:auto;padding:24px;">
         <div style="background:#ffffff;border:1px solid rgba(6,163,182,0.3);border-radius:16px;max-width:540px;margin:0 auto;padding:0;overflow:hidden;">
           <div style="background:linear-gradient(135deg,#06a3b6,#048395);padding:20px 24px;display:flex;justify-content:space-between;align-items:center;">
             <div>
               <div style="font-size:11px;color:rgba(255,255,255,0.75);letter-spacing:1px;text-transform:uppercase;">Crear usuario desde solicitud</div>
               <div id="sol-modal-nombre" style="font-size:16px;font-weight:700;color:#fff;margin-top:3px;"></div>
             </div>
-            <button onclick="closeSolModal()" style="background:rgba(255,255,255,0.2);border:none;color:#fff;width:32px;height:32px;border-radius:8px;cursor:pointer;font-size:16px;">✕</button>
+            <button onclick="closeSolModal()" aria-label="Cerrar" style="background:rgba(255,255,255,0.2);border:none;color:#fff;width:32px;height:32px;border-radius:8px;cursor:pointer;font-size:16px;">✕</button>
           </div>
           <div style="padding:24px;">
             <!-- Solicitante info -->
@@ -1545,7 +1562,7 @@ html { scroll-behavior: smooth; }
       <div id="tickets-list" style="display:none;"></div>
 
       <!-- Ticket detail modal -->
-      <div id="ticket-modal" style="display:none;position:fixed;inset:0;background:rgba(26,39,51,0.5);z-index:100;overflow-y:auto;padding:24px;">
+      <div id="ticket-modal" role="dialog" aria-modal="true" aria-labelledby="modal-asunto" data-close-fn="closeTicketModal" style="display:none;position:fixed;inset:0;background:rgba(26,39,51,0.5);z-index:100;overflow-y:auto;padding:24px;">
         <div style="background:#ffffff;border:1px solid rgba(6,163,182,0.3);border-radius:16px;max-width:640px;margin:0 auto;padding:0;overflow:hidden;">
           <!-- Modal header -->
           <div style="background:linear-gradient(135deg,#06a3b6,#048395);padding:20px 24px;display:flex;justify-content:space-between;align-items:center;">
@@ -1553,7 +1570,7 @@ html { scroll-behavior: smooth; }
               <div id="modal-ticket-id" style="font-family:var(--mono);font-size:13px;color:rgba(255,255,255,0.8);"></div>
               <div id="modal-asunto" style="font-size:16px;font-weight:700;color:#fff;margin-top:3px;"></div>
             </div>
-            <button onclick="closeTicketModal()" style="background:rgba(255,255,255,0.2);border:none;color:#fff;width:32px;height:32px;border-radius:8px;cursor:pointer;font-size:16px;">✕</button>
+            <button onclick="closeTicketModal()" aria-label="Cerrar" style="background:rgba(255,255,255,0.2);border:none;color:#fff;width:32px;height:32px;border-radius:8px;cursor:pointer;font-size:16px;">✕</button>
           </div>
           <div style="padding:24px;">
             <!-- User info + time -->
@@ -1802,11 +1819,11 @@ html { scroll-behavior: smooth; }
       </div>
 
       <!-- Modal nuevo/editar dispositivo -->
-      <div id="dev-modal" style="display:none;position:fixed;inset:0;background:rgba(26,39,51,0.5);z-index:100;overflow-y:auto;padding:24px;">
+      <div id="dev-modal" role="dialog" aria-modal="true" aria-labelledby="dev-modal-title" data-close-fn="closeDeviceModal" style="display:none;position:fixed;inset:0;background:rgba(26,39,51,0.5);z-index:100;overflow-y:auto;padding:24px;">
         <div style="background:var(--hero-bg-card);border:1px solid rgba(6,163,182,0.3);border-radius:16px;max-width:540px;margin:0 auto;padding:28px;">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
             <div id="dev-modal-title" style="font-size:15px;font-weight:600;color:var(--hero-text-primary);">Nuevo dispositivo</div>
-            <button onclick="closeDeviceModal()" style="background:transparent;border:1px solid var(--hero-border-card);color:var(--hero-text-body);width:32px;height:32px;border-radius:8px;cursor:pointer;font-size:16px;">✕</button>
+            <button onclick="closeDeviceModal()" aria-label="Cerrar" style="background:transparent;border:1px solid var(--hero-border-card);color:var(--hero-text-body);width:32px;height:32px;border-radius:8px;cursor:pointer;font-size:16px;">✕</button>
           </div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
             <div class="form-group">
@@ -1965,11 +1982,11 @@ html { scroll-behavior: smooth; }
       </div>
 
       <!-- Modal licencia -->
-      <div id="lic-modal" style="display:none;position:fixed;inset:0;background:rgba(26,39,51,0.5);z-index:100;overflow-y:auto;padding:24px;">
+      <div id="lic-modal" role="dialog" aria-modal="true" aria-labelledby="lic-modal-title" data-close-fn="closeLicenciaModal" style="display:none;position:fixed;inset:0;background:rgba(26,39,51,0.5);z-index:100;overflow-y:auto;padding:24px;">
         <div style="background:#ffffff;border:1px solid rgba(6,163,182,0.3);border-radius:16px;max-width:540px;margin:0 auto;padding:28px;box-shadow:0 8px 32px rgba(0,0,0,0.15);">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
             <div id="lic-modal-title" style="font-size:15px;font-weight:600;color:var(--hero-text-primary);">Nueva licencia</div>
-            <button onclick="closeLicenciaModal()" style="background:transparent;border:1px solid var(--hero-border);color:var(--hero-text-muted);width:32px;height:32px;border-radius:8px;cursor:pointer;font-size:16px;">✕</button>
+            <button onclick="closeLicenciaModal()" aria-label="Cerrar" style="background:transparent;border:1px solid var(--hero-border);color:var(--hero-text-muted);width:32px;height:32px;border-radius:8px;cursor:pointer;font-size:16px;">✕</button>
           </div>
 
           <!-- Sección: Info general -->
@@ -2106,13 +2123,13 @@ html { scroll-behavior: smooth; }
     </div>
 
   </div><!-- /content -->
-</div><!-- /main -->
+</main>
 
 
   <!-- ══ BÚSQUEDA GLOBAL ══════════════════════════════════════ -->
-  <div id="global-search-overlay" onclick="if(event.target===this)closeGlobalSearch()">
+  <div id="global-search-overlay" role="dialog" aria-modal="true" aria-label="Búsqueda global" data-close-fn="closeGlobalSearch" onclick="if(event.target===this)closeGlobalSearch()">
     <div id="global-search-box">
-      <input id="global-search-input" type="text" placeholder="Buscar tickets, solicitudes, dispositivos, usuarios..."
+      <input id="global-search-input" type="text" aria-label="Buscar en tickets, solicitudes, dispositivos y usuarios" placeholder="Buscar tickets, solicitudes, dispositivos, usuarios..."
         oninput="onGlobalSearch()" onkeydown="if(event.key==='Escape')closeGlobalSearch()"/>
       <div id="global-search-results"></div>
       <div style="padding:10px 16px;background:var(--hero-bg);border-top:1px solid var(--hero-border);font-size:10px;color:var(--hero-text-muted);">
@@ -2123,7 +2140,7 @@ html { scroll-behavior: smooth; }
 </div><!-- /app-content -->
 
 <!-- Toast -->
-<div id="toast"></div>
+<div id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
 
 <script src="hero-it-console.js"></script>
 </body>
