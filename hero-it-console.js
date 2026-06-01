@@ -571,7 +571,7 @@ function addLog(message, type = 'info', consoleId = null) {
   sessionLogs.push({ time: t, message, type });
   sessionActionCount++;
   document.getElementById('stat-logs').textContent = sessionActionCount;
-  const line = `<div class="log-line"><span class="log-time">${t}</span><span class="log-msg ${type}">${message}</span></div>`;
+  const line = `<div class="log-line"><span class="log-time">${t}</span><span class="log-msg ${type}">${escHtml(message)}</span></div>`;
   const fullLog = document.getElementById('log-full');
   if (fullLog.querySelector('.log-empty')) fullLog.innerHTML = '';
   fullLog.insertAdjacentHTML('beforeend', line);
@@ -600,6 +600,23 @@ function escHtml(s) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
+}
+
+// Para valores que se interpolan dentro de un atributo HTML que contiene
+// una cadena JS, ej: onclick="fn('${escJs(s)}')". Combina escape JS (\, ',
+// newlines) con escape de atributo HTML (&, ", <, >). escHtml por sí solo
+// NO es seguro acá porque el HTML decodifica antes que JS parsee — un valor
+// con apóstrofe terminaría la cadena JS y permitiría inyección.
+function escJs(s) {
+  return String(s == null ? '' : s)
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, "\\'")
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/\r/g, '\\r')
+    .replace(/\n/g, '\\n');
 }
 
 // ── Toast ─────────────────────────────────────────────────────
@@ -667,11 +684,11 @@ function filterResetUsers() {
   if (!matches.length) { sug.style.display = 'none'; return; }
   sug.style.display = 'block';
   sug.innerHTML = matches.map(u =>
-    '<div onclick="selectResetUser(\'' + u.email + '\',\'' + u.nombre + '\',\'' + u.estado + '\')" '
+    '<div onclick="selectResetUser(\'' + escJs(u.email) + '\',\'' + escJs(u.nombre) + '\',\'' + escJs(u.estado) + '\')" '
     + 'style="padding:10px 14px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--hero-border);" '
     + 'onmouseover="this.style.background=\'var(--hero-bg)\'" onmouseout="this.style.background=\'\'">'
-    + '<div style="font-weight:600;color:var(--hero-text-primary);">' + u.nombre + '</div>'
-    + '<div style="font-size:11px;color:var(--hero-text-muted);">' + u.email + ' · ' + u.estado + '</div></div>'
+    + '<div style="font-weight:600;color:var(--hero-text-primary);">' + escHtml(u.nombre) + '</div>'
+    + '<div style="font-size:11px;color:var(--hero-text-muted);">' + escHtml(u.email) + ' · ' + escHtml(u.estado) + '</div></div>'
   ).join('');
 }
 
@@ -1171,11 +1188,11 @@ function renderAudit(entradas, total) {
       + '<span style="font-size:14px;flex-shrink:0;margin-top:2px;">' + icon + '</span>'
       + '<div style="flex:1;min-width:0;">'
       + '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">'
-      + '<span style="font-size:13px;color:var(--hero-text-primary);font-weight:500;">' + e.descripcion + '</span>'
+      + '<span style="font-size:13px;color:var(--hero-text-primary);font-weight:500;">' + escHtml(e.descripcion) + '</span>'
       + '<span style="font-family:var(--mono);font-size:10px;color:var(--hero-text-muted);flex-shrink:0;">' + fecha + ' ET</span>'
       + '</div>'
-      + (e.detalle ? '<div style="font-family:var(--mono);font-size:11px;color:var(--hero-text-muted);margin-top:3px;">' + e.detalle + '</div>' : '')
-      + '<span style="font-family:var(--mono);font-size:10px;padding:1px 7px;border-radius:10px;background:rgba(0,0,0,0.06);color:' + color + ';margin-top:4px;display:inline-block;">' + e.tipo + '</span>'
+      + (e.detalle ? '<div style="font-family:var(--mono);font-size:11px;color:var(--hero-text-muted);margin-top:3px;">' + escHtml(e.detalle) + '</div>' : '')
+      + '<span style="font-family:var(--mono);font-size:10px;padding:1px 7px;border-radius:10px;background:rgba(0,0,0,0.06);color:' + color + ';margin-top:4px;display:inline-block;">' + escHtml(e.tipo) + '</span>'
       + '</div>'
       + '</div>';
   }).join('');
@@ -1516,7 +1533,7 @@ function renderSolicitudes() {
     const autorizadaHtml = (isAuthorized || s.autorizadaPor)
       ? '<div style="background:rgba(6,163,182,0.06);border-left:3px solid var(--hero-primary);padding:8px 12px;border-radius:6px;margin:0 0 10px;font-size:12px;color:var(--hero-text-body);">'
         + '<span style="color:var(--hero-primary);font-weight:600;">✓ Autorizada</span>'
-        + (s.autorizadaPor ? ' por <strong>' + s.autorizadaPor + '</strong>' : '')
+        + (s.autorizadaPor ? ' por <strong>' + escHtml(s.autorizadaPor) + '</strong>' : '')
         + (s.autorizadaFecha
             ? ' · <span style="color:var(--hero-text-muted);">' + new Date(s.autorizadaFecha).toLocaleString('es-MX', { timeZone:'America/New_York', day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' }) + ' ET</span>'
             : '')
@@ -1587,7 +1604,7 @@ function renderSolicitudes() {
       +   '</div>'
       +   '<div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">'
       +     '<span style="font-family:var(--mono);font-size:10px;color:' + elColor + ';">⏱ ' + elapsed + '</span>'
-      +     '<span style="font-family:var(--mono);font-size:10px;padding:3px 10px;border-radius:20px;background:' + estadoBg + ';color:' + estadoColor + ';">' + s.estado + '</span>'
+      +     '<span style="font-family:var(--mono);font-size:10px;padding:3px 10px;border-radius:20px;background:' + estadoBg + ';color:' + estadoColor + ';">' + escHtml(s.estado) + '</span>'
       +   '</div>'
       + '</div>'
       + cargoAreaHtml
@@ -2062,18 +2079,18 @@ function renderUsers(users) {
     const ouLabel = !u.orgUnitPath || u.orgUnitPath === '/' ? '—' : u.orgUnitPath.replace(/^\//, '');
 
     return '<tr style="border-bottom:1px solid var(--hero-border-card);background:' + rowBg + ';">' +
-      '<td style="padding:10px 16px;color:var(--hero-text-primary);">' + u.nombre + '</td>' +
-      '<td style="padding:10px 16px;font-family:var(--mono);font-size:12px;color:var(--hero-primary);">' + u.email + '</td>' +
-      '<td style="padding:10px 16px;font-family:var(--mono);font-size:11px;color:var(--hero-text-body);">' + ouLabel + '</td>' +
+      '<td style="padding:10px 16px;color:var(--hero-text-primary);">' + escHtml(u.nombre) + '</td>' +
+      '<td style="padding:10px 16px;font-family:var(--mono);font-size:12px;color:var(--hero-primary);">' + escHtml(u.email) + '</td>' +
+      '<td style="padding:10px 16px;font-family:var(--mono);font-size:11px;color:var(--hero-text-body);">' + escHtml(ouLabel) + '</td>' +
       '<td style="padding:10px 16px;">' +
-        '<span style="font-family:var(--mono);font-size:10px;padding:3px 8px;border-radius:20px;background:' + estadoBg + ';color:' + estadoColor + ';">' + u.estado + '</span>' +
+        '<span style="font-family:var(--mono);font-size:10px;padding:3px 8px;border-radius:20px;background:' + estadoBg + ';color:' + estadoColor + ';">' + escHtml(u.estado) + '</span>' +
       '</td>' +
       '<td style="padding:10px 16px;font-family:var(--mono);font-size:11px;color:var(--hero-text-body);">' + creado + '</td>' +
       '<td style="padding:10px 16px;font-family:var(--mono);font-size:11px;color:var(--hero-text-body);">' + login + '</td>' +
       '<td style="padding:10px 16px;text-align:center;">' +
         '<div style="display:flex;gap:6px;justify-content:center;">' +
-        '<button onclick="copyEmail(\'' + u.email + '\')" style="background:transparent;border:1px solid var(--hero-border-card);color:var(--hero-text-body);padding:4px 8px;border-radius:6px;font-size:11px;cursor:pointer;" title="Copiar email">📋</button>' +
-        '<button onclick="openUserModal(\'' + u.email + '\',\'' + u.nombre + '\')" style="background:rgba(6,163,182,0.1);border:1px solid rgba(6,163,182,0.3);color:var(--hero-primary);padding:4px 8px;border-radius:6px;font-size:11px;cursor:pointer;" title="Gestionar">⚙️</button>' +
+        '<button onclick="copyEmail(\'' + escJs(u.email) + '\')" style="background:transparent;border:1px solid var(--hero-border-card);color:var(--hero-text-body);padding:4px 8px;border-radius:6px;font-size:11px;cursor:pointer;" title="Copiar email">📋</button>' +
+        '<button onclick="openUserModal(\'' + escJs(u.email) + '\',\'' + escJs(u.nombre) + '\')" style="background:rgba(6,163,182,0.1);border:1px solid rgba(6,163,182,0.3);color:var(--hero-primary);padding:4px 8px;border-radius:6px;font-size:11px;cursor:pointer;" title="Gestionar">⚙️</button>' +
         '</div>' +
       '</td>' +
     '</tr>';
@@ -2169,20 +2186,20 @@ function renderDeviceGrid(devices) {
     const eColor = DEV_ESTADO_COLOR[d.estado] || 'var(--hero-text-body)';
     const icon   = DEV_TIPO_ICON[d.tipo] || '💻';
     const intCount = (d.intervenciones || []).length;
-    return '<div class="action-card" style="cursor:pointer;" onclick="openDeviceDetail(\'' + d.id + '\')">'
+    return '<div class="action-card" style="cursor:pointer;" onclick="openDeviceDetail(\'' + escJs(d.id) + '\')">'
       + '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">'
       + '<span style="font-size:24px;">' + icon + '</span>'
-      + '<span style="font-family:var(--mono);font-size:10px;padding:2px 8px;border-radius:20px;background:rgba(0,0,0,0.06);color:' + eColor + ';">' + d.estado + '</span>'
+      + '<span style="font-family:var(--mono);font-size:10px;padding:2px 8px;border-radius:20px;background:rgba(0,0,0,0.06);color:' + eColor + ';">' + escHtml(d.estado) + '</span>'
       + '</div>'
-      + '<div style="font-size:14px;font-weight:600;color:var(--hero-text-primary);margin-bottom:3px;">' + d.nombre + '</div>'
-      + '<div style="font-size:12px;color:var(--hero-text-body);margin-bottom:8px;">' + (d.usuario || 'Sin usuario asignado') + '</div>'
+      + '<div style="font-size:14px;font-weight:600;color:var(--hero-text-primary);margin-bottom:3px;">' + escHtml(d.nombre) + '</div>'
+      + '<div style="font-size:12px;color:var(--hero-text-body);margin-bottom:8px;">' + escHtml(d.usuario || 'Sin usuario asignado') + '</div>'
       + '<div style="display:flex;gap:12px;font-size:11px;color:var(--hero-text-muted);">'
-      + '<span>' + (d.so || 'SO no especificado') + '</span>'
+      + '<span>' + escHtml(d.so || 'SO no especificado') + '</span>'
       + '<span style="margin-left:auto;">' + intCount + ' intervenci' + (intCount !== 1 ? 'ones' : 'ón') + '</span>'
       + '</div>'
       + '<div style="margin-top:8px;display:flex;gap:6px;">'
       + (d.gcpw ? '<span style="font-family:var(--mono);font-size:9px;padding:2px 6px;border-radius:4px;background:rgba(25,205,235,0.1);color:var(--hero-primary);">GCPW</span>' : '')
-      + '<span style="font-family:var(--mono);font-size:9px;padding:2px 6px;border-radius:4px;background:rgba(255,255,255,0.05);color:var(--hero-text-muted);">' + d.tipo + '</span>'
+      + '<span style="font-family:var(--mono);font-size:9px;padding:2px 6px;border-radius:4px;background:rgba(255,255,255,0.05);color:var(--hero-text-muted);">' + escHtml(d.tipo) + '</span>'
       + '</div>'
       + '</div>';
   }).join('');
@@ -2198,22 +2215,23 @@ async function openDeviceDetail(id) {
   document.getElementById('dev-detail-view').style.display = 'block';
   document.getElementById('dev-detail-title').textContent = (DEV_TIPO_ICON[device.tipo] || '💻') + '  ' + device.nombre;
 
-  // Info
+  // Info — row() inyecta su segundo argumento como HTML, así que valores
+  // venidos del backend deben ir pre-escapados con escHtml.
   const eColor = DEV_ESTADO_COLOR[device.estado] || 'var(--hero-text-body)';
   document.getElementById('dev-detail-info').innerHTML =
     '<div style="display:grid;gap:6px;">'
-    + row('Usuario', device.usuario || '—')
-    + row('Tipo', device.tipo)
-    + row('Sistema operativo', device.so || '—')
+    + row('Usuario', escHtml(device.usuario || '—'))
+    + row('Tipo', escHtml(device.tipo))
+    + row('Sistema operativo', escHtml(device.so || '—'))
     + row('GCPW', device.gcpw ? '<span style="color:var(--hero-primary);">✓ Activado</span>' : '<span style="color:var(--hero-text-muted);">✗ No activado</span>')
-    + row('Estado', '<span style="color:' + eColor + ';">' + device.estado + '</span>')
+    + row('Estado', '<span style="color:' + eColor + ';">' + escHtml(device.estado) + '</span>')
     + '</div>';
 
   // Apps
   const apps = device.apps || [];
   document.getElementById('dev-detail-apps').innerHTML = apps.length
     ? '<div style="display:flex;flex-wrap:wrap;gap:6px;">' + apps.map(a =>
-        '<span style="font-size:12px;padding:4px 10px;background:rgba(255,255,255,0.05);border:1px solid var(--hero-border-card);border-radius:6px;color:var(--hero-text-body);">' + a + '</span>'
+        '<span style="font-size:12px;padding:4px 10px;background:rgba(255,255,255,0.05);border:1px solid var(--hero-border-card);border-radius:6px;color:var(--hero-text-body);">' + escHtml(a) + '</span>'
       ).join('') + '</div>'
     : '<span style="color:var(--hero-text-muted);font-size:12px;">Sin aplicaciones registradas</span>';
 
@@ -2241,11 +2259,11 @@ function renderHistorial(intervenciones) {
     const color = INT_TIPO_COLOR[i.tipo] || 'var(--hero-text-body)';
     return '<div style="padding:12px 0;border-bottom:1px solid var(--hero-border-card);">'
       + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">'
-      + '<span style="font-family:var(--mono);font-size:10px;padding:2px 8px;border-radius:10px;background:rgba(0,0,0,0.06);color:' + color + ';">' + i.tipo + '</span>'
+      + '<span style="font-family:var(--mono);font-size:10px;padding:2px 8px;border-radius:10px;background:rgba(0,0,0,0.06);color:' + color + ';">' + escHtml(i.tipo) + '</span>'
       + '<span style="font-family:var(--mono);font-size:10px;color:var(--hero-text-muted);">' + fecha + ' ET</span>'
       + '</div>'
-      + '<div style="font-size:13px;color:var(--hero-text-primary);font-weight:500;margin-bottom:2px;">' + i.descripcion + '</div>'
-      + (i.notas ? '<div style="font-size:12px;color:var(--hero-text-body);line-height:1.5;">' + i.notas + '</div>' : '')
+      + '<div style="font-size:13px;color:var(--hero-text-primary);font-weight:500;margin-bottom:2px;">' + escHtml(i.descripcion) + '</div>'
+      + (i.notas ? '<div style="font-size:12px;color:var(--hero-text-body);line-height:1.5;">' + escHtml(i.notas) + '</div>' : '')
       + '</div>';
   }).join('');
 }
@@ -2454,14 +2472,14 @@ function renderZohoGrid(devices) {
       + '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">'
       + '<div style="display:flex;align-items:center;gap:8px;">'
       + '<div style="width:8px;height:8px;border-radius:50%;background:' + dotColor + ';box-shadow:' + dotGlow + ';flex-shrink:0;"></div>'
-      + '<div style="font-size:14px;font-weight:600;color:var(--hero-text-primary);">' + name + '</div>'
+      + '<div style="font-size:14px;font-weight:600;color:var(--hero-text-primary);">' + escHtml(name) + '</div>'
       + '</div>'
       + '<span style="font-family:var(--mono);font-size:10px;padding:2px 8px;border-radius:20px;background:rgba(0,0,0,0.06);color:' + dotColor + ';">' + (isOnline ? 'online' : 'offline') + '</span>'
       + '</div>'
-      + (group ? '<div style="font-size:12px;color:var(--hero-text-muted);margin-bottom:4px;">📁 ' + group + '</div>' : '')
-      + (os    ? '<div style="font-size:12px;color:var(--hero-text-body);margin-bottom:12px;">' + os + '</div>' : '<div style="margin-bottom:12px;"></div>')
+      + (group ? '<div style="font-size:12px;color:var(--hero-text-muted);margin-bottom:4px;">📁 ' + escHtml(group) + '</div>' : '')
+      + (os    ? '<div style="font-size:12px;color:var(--hero-text-body);margin-bottom:12px;">' + escHtml(os) + '</div>' : '<div style="margin-bottom:12px;"></div>')
       + (isOnline && id
-          ? '<button onclick="startZohoSession(\'' + id + '\',\'' + name + '\')" class="btn btn-primary" style="width:100%;font-size:12px;">🖥️ Iniciar sesión remota</button>'
+          ? '<button onclick="startZohoSession(\'' + escJs(id) + '\',\'' + escJs(name) + '\')" class="btn btn-primary" style="width:100%;font-size:12px;">🖥️ Iniciar sesión remota</button>'
           : '<button class="btn btn-secondary" disabled style="width:100%;font-size:12px;opacity:0.4;">Dispositivo offline</button>'
         )
       + '</div>';
@@ -2559,9 +2577,9 @@ function filterOffboardingUsers() {
   if (!matches.length) { suggestions.style.display = 'none'; return; }
   suggestions.style.display = 'block';
   suggestions.innerHTML = matches.map(u =>
-    '<div onclick="selectOffboardingUser(\'' + u.email + '\',\'' + u.nombre + '\')" style="padding:10px 14px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--hero-border);" onmouseover="this.style.background=\'var(--hero-bg)\'" onmouseout="this.style.background=\'\'">'
-    + '<div style="font-weight:600;color:var(--hero-text-primary);">' + u.nombre + '</div>'
-    + '<div style="font-size:11px;color:var(--hero-text-muted);">' + u.email + '</div></div>'
+    '<div onclick="selectOffboardingUser(\'' + escJs(u.email) + '\',\'' + escJs(u.nombre) + '\')" style="padding:10px 14px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--hero-border);" onmouseover="this.style.background=\'var(--hero-bg)\'" onmouseout="this.style.background=\'\'">'
+    + '<div style="font-weight:600;color:var(--hero-text-primary);">' + escHtml(u.nombre) + '</div>'
+    + '<div style="font-size:11px;color:var(--hero-text-muted);">' + escHtml(u.email) + '</div></div>'
   ).join('');
 }
 
@@ -2660,16 +2678,16 @@ function renderLicencias() {
     }
     return '<div class="action-card" style="--card-color:' + estadoColor + ';">'
       + '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">'
-      + '<div style="font-size:15px;font-weight:700;color:var(--hero-text-primary);">' + l.nombre + '</div>'
-      + '<span style="font-family:var(--mono);font-size:10px;padding:2px 8px;border-radius:20px;background:rgba(0,0,0,0.05);color:' + estadoColor + ';">' + l.estado + '</span>'
+      + '<div style="font-size:15px;font-weight:700;color:var(--hero-text-primary);">' + escHtml(l.nombre) + '</div>'
+      + '<span style="font-family:var(--mono);font-size:10px;padding:2px 8px;border-radius:20px;background:rgba(0,0,0,0.05);color:' + estadoColor + ';">' + escHtml(l.estado) + '</span>'
       + '</div>'
-      + (l.plan ? '<div style="font-size:12px;color:var(--hero-text-muted);margin-bottom:4px;">Plan: ' + l.plan + '</div>' : '')
+      + (l.plan ? '<div style="font-size:12px;color:var(--hero-text-muted);margin-bottom:4px;">Plan: ' + escHtml(l.plan) + '</div>' : '')
       + '<div style="display:flex;gap:16px;font-size:12px;color:var(--hero-text-muted);margin-bottom:10px;">'
       + (l.costo > 0 ? '<span>💵 $' + Number(l.costo).toFixed(2) + '/mes</span>' : '')
       + (l.usuarios > 0 ? '<span>👤 ' + l.usuarios + ' usuarios</span>' : '')
       + '</div>'
       + (expiryBadge ? '<div style="margin-bottom:10px;">' + expiryBadge + '</div>' : '')
-      + (l.notas ? '<div style="font-size:11px;color:var(--hero-text-muted);margin-bottom:12px;">' + l.notas + '</div>' : '')
+      + (l.notas ? '<div style="font-size:11px;color:var(--hero-text-muted);margin-bottom:12px;">' + escHtml(l.notas) + '</div>' : '')
       + ((l.credUsuario || l.credPassword || l.codigoLicencia)
         ? '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;">'
           + (l.credUsuario || l.credPassword ? '<span style="font-size:10px;padding:2px 8px;border-radius:20px;background:rgba(6,163,182,0.08);color:var(--hero-primary);">🔐 Credenciales</span>' : '')
@@ -2677,11 +2695,11 @@ function renderLicencias() {
           + '</div>'
         : '')
       + '<div style="display:flex;gap:8px;">'
-      + '<button onclick="editLicencia(\'' + l.id + '\')" class="btn btn-secondary" style="flex:1;font-size:12px;">✏️ Editar</button>'
+      + '<button onclick="editLicencia(\'' + escJs(l.id) + '\')" class="btn btn-secondary" style="flex:1;font-size:12px;">✏️ Editar</button>'
       + ((l.credUsuario || l.credPassword || l.codigoLicencia)
-        ? '<button onclick="verCredenciales(\'' + l.id + '\')" class="btn btn-secondary" style="font-size:12px;padding:8px 12px;" title="Ver credenciales">🔐</button>'
+        ? '<button onclick="verCredenciales(\'' + escJs(l.id) + '\')" class="btn btn-secondary" style="font-size:12px;padding:8px 12px;" title="Ver credenciales">🔐</button>'
         : '')
-      + '<button onclick="deleteLicencia(\'' + l.id + '\',\'' + l.nombre + '\')" class="btn btn-danger" style="font-size:12px;padding:8px 10px;">🗑</button>'
+      + '<button onclick="deleteLicencia(\'' + escJs(l.id) + '\',\'' + escJs(l.nombre) + '\')" class="btn btn-danger" style="font-size:12px;padding:8px 10px;">🗑</button>'
       + '</div></div>';
   }).join('');
 }
@@ -2727,17 +2745,20 @@ function verCredenciales(id) {
 
   const rowsHtml = rows.map(function(row) {
     const label = row[0], value = row[1], isPassword = row[2];
-    const safeVal = value.replace(/"/g,'&quot;');
+    // escHtml cubre comillas, < > & ' — el browser decodifica entidades al
+    // leer dataset.val, así que toggleCredVal y el copiado recuperan el valor
+    // original sin entidades residuales.
+    const safeAttr = escHtml(value);
     return '<div style="margin-bottom:14px;">'
       + '<div style="font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--hero-primary);margin-bottom:5px;">' + label + '</div>'
       + '<div style="display:flex;align-items:center;gap:8px;">'
-      + '<code data-val="' + safeVal + '" style="flex:1;background:var(--hero-bg);border:1px solid var(--hero-border);border-radius:6px;padding:8px 12px;font-family:var(--mono);font-size:13px;color:var(--hero-text-primary);display:block;overflow-wrap:anywhere;">'
-      + (isPassword ? '••••••••' : value)
+      + '<code data-val="' + safeAttr + '" style="flex:1;background:var(--hero-bg);border:1px solid var(--hero-border);border-radius:6px;padding:8px 12px;font-family:var(--mono);font-size:13px;color:var(--hero-text-primary);display:block;overflow-wrap:anywhere;">'
+      + (isPassword ? '••••••••' : escHtml(value))
       + '</code>'
       + (isPassword
-        ? '<button data-val="' + safeVal + '" onclick="toggleCredVal(this)" style="background:transparent;border:1px solid var(--hero-border);border-radius:6px;padding:6px 10px;cursor:pointer;font-size:14px;color:var(--hero-text-muted);">👁</button>'
+        ? '<button data-val="' + safeAttr + '" onclick="toggleCredVal(this)" style="background:transparent;border:1px solid var(--hero-border);border-radius:6px;padding:6px 10px;cursor:pointer;font-size:14px;color:var(--hero-text-muted);">👁</button>'
         : '')
-      + '<button data-val="' + safeVal + '" onclick="navigator.clipboard.writeText(this.dataset.val);showToast(\'Copiado ✓\')" style="background:transparent;border:1px solid var(--hero-border);border-radius:6px;padding:6px 10px;cursor:pointer;font-size:14px;color:var(--hero-text-muted);">📋</button>'
+      + '<button data-val="' + safeAttr + '" onclick="navigator.clipboard.writeText(this.dataset.val);showToast(\'Copiado ✓\')" style="background:transparent;border:1px solid var(--hero-border);border-radius:6px;padding:6px 10px;cursor:pointer;font-size:14px;color:var(--hero-text-muted);">📋</button>'
       + '</div></div>';
   }).join('');
 
@@ -2866,8 +2887,8 @@ async function loadOfficeStatus() {
       return '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--hero-border);">'
         + '<div style="display:flex;align-items:center;gap:8px;">'
         + '<div style="width:6px;height:6px;border-radius:50%;background:' + (isActive ? 'var(--hero-success)' : 'var(--hero-text-muted)') + ';flex-shrink:0;"></div>'
-        + '<span style="font-size:13px;color:var(--hero-text-primary);">' + nombre + '</span></div>'
-        + '<div style="font-family:var(--mono);font-size:11px;color:var(--hero-text-muted);">' + entrada + (isActive ? ' →' : ' → ' + salida) + '</div>'
+        + '<span style="font-size:13px;color:var(--hero-text-primary);">' + escHtml(nombre) + '</span></div>'
+        + '<div style="font-family:var(--mono);font-size:11px;color:var(--hero-text-muted);">' + escHtml(entrada) + (isActive ? ' →' : ' → ' + escHtml(salida)) + '</div>'
         + '</div>';
     }).join('');
   } catch(e) {
