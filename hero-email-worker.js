@@ -14,12 +14,24 @@
 //  GET  /audit         → Listar entradas de auditoría
 // ═══════════════════════════════════════════════════════════════
 
+// Orígenes legítimos del Console + formularios públicos (todos en
+// it916.github.io: hero-it-console, alta-agentes, soporte.html).
+const ALLOWED_ORIGINS = [
+  'https://it916.github.io',
+  'https://it.heroinsuranceusa.com', // subdominio futuro
+];
+
 export default {
   async fetch(request, env) {
+    const requestOrigin = request.headers.get('Origin') || '';
+    const corsOrigin = ALLOWED_ORIGINS.includes(requestOrigin)
+      ? requestOrigin
+      : ALLOWED_ORIGINS[0];
     const cors = {
-      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Origin': corsOrigin,
       'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+      'Vary': 'Origin',
     };
     if (request.method === 'OPTIONS') return new Response(null, { headers: cors });
 
@@ -40,6 +52,7 @@ export default {
         const token = await mintSession(env, email);
         return json({ token, email, nombre: claims.name || '' }, 200, cors);
       } catch (err) {
+        logError('auth_login_failed', err);
         return json({ error: 'No se pudo verificar la sesión: ' + err.message }, 401, cors);
       }
     }
@@ -67,7 +80,7 @@ export default {
         });
         const text = await resp.text();
         return new Response(text, { status: resp.status, headers: { ...cors, 'Content-Type': 'application/json' } });
-      } catch(err) { return json({ error: err.message }, 500, cors); }
+      } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: err.message }, 500, cors); }
     }
 
     // ── GET /zoho/devices — listar dispositivos Zoho Assist ───
@@ -96,7 +109,7 @@ export default {
           ip:     c.device_info?.public_ip_address || c.device_info?.private_ip_address || '',
         }));
         return json({ devices }, 200, cors);
-      } catch(err) { return json({ error: err.message }, 500, cors); }
+      } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: err.message }, 500, cors); }
     }
 
     // ── GET /zoho/session/:id — iniciar sesión remota ─────────
@@ -105,7 +118,7 @@ export default {
         const computerId = path.replace('/zoho/session/', '');
         const sessionUrl = 'https://assist.zoho.com/portal/it265/app/home#/unattended/devices?computer_id=' + computerId;
         return json({ sessionUrl }, 200, cors);
-      } catch(err) { return json({ error: err.message }, 500, cors); }
+      } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: err.message }, 500, cors); }
     }
 
 
@@ -132,7 +145,7 @@ export default {
         };
         await env.HERO_KV.put(licId, JSON.stringify(lic));
         return json({ ok: true, id: licId }, 200, cors);
-      } catch (err) { return json({ error: err.message }, 500, cors); }
+      } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: err.message }, 500, cors); }
     }
 
     // ── GET /licencia — listar ─────────────────────────────────
@@ -143,7 +156,7 @@ export default {
           const v = await env.HERO_KV.get(k.name); return v ? JSON.parse(v) : null;
         }));
         return json({ licencias: items.filter(Boolean).sort((a,b) => a.nombre.localeCompare(b.nombre)) }, 200, cors);
-      } catch (err) { return json({ error: err.message }, 500, cors); }
+      } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: err.message }, 500, cors); }
     }
 
     // ── POST /licencia/delete ──────────────────────────────────
@@ -152,7 +165,7 @@ export default {
         const { id } = await request.json();
         await env.HERO_KV.delete(id);
         return json({ ok: true }, 200, cors);
-      } catch (err) { return json({ error: err.message }, 500, cors); }
+      } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: err.message }, 500, cors); }
     }
 
     // ── GET /users ────────────────────────────────────────────
@@ -172,7 +185,7 @@ export default {
           orgUnitPath: u.orgUnitPath || '/',
         }));
         return json({ users }, 200, cors);
-      } catch (err) { return json({ error: err.message }, 500, cors); }
+      } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: err.message }, 500, cors); }
     }
 
     // ── POST /create-user ─────────────────────────────────────
@@ -226,7 +239,7 @@ export default {
         }
 
         return json({ ok: true, email: data.primaryEmail }, 200, cors);
-      } catch (err) { return json({ error: err.message }, 500, cors); }
+      } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: err.message }, 500, cors); }
       }, 'create-user');
     }
 
@@ -244,6 +257,16 @@ export default {
       const heroCyan   = 'linear-gradient(135deg,#06a3b6,#048395)';
       const heroAmber  = 'linear-gradient(135deg,#d97706,#f59e0b)';
       const heroRed    = 'linear-gradient(135deg,#c0392b,#a52917)';
+      const ip = clientIp(request);
+      // 20/min: clicks legítimos del autorizador (incluyendo redirects + recargas)
+      // entran holgados; bloquea brute-force de la firma HMAC.
+      if (!(await rateLimit(env, 'autorizar', ip, 20, 60))) {
+        logEvent('rate_limited', { scope: 'autorizar', ip });
+        return htmlResponse(buildAuthorizePage({
+          titulo: 'Demasiados intentos', icono: '⏳', color: heroAmber,
+          mensaje: 'Has hecho muchos intentos. Espera un minuto y vuelve a intentar.'
+        }), 429, cors);
+      }
       try {
         const id  = url.searchParams.get('id')  || '';
         const by  = (url.searchParams.get('by')  || '').toLowerCase();
@@ -364,6 +387,7 @@ export default {
           detalle: detalleBase
         }), 200, cors);
       } catch (err) {
+        logError('autorizar_failed', err, { path });
         return htmlResponse(buildAuthorizePage({
           titulo: 'Error', icono: '⚠️', color: heroRed,
           mensaje: 'Ocurrió un error al procesar la autorización: ' + esc(err.message)
@@ -376,6 +400,14 @@ export default {
     // tipoSolicitud: 'alta' (default) o 'baja'.
     // tipoPersona:   'agente' (default) o 'empleado' — sólo empleado requiere cargo/area.
     if (request.method === 'POST' && (path === '/solicitud-cuenta' || path === '/alta-agente')) {
+      if (bodyTooLarge(request)) return json({ error: 'Body demasiado grande' }, 413, cors);
+      const ip = clientIp(request);
+      // 5/min: una solicitud de alta/baja real es rara; cualquiera con esa
+      // tasa probablemente está probando o spameando a los 3 autorizadores.
+      if (!(await rateLimit(env, 'solicitud-cuenta', ip, 5, 60))) {
+        logEvent('rate_limited', { scope: 'solicitud-cuenta', ip });
+        return json({ error: 'Demasiadas solicitudes. Espera un minuto.' }, 429, cors);
+      }
       return dedupByBody(request, env, async () => {
       try {
         const body = await request.json();
@@ -547,7 +579,7 @@ export default {
         await Promise.all(sends);
 
         return json({ ok: true, id: solicitud.id, tipoSolicitud }, 200, cors);
-      } catch (err) { return json({ error: err.message }, 500, cors); }
+      } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: err.message }, 500, cors); }
       }, 'solicitud-cuenta');
     }
 
@@ -559,7 +591,7 @@ export default {
           const v = await env.HERO_KV.get(k.name); return v ? JSON.parse(v) : null;
         }));
         return json({ solicitudes: items.filter(Boolean).sort((a,b) => new Date(b.fecha) - new Date(a.fecha)) }, 200, cors);
-      } catch (err) { return json({ error: err.message }, 500, cors); }
+      } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: err.message }, 500, cors); }
     }
 
     // ── POST /alta-agente/resolver ────────────────────────────
@@ -572,11 +604,17 @@ export default {
         item.estado = estado || 'procesada';
         await env.HERO_KV.put(id, JSON.stringify(item));
         return json({ ok: true }, 200, cors);
-      } catch (err) { return json({ error: err.message }, 500, cors); }
+      } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: err.message }, 500, cors); }
     }
 
     // ── POST /ticket — crear ticket ───────────────────────────
     if (request.method === 'POST' && path === '/ticket') {
+      if (bodyTooLarge(request)) return json({ error: 'Body demasiado grande' }, 413, cors);
+      const ip = clientIp(request);
+      if (!(await rateLimit(env, 'ticket', ip, 10, 60))) {
+        logEvent('rate_limited', { scope: 'ticket', ip });
+        return json({ error: 'Demasiadas solicitudes. Espera un minuto.' }, 429, cors);
+      }
       return dedupByBody(request, env, async () => {
       try {
         const { nombre, email, categoria, prioridad, asunto, descripcion } = await request.json();
@@ -654,7 +692,7 @@ export default {
         });
 
         return json({ ok: true, id, ticketId }, 200, cors);
-      } catch (err) { return json({ error: err.message }, 500, cors); }
+      } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: err.message }, 500, cors); }
       }, 'ticket');
     }
 
@@ -668,7 +706,7 @@ export default {
         return json({
           tickets: items.filter(Boolean).sort((a,b) => new Date(b.fecha) - new Date(a.fecha))
         }, 200, cors);
-      } catch (err) { return json({ error: err.message }, 500, cors); }
+      } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: err.message }, 500, cors); }
     }
 
     // ── POST /ticket/update — actualizar ticket ───────────────
@@ -745,7 +783,7 @@ export default {
         }
         await env.HERO_KV.put(id, JSON.stringify(ticket));
         return json({ ok: true }, 200, cors);
-      } catch (err) { return json({ error: err.message }, 500, cors); }
+      } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: err.message }, 500, cors); }
     }
 
     // ── POST /user-action — gestionar usuario ─────────────────
@@ -773,7 +811,7 @@ export default {
         const data = await resp.json();
         if (!resp.ok) return json({ error: data.error?.message || 'Error' }, resp.status, cors);
         return json({ ok: true }, 200, cors);
-      } catch (err) { return json({ error: err.message }, 500, cors); }
+      } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: err.message }, 500, cors); }
     }
 
     // ── POST /audit — guardar entrada ─────────────────────────
@@ -790,7 +828,7 @@ export default {
         };
         await env.HERO_KV.put(id, JSON.stringify(entrada));
         return json({ ok: true, id }, 200, cors);
-      } catch (err) { return json({ error: err.message }, 500, cors); }
+      } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: err.message }, 500, cors); }
     }
 
     // ── GET /audit — listar entradas ──────────────────────────
@@ -812,7 +850,7 @@ export default {
           (e.usuario || '').toLowerCase().includes(q.toLowerCase())
         );
         return json({ entradas: entradas.slice(0, limit), total: entradas.length }, 200, cors);
-      } catch (err) { return json({ error: err.message }, 500, cors); }
+      } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: err.message }, 500, cors); }
     }
 
 // ── POST /device — crear dispositivo ──────────────────────
@@ -833,7 +871,7 @@ export default {
         };
         await env.HERO_KV.put(id, JSON.stringify(device));
         return json({ ok: true, id }, 200, cors);
-      } catch (err) { return json({ error: err.message }, 500, cors); }
+      } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: err.message }, 500, cors); }
     }
 
     // ── GET /device — listar dispositivos ─────────────────────
@@ -846,7 +884,7 @@ export default {
         return json({
           devices: items.filter(Boolean).sort((a, b) => new Date(b.fecha) - new Date(a.fecha))
         }, 200, cors);
-      } catch (err) { return json({ error: err.message }, 500, cors); }
+      } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: err.message }, 500, cors); }
     }
 
     // ── GET /device/:id — obtener dispositivo ─────────────────
@@ -856,7 +894,7 @@ export default {
         const v = await env.HERO_KV.get(id);
         if (!v) return json({ error: 'Dispositivo no encontrado' }, 404, cors);
         return json({ device: JSON.parse(v) }, 200, cors);
-      } catch (err) { return json({ error: err.message }, 500, cors); }
+      } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: err.message }, 500, cors); }
     }
 
     // ── POST /device/update — actualizar dispositivo ──────────
@@ -875,7 +913,7 @@ export default {
         if (estado  !== undefined) device.estado  = estado;
         await env.HERO_KV.put(id, JSON.stringify(device));
         return json({ ok: true }, 200, cors);
-      } catch (err) { return json({ error: err.message }, 500, cors); }
+      } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: err.message }, 500, cors); }
     }
 
     // ── POST /device/intervencion — registrar intervención ────
@@ -896,7 +934,7 @@ export default {
         device.intervenciones.unshift(intervencion);
         await env.HERO_KV.put(id, JSON.stringify(device));
         return json({ ok: true, intervencion }, 200, cors);
-      } catch (err) { return json({ error: err.message }, 500, cors); }
+      } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: err.message }, 500, cors); }
     }
 
 
@@ -916,7 +954,7 @@ export default {
         });
         const result = await resendResp.json();
         return json(result, resendResp.status, cors);
-      } catch (err) { return json({ error: err.message }, 500, cors); }
+      } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: err.message }, 500, cors); }
     }
 
     return json({ error: 'Ruta no encontrada' }, 404, cors);
@@ -927,6 +965,45 @@ function json(data, status = 200, headers = {}) {
   return new Response(JSON.stringify(data), {
     status, headers: { ...headers, 'Content-Type': 'application/json' }
   });
+}
+
+// ── Observabilidad ────────────────────────────────────────────
+// Logs estructurados (JSON line) que Cloudflare conserva 24 h en tail logs.
+// Útil para post-mortem sin tener que reproducir el fallo en producción.
+function logEvent(event, data = {}) {
+  try { console.log(JSON.stringify({ event, ts: Date.now(), ...data })); } catch (_) {}
+}
+function logError(event, err, ctx = {}) {
+  try {
+    console.error(JSON.stringify({
+      event, ts: Date.now(),
+      msg: err && err.message, stack: err && err.stack ? String(err.stack).slice(0, 500) : '',
+      ...ctx
+    }));
+  } catch (_) {}
+}
+
+// ── Anti-abuso para endpoints públicos ────────────────────────
+function clientIp(request) {
+  return request.headers.get('CF-Connecting-IP')
+      || request.headers.get('X-Forwarded-For')
+      || '_unknown';
+}
+function bodyTooLarge(request, maxBytes = 10240) {
+  const len = parseInt(request.headers.get('Content-Length') || '0', 10);
+  return len > maxBytes;
+}
+// Rate-limit por IP usando KV. Eventually-consistent: bajo carga concurrente
+// puede dejar pasar 1-2 extra, suficiente para mitigar abuso (no es WAF).
+async function rateLimit(env, scope, ip, maxPerWindow, windowSec) {
+  const key = 'rl_' + scope + '_' + ip;
+  let count = 0;
+  try { count = parseInt((await env.HERO_KV.get(key)) || '0', 10); } catch (_) {}
+  if (count >= maxPerWindow) return false;
+  try {
+    await env.HERO_KV.put(key, String(count + 1), { expirationTtl: windowSec });
+  } catch (_) { /* mejor permitir que bloquear si KV falla */ }
+  return true;
 }
 
 // ── Idempotencia por hash del body ───────────────────────────
@@ -1142,7 +1219,30 @@ function buildStatusMsgs(estado, ticket, ticketInfo) {
   };
 }
 
+// Cache de tokens OAuth en KV. Los tokens duran 1h; cacheamos ~55min para
+// margen. Evita firmar JWT RS256 + round-trip a Google/Zoho en cada request
+// del dashboard (~200-400 ms ahorrados por endpoint).
+async function getCachedToken(env, cacheKey) {
+  try {
+    const raw = await env.HERO_KV.get(cacheKey);
+    if (!raw) return null;
+    const c = JSON.parse(raw);
+    if (c && c.token && c.exp > Math.floor(Date.now() / 1000) + 60) return c.token;
+  } catch (_) {}
+  return null;
+}
+async function setCachedToken(env, cacheKey, token, expiresInSec) {
+  const ttl = Math.max(60, (expiresInSec || 3600) - 300); // margen de 5 min
+  try {
+    await env.HERO_KV.put(cacheKey, JSON.stringify({
+      token, exp: Math.floor(Date.now() / 1000) + ttl
+    }), { expirationTtl: ttl });
+  } catch (e) { logError('token_cache_write_failed', e, { cacheKey }); }
+}
+
 async function getZohoToken(env) {
+  const cached = await getCachedToken(env, 'cache_zoho_token');
+  if (cached) return cached;
   const resp = await fetch('https://accounts.zoho.com/oauth/v2/token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -1154,11 +1254,17 @@ async function getZohoToken(env) {
     }).toString()
   });
   const data = await resp.json();
-  if (!data.access_token) throw new Error('Zoho token fallido: ' + JSON.stringify(data));
+  if (!data.access_token) {
+    logError('zoho_token_failed', new Error('no access_token'), { status: resp.status });
+    throw new Error('Zoho token fallido: ' + JSON.stringify(data));
+  }
+  await setCachedToken(env, 'cache_zoho_token', data.access_token, data.expires_in);
   return data.access_token;
 }
 
 async function getGoogleToken(env) {
+  const cached = await getCachedToken(env, 'cache_google_token');
+  if (cached) return cached;
   const clientEmail = env.GOOGLE_CLIENT_EMAIL;
   const privateKey  = env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n');
   const adminEmail  = env.GOOGLE_ADMIN_EMAIL;
@@ -1180,6 +1286,10 @@ async function getGoogleToken(env) {
     body: 'grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=' + signingInput + '.' + b64sig,
   });
   const tokenData = await tokenResp.json();
-  if (!tokenData.access_token) throw new Error('Token fallido: ' + JSON.stringify(tokenData));
+  if (!tokenData.access_token) {
+    logError('google_token_failed', new Error('no access_token'), { status: tokenResp.status });
+    throw new Error('Token fallido: ' + JSON.stringify(tokenData));
+  }
+  await setCachedToken(env, 'cache_google_token', tokenData.access_token, tokenData.expires_in);
   return tokenData.access_token;
 }
