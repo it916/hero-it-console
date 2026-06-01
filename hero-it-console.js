@@ -261,34 +261,19 @@ async function checkSystemStatus() {
 }
 
 async function loadDashboardCounters() {
+  // Una sola llamada a /stats reemplaza 3 listados completos (tickets +
+  // solicitudes + devices). Sin gets adicionales mientras todas las entradas
+  // tengan metadata (ver /admin/backfill-metadata para migrar las viejas).
   try {
-    // Tickets abiertos
-    const tResp = await authFetch(WORKER_URL + '/ticket');
-    if (tResp.ok) {
-      const tData = await tResp.json();
-      const open = (tData.tickets || []).filter(t => t.estado === 'abierto').length;
-      const el = document.getElementById('stat-tickets-open');
-      if (el) { el.textContent = open; el.style.color = open > 0 ? 'var(--hero-danger)' : 'var(--hero-success)'; }
-    }
-  } catch {}
-  try {
-    // Solicitudes pendientes
-    const sResp = await authFetch(WORKER_URL + '/alta-agente');
-    if (sResp.ok) {
-      const sData = await sResp.json();
-      const pending = (sData.solicitudes || []).filter(s => s.estado === 'pendiente').length;
-      const el = document.getElementById('stat-solicitudes-pending');
-      if (el) { el.textContent = pending; el.style.color = pending > 0 ? 'var(--hero-warning)' : 'var(--hero-success)'; }
-    }
-  } catch {}
-  try {
-    // Dispositivos
-    const dResp = await authFetch(WORKER_URL + '/device');
-    if (dResp.ok) {
-      const dData = await dResp.json();
-      const el = document.getElementById('stat-devices-count');
-      if (el) { el.textContent = (dData.devices || []).length; el.style.color = 'var(--hero-primary)'; }
-    }
+    const resp = await authFetch(WORKER_URL + '/stats');
+    if (!resp.ok) return;
+    const d = await resp.json();
+    const elT = document.getElementById('stat-tickets-open');
+    if (elT) { elT.textContent = d.tickets.open; elT.style.color = d.tickets.open > 0 ? 'var(--hero-danger)' : 'var(--hero-success)'; }
+    const elS = document.getElementById('stat-solicitudes-pending');
+    if (elS) { elS.textContent = d.solicitudes.pending; elS.style.color = d.solicitudes.pending > 0 ? 'var(--hero-warning)' : 'var(--hero-success)'; }
+    const elD = document.getElementById('stat-devices-count');
+    if (elD) { elD.textContent = d.devices.total; elD.style.color = 'var(--hero-primary)'; }
   } catch {}
 }
 
@@ -491,15 +476,13 @@ function updateTabBadge(total) {
 
 async function pollForUpdates() {
   try {
-    const [tResp, sResp] = await Promise.all([
-      authFetch(WORKER_URL + '/ticket'),
-      authFetch(WORKER_URL + '/alta-agente')
-    ]);
-    const tData = tResp.ok ? await tResp.json() : { tickets: [] };
-    const sData = sResp.ok ? await sResp.json() : { solicitudes: [] };
-
-    const openTickets      = (tData.tickets    || []).filter(t => t.estado === 'abierto').length;
-    const pendingSolicitud = (sData.solicitudes || []).filter(s => s.estado === 'pendiente').length;
+    // Una sola llamada cada 60s en lugar de listar /ticket + /alta-agente
+    // completos. Los counts vienen de KV metadata (sin N+1).
+    const resp = await authFetch(WORKER_URL + '/stats');
+    if (!resp.ok) return;
+    const d = await resp.json();
+    const openTickets      = d.tickets.open      || 0;
+    const pendingSolicitud = d.solicitudes.pending || 0;
 
     if (lastTicketCount >= 0 && openTickets > lastTicketCount) {
       const diff = openTickets - lastTicketCount;

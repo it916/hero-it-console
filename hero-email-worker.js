@@ -121,6 +121,83 @@ export default {
       } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: err.message }, 500, cors); }
     }
 
+    // ── GET /stats — counts ligeros para el polling del dashboard ─
+    // Usa solo KV.list() + metadata, sin get()s. Reemplaza las 3 llamadas
+    // /ticket + /alta-agente + /device que hacía loadDashboardCounters /
+    // pollForUpdates cada 60s (con N+1 por endpoint). Las entradas pre-deploy
+    // sin metadata aún requieren un get() — el endpoint /admin/backfill-metadata
+    // las migra de una sola pasada (correr una vez después del deploy).
+    if (request.method === 'GET' && path === '/stats') {
+      try {
+        const [tickets, solicitudes, devices] = await Promise.all([
+          env.HERO_KV.list({ prefix: 'ticket_' }),
+          env.HERO_KV.list({ prefix: 'alta_' }),
+          env.HERO_KV.list({ prefix: 'device_' }),
+        ]);
+        const countByEstado = async (keys, target) => {
+          let count = 0; const legacy = [];
+          for (const k of keys) {
+            if (k.metadata && k.metadata.estado !== undefined) {
+              if (k.metadata.estado === target) count++;
+            } else { legacy.push(k.name); }
+          }
+          if (legacy.length) {
+            const estados = await Promise.all(legacy.map(async name => {
+              try { const v = await env.HERO_KV.get(name); return v ? JSON.parse(v).estado : null; }
+              catch { return null; }
+            }));
+            count += estados.filter(e => e === target).length;
+          }
+          return { count, legacy: legacy.length };
+        };
+        const t = await countByEstado(tickets.keys, 'abierto');
+        const s = await countByEstado(solicitudes.keys, 'pendiente');
+        return json({
+          tickets:     { open: t.count, total: tickets.keys.length,     legacy: t.legacy },
+          solicitudes: { pending: s.count, total: solicitudes.keys.length, legacy: s.legacy },
+          devices:     { total: devices.keys.length },
+        }, 200, cors);
+      } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: err.message }, 500, cors); }
+    }
+
+    // ── POST /admin/backfill-metadata ─────────────────────────
+    // Re-puts toda entrada que no tenga metadata para que los list() futuros
+    // sean baratos. Idempotente: las entradas que ya tienen metadata se saltean.
+    // Correr una vez después del deploy. Privado (Bearer auth).
+    if (request.method === 'POST' && path === '/admin/backfill-metadata') {
+      try {
+        const SUMMARIZERS = {
+          'ticket_': summarizeTicket,
+          'alta_':   summarizeSolicitud,
+          'device_': summarizeDevice,
+          'lic_':    summarizeLicencia,
+          'audit_':  summarizeAudit,
+        };
+        const stats = {};
+        for (const prefix of Object.keys(SUMMARIZERS)) {
+          let migrated = 0, skipped = 0;
+          let cursor = undefined;
+          do {
+            const list = await env.HERO_KV.list({ prefix, cursor });
+            for (const k of list.keys) {
+              if (k.metadata && Object.keys(k.metadata).length > 0) { skipped++; continue; }
+              const v = await env.HERO_KV.get(k.name);
+              if (!v) continue;
+              try {
+                const parsed = JSON.parse(v);
+                await env.HERO_KV.put(k.name, v, { metadata: SUMMARIZERS[prefix](parsed) });
+                migrated++;
+              } catch (e) { logError('backfill_key_failed', e, { key: k.name }); }
+            }
+            cursor = list.list_complete ? null : list.cursor;
+          } while (cursor);
+          stats[prefix] = { migrated, skipped };
+        }
+        logEvent('backfill_metadata_complete', { stats });
+        return json({ ok: true, stats }, 200, cors);
+      } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: err.message }, 500, cors); }
+    }
+
 
     // ── POST /licencia — crear/actualizar ─────────────────────
     if (request.method === 'POST' && path === '/licencia') {
@@ -143,7 +220,7 @@ export default {
           codigoLicencia: codigoLicencia || '',
           fecha: new Date().toISOString(),
         };
-        await env.HERO_KV.put(licId, JSON.stringify(lic));
+        await env.HERO_KV.put(licId, JSON.stringify(lic), { metadata: summarizeLicencia(lic) });
         return json({ ok: true, id: licId }, 200, cors);
       } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: err.message }, 500, cors); }
     }
@@ -366,7 +443,7 @@ export default {
         sol.autorizadaPor   = nombreAut;
         sol.autorizadaEmail = by;
         sol.autorizadaFecha = new Date().toISOString();
-        await env.HERO_KV.put(id, JSON.stringify(sol));
+        await env.HERO_KV.put(id, JSON.stringify(sol), { metadata: summarizeSolicitud(sol) });
 
         // Notifica a IT que la solicitud fue autorizada (no a los otros autorizadores
         // para no spamearlos — la Console refleja el estado).
@@ -503,7 +580,7 @@ export default {
             + '\nSolicitado por: ' + solicitanteNombre + (solicitanteEmail ? ' <' + solicitanteEmail + '>' : '');
         }
 
-        await env.HERO_KV.put(solicitud.id, JSON.stringify(solicitud));
+        await env.HERO_KV.put(solicitud.id, JSON.stringify(solicitud), { metadata: summarizeSolicitud(solicitud) });
 
         // Cada autorizador recibe un correo personalizado con su propio link firmado (HMAC).
         // Cuando el primero hace click, la solicitud queda como autorizada; los demás
@@ -603,7 +680,7 @@ export default {
         if (!val) return json({ error: 'No encontrada' }, 404, cors);
         const item = JSON.parse(val);
         item.estado = estado || 'procesada';
-        await env.HERO_KV.put(id, JSON.stringify(item));
+        await env.HERO_KV.put(id, JSON.stringify(item), { metadata: summarizeSolicitud(item) });
         return json({ ok: true }, 200, cors);
       } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: err.message }, 500, cors); }
     }
@@ -630,7 +707,7 @@ export default {
           asunto, descripcion, estado: 'abierto',
           fecha: new Date().toISOString(), respuesta: null, fechaRespuesta: null,
         };
-        await env.HERO_KV.put(id, JSON.stringify(ticket));
+        await env.HERO_KV.put(id, JSON.stringify(ticket), { metadata: summarizeTicket(ticket) });
 
         // Colores por prioridad
         const colores = { Baja:'#22d87a', Media:'#f0b429', Alta:'#f97316', Urgente:'#f56565' };
@@ -766,7 +843,7 @@ export default {
             text: 'Respuesta: ' + respuesta,
           }, { event: 'ticket_reply', ticketId: ticket.ticketId });
         }
-        await env.HERO_KV.put(id, JSON.stringify(ticket));
+        await env.HERO_KV.put(id, JSON.stringify(ticket), { metadata: summarizeTicket(ticket) });
         return json({ ok: true }, 200, cors);
       } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: err.message }, 500, cors); }
     }
@@ -811,7 +888,7 @@ export default {
           usuario: usuario || 'Fernando Romero',
           fecha: new Date().toISOString(),
         };
-        await env.HERO_KV.put(id, JSON.stringify(entrada));
+        await env.HERO_KV.put(id, JSON.stringify(entrada), { metadata: summarizeAudit(entrada) });
         return json({ ok: true, id }, 200, cors);
       } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: err.message }, 500, cors); }
     }
@@ -854,7 +931,7 @@ export default {
           fecha: new Date().toISOString(),
           intervenciones: [],
         };
-        await env.HERO_KV.put(id, JSON.stringify(device));
+        await env.HERO_KV.put(id, JSON.stringify(device), { metadata: summarizeDevice(device) });
         return json({ ok: true, id }, 200, cors);
       } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: err.message }, 500, cors); }
     }
@@ -896,7 +973,7 @@ export default {
         if (gcpw    !== undefined) device.gcpw    = gcpw;
         if (apps    !== undefined) device.apps    = apps;
         if (estado  !== undefined) device.estado  = estado;
-        await env.HERO_KV.put(id, JSON.stringify(device));
+        await env.HERO_KV.put(id, JSON.stringify(device), { metadata: summarizeDevice(device) });
         return json({ ok: true }, 200, cors);
       } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: err.message }, 500, cors); }
     }
@@ -917,7 +994,7 @@ export default {
         };
         device.intervenciones = device.intervenciones || [];
         device.intervenciones.unshift(intervencion);
-        await env.HERO_KV.put(id, JSON.stringify(device));
+        await env.HERO_KV.put(id, JSON.stringify(device), { metadata: summarizeDevice(device) });
         return json({ ok: true, intervencion }, 200, cors);
       } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: err.message }, 500, cors); }
     }
@@ -1021,6 +1098,48 @@ async function rateLimit(env, scope, ip, maxPerWindow, windowSec) {
     await env.HERO_KV.put(key, String(count + 1), { expirationTtl: windowSec });
   } catch (_) { /* mejor permitir que bloquear si KV falla */ }
   return true;
+}
+
+// ── Metadata para list() sin N+1 ──────────────────────────────
+// KV permite hasta 1024 bytes de metadata por key. La guardamos al hacer put
+// con los campos que el endpoint /stats (y futuros listados ligeros) necesitan
+// para contar/filtrar sin tener que hacer get() por entrada. Los renders del
+// frontend siguen usando los listados completos, pero el polling del dashboard
+// (cada 60s) ahora solo necesita /stats que NO hace get()s.
+function summarizeTicket(t) {
+  return {
+    ticketId: t.ticketId || '',
+    estado: t.estado || 'abierto',
+    prioridad: t.prioridad || 'Media',
+    categoria: t.categoria || '',
+    fecha: t.fecha || '',
+  };
+}
+function summarizeSolicitud(s) {
+  return {
+    tipoSolicitud: s.tipoSolicitud || 'alta',
+    tipoPersona: s.tipoPersona || 'agente',
+    estado: s.estado || 'pendiente',
+    fecha: s.fecha || '',
+  };
+}
+function summarizeDevice(d) {
+  return {
+    estado: d.estado || '',
+    tipo: d.tipo || '',
+  };
+}
+function summarizeLicencia(l) {
+  return {
+    estado: l.estado || 'activa',
+    vencimiento: l.vencimiento || null,
+  };
+}
+function summarizeAudit(e) {
+  return {
+    tipo: e.tipo || '',
+    fecha: e.fecha || '',
+  };
 }
 
 // ── Idempotencia por hash del body ───────────────────────────
