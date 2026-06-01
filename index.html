@@ -671,6 +671,28 @@ nav { padding: 12px; flex: 1; }
 
 html { scroll-behavior: smooth; }
 
+/* ── Loading skeletons (shimmer) ─────────────────────────── */
+.skel {
+  background: linear-gradient(90deg,
+    var(--hero-bg-preview) 25%,
+    var(--hero-bg-page) 50%,
+    var(--hero-bg-preview) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s ease-in-out infinite;
+  border-radius: 8px;
+  border: 1px solid var(--hero-border-card);
+}
+.skel-row  { height: 42px; margin-bottom: 8px; }
+.skel-card { height: 76px; margin-bottom: 10px; }
+.skel-stat { height: 56px; }
+@keyframes shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .skel { animation: none; }
+}
+
 /* ── A11y: foco visible para navegación por teclado ────────── */
 /* Solo se muestra cuando el foco vino del teclado (Tab), no del mouse. */
 *:focus { outline: none; }

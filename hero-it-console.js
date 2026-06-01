@@ -718,6 +718,40 @@ function heroConfirm(opts) {
   });
 }
 
+// ── Empty state con CTA opcional ──────────────────────────────
+// Usado cuando una colección está legítimamente vacía (no por error).
+function renderEmpty(el, opts) {
+  if (!el) return;
+  const icon    = opts.icon || '📭';
+  const message = opts.message || 'Sin datos';
+  const ctaText = opts.ctaText || '';
+  const ctaFn   = opts.ctaFn || null;
+  el.innerHTML =
+      '<div class="info-box" style="text-align:center;padding:40px;grid-column:1/-1;">'
+    +   '<div style="font-size:36px;opacity:0.35;margin-bottom:14px;">' + escHtml(icon) + '</div>'
+    +   '<div style="font-size:13px;color:var(--hero-text-muted);margin-bottom:' + (ctaText ? '16px' : '0') + ';">' + escHtml(message) + '</div>'
+    +   (ctaText ? '<button class="btn btn-secondary" data-empty-cta style="font-size:12px;">' + escHtml(ctaText) + '</button>' : '')
+    + '</div>';
+  if (ctaFn) {
+    const btn = el.querySelector('[data-empty-cta]');
+    if (btn) btn.addEventListener('click', () => { try { ctaFn(); } catch (_) {} });
+  }
+}
+
+// ── Loading skeleton (shimmer rectangles) ─────────────────────
+// Reemplaza spinners genéricos durante el fetch. Tipos:
+//   'list' (default) — filas horizontales para tablas/listas
+//   'card' — bloques más altos para grids/kanban
+//   'stat' — chips compactos para el dashboard
+function renderSkeleton(el, opts) {
+  if (!el) return;
+  const rows = (opts && opts.rows) || 4;
+  const cls = opts && opts.type === 'card' ? 'skel-card'
+            : opts && opts.type === 'stat' ? 'skel-stat'
+            : 'skel-row';
+  el.innerHTML = Array(rows).fill(0).map(() => '<div class="skel ' + cls + '"></div>').join('');
+}
+
 // ── Error state renderer con botón Reintentar ─────────────────
 // Reemplaza el patrón "innerHTML = 'Error: ' + msg" — el usuario sí ve qué
 // falló y puede reintentar sin navegar fuera de la página.
@@ -1250,6 +1284,7 @@ async function loadAudit() {
   const btn = document.getElementById('btn-load-audit');
   btn.disabled = true;
   btn.innerHTML = '<span class="spinner"></span>';
+  renderSkeleton(document.getElementById('audit-body'), { rows: 6 });
   try {
     const tipo = document.getElementById('audit-filter-tipo').value;
     const q    = document.getElementById('audit-search').value.trim();
@@ -1395,6 +1430,15 @@ async function loadTickets() {
   if (catSel)  catSel.value  = restoreState('ticket_filter_categoria', '');
   const savedView = restoreState('ticket_view', 'kanban');
   if (savedView !== ticketView) setTicketView(savedView);
+
+  // Skeleton mientras carga — el render real lo reemplaza al llegar la respuesta
+  if (ticketView === 'kanban') {
+    ['cards-abierto', 'cards-en-progreso', 'cards-resuelto'].forEach(id =>
+      renderSkeleton(document.getElementById(id), { type: 'card', rows: 2 })
+    );
+  } else {
+    renderSkeleton(document.getElementById('tickets-list'), { rows: 5 });
+  }
 
   const btn = document.getElementById('btn-load-tickets');
   if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>'; }
@@ -1588,6 +1632,7 @@ async function loadSolicitudes() {
       c.classList.toggle('active', c.dataset.filter === solFilter);
     });
   }
+  renderSkeleton(document.getElementById('sol-list'), { type: 'card', rows: 3 });
   const btn = document.getElementById('btn-load-sol');
   if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>'; }
   try {
@@ -2308,6 +2353,7 @@ const INT_TIPO_COLOR = {
 };
 
 async function loadDevices() {
+  renderSkeleton(document.getElementById('dev-grid'), { type: 'card', rows: 4 });
   try {
     const resp = await authFetch(WORKER_URL + '/device');
     const data = await resp.json();
@@ -2872,6 +2918,7 @@ async function executeOffboarding() {
 let allLicencias = [];
 
 async function loadLicencias() {
+  renderSkeleton(document.getElementById('lic-grid'), { type: 'card', rows: 4 });
   try {
     const r = await authFetch(WORKER_URL + '/licencia');
     const d = await r.json();
