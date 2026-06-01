@@ -2667,6 +2667,9 @@ function renderDeviceGrid(devices) {
     const eColor = DEV_ESTADO_COLOR[d.estado] || 'var(--hero-text-body)';
     const icon   = DEV_TIPO_ICON[d.tipo] || '💻';
     const intCount = (d.intervenciones || []).length;
+    // Lifecycle: si tenemos fechaCompra + vidaUtilAnios, calcula meses hasta
+    // renovación y muestra badge "Renovar pronto" si <= 6 meses.
+    const lc = deviceLifecycle(d);
     return '<div class="action-card" style="cursor:pointer;" onclick="openDeviceDetail(\'' + escJs(d.id) + '\')">'
       + '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">'
       + '<span style="font-size:24px;">' + icon + '</span>'
@@ -2678,12 +2681,42 @@ function renderDeviceGrid(devices) {
       + '<span>' + escHtml(d.so || 'SO no especificado') + '</span>'
       + '<span style="margin-left:auto;">' + intCount + ' intervenci' + (intCount !== 1 ? 'ones' : 'ón') + '</span>'
       + '</div>'
-      + '<div style="margin-top:8px;display:flex;gap:6px;">'
+      + '<div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap;">'
       + (d.gcpw ? '<span style="font-family:var(--mono);font-size:9px;padding:2px 6px;border-radius:4px;background:rgba(25,205,235,0.1);color:var(--hero-primary);">GCPW</span>' : '')
       + '<span style="font-family:var(--mono);font-size:9px;padding:2px 6px;border-radius:4px;background:rgba(255,255,255,0.05);color:var(--hero-text-muted);">' + escHtml(d.tipo) + '</span>'
+      + (lc.renovarSoon
+          ? '<span style="font-family:var(--mono);font-size:9px;padding:2px 6px;border-radius:4px;background:' + lc.badgeBg + ';color:' + lc.badgeColor + ';">' + lc.badgeText + '</span>'
+          : '')
       + '</div>'
       + '</div>';
   }).join('');
+}
+
+// Calcula info de lifecycle de un dispositivo basado en fechaCompra +
+// vidaUtilAnios. Devuelve siempre el mismo shape para que callers no tengan
+// que chequear undefined a mano.
+function deviceLifecycle(d) {
+  if (!d.fechaCompra || !d.vidaUtilAnios) {
+    return { hasData: false, renovarSoon: false };
+  }
+  const compra = new Date(d.fechaCompra);
+  const renovar = new Date(compra);
+  renovar.setFullYear(renovar.getFullYear() + Number(d.vidaUtilAnios));
+  const daysToRenew = Math.ceil((renovar.getTime() - Date.now()) / 86400000);
+  const monthsToRenew = Math.round(daysToRenew / 30);
+  const renovarSoon = daysToRenew <= 180; // 6 meses
+  const overdue     = daysToRenew < 0;
+  const badgeColor  = overdue ? '#fff'                : (daysToRenew <= 60 ? '#fff' : 'var(--hero-warning)');
+  const badgeBg     = overdue ? 'var(--hero-danger)'  : (daysToRenew <= 60 ? 'var(--hero-warning)' : 'rgba(232,163,23,0.15)');
+  const badgeText   = overdue
+    ? 'RENOVAR (vencido)'
+    : daysToRenew <= 30 ? 'Renovar en ' + daysToRenew + 'd'
+    : 'Renovar en ' + monthsToRenew + ' mes' + (monthsToRenew !== 1 ? 'es' : '');
+  return {
+    hasData: true, renovarSoon, overdue,
+    daysToRenew, monthsToRenew, renovar,
+    badgeColor, badgeBg, badgeText,
+  };
 }
 
 async function openDeviceDetail(id) {
@@ -2699,6 +2732,15 @@ async function openDeviceDetail(id) {
   // Info — row() inyecta su segundo argumento como HTML, así que valores
   // venidos del backend deben ir pre-escapados con escHtml.
   const eColor = DEV_ESTADO_COLOR[device.estado] || 'var(--hero-text-body)';
+  const lc = deviceLifecycle(device);
+  const lifecycleRows = lc.hasData
+    ? row('Comprado', escHtml(new Date(device.fechaCompra).toLocaleDateString('es-MX', { year:'numeric', month:'short', day:'numeric' })))
+    + row('Vida útil', escHtml(device.vidaUtilAnios + ' año' + (device.vidaUtilAnios !== 1 ? 's' : '')))
+    + row('Renovar antes de', '<span style="color:' + (lc.overdue ? 'var(--hero-danger)' : (lc.renovarSoon ? 'var(--hero-warning)' : 'var(--hero-text-primary)')) + ';font-weight:' + (lc.renovarSoon ? '600' : '400') + ';">'
+        + escHtml(lc.renovar.toLocaleDateString('es-MX', { year:'numeric', month:'short', day:'numeric' }))
+        + ' <span style="font-size:11px;color:var(--hero-text-muted);">(' + escHtml(lc.badgeText) + ')</span></span>')
+    + (device.costoOriginal ? row('Costo original', '$' + Number(device.costoOriginal).toFixed(2) + ' USD') : '')
+    : row('Lifecycle', '<span style="color:var(--hero-text-muted);font-size:11px;">Sin datos de compra · click editar para agregar fecha y vida útil</span>');
   document.getElementById('dev-detail-info').innerHTML =
     '<div style="display:grid;gap:6px;">'
     + row('Usuario', escHtml(device.usuario || '—'))
@@ -2706,6 +2748,7 @@ async function openDeviceDetail(id) {
     + row('Sistema operativo', escHtml(device.so || '—'))
     + row('GCPW', device.gcpw ? '<span style="color:var(--hero-primary);">✓ Activado</span>' : '<span style="color:var(--hero-text-muted);">✗ No activado</span>')
     + row('Estado', '<span style="color:' + eColor + ';">' + escHtml(device.estado) + '</span>')
+    + lifecycleRows
     + '</div>';
 
   // Apps
@@ -2807,6 +2850,9 @@ function showDeviceForm(device = null) {
   document.getElementById('dev-f-estado').value  = device ? device.estado  : 'activo';
   document.getElementById('dev-f-gcpw').checked  = device ? device.gcpw    : false;
   document.getElementById('dev-f-apps').value    = device ? (device.apps || []).join('\n') : '';
+  document.getElementById('dev-f-fecha-compra').value = device ? (device.fechaCompra || '') : '';
+  document.getElementById('dev-f-vida-util').value    = device && device.vidaUtilAnios != null ? device.vidaUtilAnios : 4;
+  document.getElementById('dev-f-costo').value        = device && device.costoOriginal != null ? device.costoOriginal : '';
   document.getElementById('dev-modal').style.display = 'block';
 }
 
@@ -2828,6 +2874,11 @@ async function saveDevice() {
   const gcpw    = document.getElementById('dev-f-gcpw').checked;
   const appsRaw = document.getElementById('dev-f-apps').value;
   const apps    = appsRaw.split('\n').map(a => a.trim()).filter(Boolean);
+  const fechaCompra   = document.getElementById('dev-f-fecha-compra').value || null;
+  const vidaUtilRaw   = document.getElementById('dev-f-vida-util').value;
+  const vidaUtilAnios = vidaUtilRaw ? Math.max(1, Math.min(15, parseInt(vidaUtilRaw, 10) || 4)) : null;
+  const costoRaw      = document.getElementById('dev-f-costo').value;
+  const costoOriginal = costoRaw ? Number(costoRaw) : null;
 
   if (!nombre) { showToast('El nombre del dispositivo es obligatorio'); return; }
 
@@ -2838,8 +2889,8 @@ async function saveDevice() {
   try {
     const endpoint = editingDeviceId ? '/device/update' : '/device';
     const body = editingDeviceId
-      ? { id: editingDeviceId, nombre, tipo, usuario, so, gcpw, apps, estado }
-      : { nombre, tipo, usuario, so, gcpw, apps, estado };
+      ? { id: editingDeviceId, nombre, tipo, usuario, so, gcpw, apps, estado, fechaCompra, vidaUtilAnios, costoOriginal }
+      : { nombre, tipo, usuario, so, gcpw, apps, estado, fechaCompra, vidaUtilAnios, costoOriginal };
 
     const resp = await authFetch(WORKER_URL + endpoint, {
       method: 'POST',

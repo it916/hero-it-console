@@ -1953,6 +1953,18 @@ html { scroll-behavior: smooth; }
               <input type="checkbox" id="dev-f-gcpw" style="width:18px;height:18px;accent-color:var(--hero-primary);cursor:pointer;"/>
               <label for="dev-f-gcpw" style="font-size:13px;color:var(--hero-text-body);cursor:pointer;font-family:var(--sans);text-transform:none;letter-spacing:0;">GCPW activado</label>
             </div>
+            <div class="form-group">
+              <label class="form-label">Fecha de compra</label>
+              <input class="form-input" id="dev-f-fecha-compra" type="date"/>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Vida útil (años)</label>
+              <input class="form-input" id="dev-f-vida-util" type="number" min="1" max="15" placeholder="4" value="4"/>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Costo original (USD)</label>
+              <input class="form-input" id="dev-f-costo" type="number" min="0" step="0.01" placeholder="ej: 950"/>
+            </div>
           </div>
           <div class="form-group" style="margin-top:4px;">
             <label class="form-label">Aplicaciones instaladas</label>

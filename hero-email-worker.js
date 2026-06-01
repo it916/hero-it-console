@@ -939,7 +939,8 @@ export default {
 // ── POST /device — crear dispositivo ──────────────────────
     if (request.method === 'POST' && path === '/device') {
       try {
-        const { nombre, tipo, usuario, so, gcpw, apps, estado } = await request.json();
+        const { nombre, tipo, usuario, so, gcpw, apps, estado,
+                fechaCompra, vidaUtilAnios, costoOriginal } = await request.json();
         if (!nombre || !tipo) return json({ error: 'Faltan campos: nombre, tipo' }, 400, cors);
         const id = 'device_' + Date.now();
         const device = {
@@ -949,6 +950,9 @@ export default {
           gcpw: gcpw || false,
           apps: apps || [],
           estado: estado || 'activo',
+          fechaCompra:   fechaCompra   || null,
+          vidaUtilAnios: vidaUtilAnios != null ? Number(vidaUtilAnios) : 4,
+          costoOriginal: costoOriginal != null ? Number(costoOriginal) : null,
           fecha: new Date().toISOString(),
           intervenciones: [],
         };
@@ -984,7 +988,8 @@ export default {
     // ── POST /device/update — actualizar dispositivo ──────────
     if (request.method === 'POST' && path === '/device/update') {
       try {
-        const { id, nombre, tipo, usuario, so, gcpw, apps, estado } = await request.json();
+        const { id, nombre, tipo, usuario, so, gcpw, apps, estado,
+                fechaCompra, vidaUtilAnios, costoOriginal } = await request.json();
         const v = await env.HERO_KV.get(id);
         if (!v) return json({ error: 'Dispositivo no encontrado' }, 404, cors);
         const device = JSON.parse(v);
@@ -995,6 +1000,9 @@ export default {
         if (gcpw    !== undefined) device.gcpw    = gcpw;
         if (apps    !== undefined) device.apps    = apps;
         if (estado  !== undefined) device.estado  = estado;
+        if (fechaCompra   !== undefined) device.fechaCompra   = fechaCompra;
+        if (vidaUtilAnios !== undefined) device.vidaUtilAnios = vidaUtilAnios != null ? Number(vidaUtilAnios) : null;
+        if (costoOriginal !== undefined) device.costoOriginal = costoOriginal != null ? Number(costoOriginal) : null;
         await env.HERO_KV.put(id, JSON.stringify(device), { metadata: summarizeDevice(device) });
         return json({ ok: true }, 200, cors);
       } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: 'Error interno del servidor' }, 500, cors); }
