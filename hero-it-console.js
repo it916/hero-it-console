@@ -627,6 +627,102 @@ function showToast(msg) {
   setTimeout(() => t.classList.remove('show'), 3200);
 }
 
+// ── Confirm modal estilizado (reemplazo de window.confirm) ───
+// Devuelve Promise<boolean>. Mantiene branding + soporta:
+//   destructive: true     → botón rojo
+//   mustType: 'string'    → input obligatorio (acciones críticas tipo
+//                            offboarding/suspender — patrón "type to confirm")
+// El modal se crea on-demand y se reutiliza. ESC y focus trap los hereda
+// del sistema A11y global (installModalA11y vuelve a query'ar en cada ESC).
+function heroConfirm(opts) {
+  return new Promise(resolve => {
+    let modal = document.getElementById('confirm-modal');
+    if (!modal) {
+      modal = document.createElement('div');
+      modal.id = 'confirm-modal';
+      modal.setAttribute('role', 'dialog');
+      modal.setAttribute('aria-modal', 'true');
+      modal.setAttribute('aria-labelledby', 'cf-title');
+      modal.setAttribute('data-close-fn', '__heroConfirmCancel');
+      modal.style.cssText = 'display:none;position:fixed;inset:0;background:rgba(26,39,51,0.5);z-index:200;overflow-y:auto;padding:24px;';
+      modal.innerHTML =
+          '<div style="background:#ffffff;border:1px solid var(--hero-border);border-radius:14px;max-width:440px;margin:60px auto;padding:24px;box-shadow:0 10px 40px rgba(0,0,0,0.18);">'
+        +   '<div id="cf-title" style="font-size:16px;font-weight:700;color:var(--hero-text-primary);margin-bottom:8px;"></div>'
+        +   '<div id="cf-body" style="font-size:13px;color:var(--hero-text-body);line-height:1.6;margin-bottom:16px;white-space:pre-line;"></div>'
+        +   '<div id="cf-type-wrap" style="display:none;margin-bottom:16px;">'
+        +     '<label id="cf-type-label" for="cf-type-input" style="display:block;font-size:11px;color:var(--hero-text-muted);margin-bottom:6px;"></label>'
+        +     '<input id="cf-type-input" class="form-input" autocomplete="off" autocapitalize="off" spellcheck="false" style="width:100%;"/>'
+        +   '</div>'
+        +   '<div style="display:flex;gap:8px;justify-content:flex-end;">'
+        +     '<button id="cf-cancel" class="btn btn-secondary" style="font-size:13px;">Cancelar</button>'
+        +     '<button id="cf-ok" class="btn btn-primary" style="font-size:13px;">Confirmar</button>'
+        +   '</div>'
+        + '</div>';
+      document.body.appendChild(modal);
+      if (typeof _setupModalA11y === 'function') _setupModalA11y(modal);
+    }
+
+    const titleEl  = document.getElementById('cf-title');
+    const bodyEl   = document.getElementById('cf-body');
+    const btnOk    = document.getElementById('cf-ok');
+    const btnCancel= document.getElementById('cf-cancel');
+    const typeWrap = document.getElementById('cf-type-wrap');
+    const typeLbl  = document.getElementById('cf-type-label');
+    const typeInp  = document.getElementById('cf-type-input');
+
+    titleEl.textContent = opts.title || '¿Confirmar?';
+    bodyEl.textContent  = opts.body || '';
+    btnOk.textContent   = opts.confirmText || 'Confirmar';
+    btnCancel.textContent = opts.cancelText || 'Cancelar';
+    btnOk.className = opts.destructive ? 'btn btn-danger' : 'btn btn-primary';
+
+    if (opts.mustType) {
+      typeWrap.style.display = 'block';
+      typeLbl.textContent = 'Para confirmar, escribe: ' + opts.mustType;
+      typeInp.value = '';
+      btnOk.disabled = true;
+      typeInp.oninput = () => { btnOk.disabled = typeInp.value.trim() !== opts.mustType; };
+    } else {
+      typeWrap.style.display = 'none';
+      btnOk.disabled = false;
+      typeInp.oninput = null;
+    }
+
+    const close = (val) => {
+      modal.style.display = 'none';
+      btnOk.onclick = null;
+      btnCancel.onclick = null;
+      typeInp.oninput = null;
+      delete window.__heroConfirmCancel;
+      resolve(val);
+    };
+    btnOk.onclick = () => close(true);
+    btnCancel.onclick = () => close(false);
+    // ESC global (instalado por installModalA11y) llama data-close-fn
+    window.__heroConfirmCancel = () => close(false);
+
+    modal.style.display = 'block';
+  });
+}
+
+// ── Error state renderer con botón Reintentar ─────────────────
+// Reemplaza el patrón "innerHTML = 'Error: ' + msg" — el usuario sí ve qué
+// falló y puede reintentar sin navegar fuera de la página.
+function renderError(el, err, retryFn) {
+  if (!el) return;
+  const msg = (err && err.message) || String(err || 'Error desconocido');
+  el.innerHTML =
+      '<div style="text-align:center;padding:32px;">'
+    +   '<div style="font-size:32px;opacity:0.4;margin-bottom:12px;">⚠️</div>'
+    +   '<div style="font-family:var(--mono);font-size:12px;color:var(--hero-danger);margin-bottom:14px;">' + escHtml(msg) + '</div>'
+    +   (retryFn ? '<button class="btn btn-secondary" data-retry style="font-size:12px;">↺ Reintentar</button>' : '')
+    + '</div>';
+  if (retryFn) {
+    const btn = el.querySelector('[data-retry]');
+    if (btn) btn.addEventListener('click', () => { try { retryFn(); } catch (_) {} });
+  }
+}
+
 
 // ── Last updated indicator ────────────────────────────────
 function setLastUpdated(elementId) {
@@ -1155,8 +1251,7 @@ async function loadAudit() {
     renderAudit(allAuditEntradas, data.total);
     setLastUpdated('audit-last-updated');
   } catch(err) {
-    document.getElementById('audit-body').innerHTML =
-      '<div style="text-align:center;padding:32px;color:var(--hero-error);font-family:var(--mono);font-size:12px;">Error: ' + err.message + '</div>';
+    renderError(document.getElementById('audit-body'), err, loadAudit);
   }
   btn.disabled = false;
   btn.innerHTML = '↺ Actualizar';
@@ -1635,7 +1730,11 @@ async function resolverSolicitud(id, estado) {
 
 async function rechazarSolicitud(id, solEmail, solNombre, persona, tipo) {
   const tipoLabel = tipo === 'baja' ? 'baja' : 'alta';
-  if (!confirm('¿Rechazar la solicitud de ' + tipoLabel + ' para ' + persona + '?\n\nSe notificará al solicitante.')) return;
+  if (!(await heroConfirm({
+    title: '¿Rechazar solicitud?',
+    body: 'Vas a rechazar la solicitud de ' + tipoLabel + ' para ' + persona + '. Se notificará al solicitante.',
+    confirmText: 'Rechazar', destructive: true,
+  }))) return;
   try {
     await authFetch(WORKER_URL + '/alta-agente/resolver', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -1670,10 +1769,12 @@ async function suspenderDesdeSolicitud(id, correoEliminar, persona) {
     showToast('La solicitud no tiene correo a eliminar');
     return;
   }
-  if (!confirm('¿Suspender la cuenta ' + correoEliminar + '?\n\n'
-    + 'PROC-IT-001: la cuenta se marcará como suspendida en Google Workspace '
-    + '(la eliminación definitiva es un paso manual posterior).\n\n'
-    + 'La solicitud quedará marcada como procesada.')) return;
+  if (!(await heroConfirm({
+    title: '¿Suspender cuenta de Workspace?',
+    body: 'PROC-IT-001: la cuenta ' + correoEliminar + ' se marcará como suspendida en Google Workspace '
+        + '(la eliminación definitiva es un paso manual posterior). La solicitud quedará marcada como procesada.',
+    confirmText: 'Suspender', destructive: true, mustType: correoEliminar,
+  }))) return;
   try {
     const resp = await authFetch(WORKER_URL + '/user-action', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -2051,8 +2152,16 @@ async function loadUsers() {
   } catch (err) {
     addLog('Error al cargar usuarios: ' + err.message, 'error');
     showToast('Error al cargar usuarios');
-    document.getElementById('usr-tbody').innerHTML =
-      '<tr><td colspan="7" style="padding:32px;text-align:center;color:var(--hero-error);font-family:var(--mono);font-size:12px;">Error: ' + err.message + '</td></tr>';
+    // usr-tbody es un <tbody>: necesitamos un <tr> en lugar del <div> de renderError.
+    const tbody = document.getElementById('usr-tbody');
+    tbody.innerHTML =
+        '<tr><td colspan="7" style="padding:32px;text-align:center;">'
+      +   '<div style="font-size:32px;opacity:0.4;margin-bottom:12px;">⚠️</div>'
+      +   '<div style="font-family:var(--mono);font-size:12px;color:var(--hero-danger);margin-bottom:14px;">' + escHtml(err.message) + '</div>'
+      +   '<button class="btn btn-secondary" id="usr-retry" style="font-size:12px;">↺ Reintentar</button>'
+      + '</td></tr>';
+    const retryBtn = document.getElementById('usr-retry');
+    if (retryBtn) retryBtn.addEventListener('click', loadUsers);
   }
 
   btn.disabled = false;
@@ -2157,8 +2266,7 @@ async function loadDevices() {
     filterDevices();
     setLastUpdated('devices-last-updated');
   } catch(err) {
-    document.getElementById('dev-grid').innerHTML =
-      '<div class="info-box" style="text-align:center;padding:32px;grid-column:1/-1;border-color:rgba(214,69,69,0.3);"><div style="color:var(--hero-error);font-family:var(--mono);font-size:12px;">Error: ' + err.message + '</div></div>';
+    renderError(document.getElementById('dev-grid'), err, loadDevices);
   }
 }
 
@@ -2432,7 +2540,7 @@ async function loadZohoDevices() {
     setLastUpdated('zoho-last-updated');
     addLog('Zoho Assist: ' + allZohoDevices.length + ' dispositivos cargados', 'info');
   } catch(err) {
-    grid.innerHTML = '<div class="info-box" style="text-align:center;padding:32px;grid-column:1/-1;border-color:rgba(214,69,69,0.3);"><div style="color:var(--hero-error);font-family:var(--mono);font-size:12px;">Error: ' + err.message + '</div></div>';
+    renderError(grid, err, loadZohoDevices);
     addLog('Error Zoho: ' + err.message, 'error');
   }
 }
@@ -2557,10 +2665,12 @@ function _setupModalA11y(modal) {
   }).observe(modal, { attributes: true, attributeFilter: ['style', 'class'] });
 }
 function installModalA11y() {
-  const modals = document.querySelectorAll('[role="dialog"][aria-modal="true"]');
-  modals.forEach(_setupModalA11y);
+  document.querySelectorAll('[role="dialog"][aria-modal="true"]').forEach(_setupModalA11y);
+  // ESC re-querea cada vez para capturar modales agregados dinámicamente
+  // (ej: heroConfirm que se crea on-demand).
   document.addEventListener('keydown', (e) => {
     if (e.key !== 'Escape') return;
+    const modals = document.querySelectorAll('[role="dialog"][aria-modal="true"]');
     const visible = Array.from(modals).find(_isModalVisible);
     if (!visible) return;
     const fnName = visible.getAttribute('data-close-fn');
@@ -2675,7 +2785,11 @@ async function executeOffboarding() {
   const btn   = document.getElementById('btn-ob-execute');
   const done  = Object.values(obStepStatus).filter(v => v === 'done').length;
 
-  if (!confirm('¿Confirmas el offboarding de ' + obSelectedUser.nombre + '?\n\nEsto suspenderá su cuenta de Google Workspace y quedará registrado en Auditoría.')) return;
+  if (!(await heroConfirm({
+    title: '¿Ejecutar offboarding?',
+    body: obSelectedUser.nombre + ' (' + obSelectedUser.email + '). Esto suspenderá su cuenta de Google Workspace y quedará registrado en Auditoría.',
+    confirmText: 'Ejecutar offboarding', destructive: true, mustType: obSelectedUser.email,
+  }))) return;
 
   btn.disabled = true;
   btn.innerHTML = '<span class="spinner"></span> Ejecutando...';
@@ -2714,7 +2828,7 @@ async function loadLicencias() {
     allLicencias = d.licencias || [];
     renderLicencias();
   } catch(e) {
-    document.getElementById('lic-grid').innerHTML = '<div class="info-box" style="text-align:center;padding:32px;grid-column:1/-1;"><div style="color:var(--hero-danger);font-size:12px;">Error: ' + e.message + '</div></div>';
+    renderError(document.getElementById('lic-grid'), e, loadLicencias);
   }
 }
 
@@ -2912,7 +3026,11 @@ async function saveLicencia() {
   btn.disabled = false; btn.innerHTML = '💾 Guardar';
 }
 async function deleteLicencia(id, nombre) {
-  if (!confirm('¿Eliminar la licencia de ' + nombre + '?')) return;
+  if (!(await heroConfirm({
+    title: '¿Eliminar licencia?',
+    body: 'Vas a eliminar "' + nombre + '". Esta acción no se puede deshacer.',
+    confirmText: 'Eliminar', destructive: true,
+  }))) return;
   try {
     await authFetch(WORKER_URL + '/licencia/delete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) });
     showToast('Licencia eliminada');
