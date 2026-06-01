@@ -177,6 +177,7 @@ export default {
 
     // ── POST /create-user ─────────────────────────────────────
     if (request.method === 'POST' && path === '/create-user') {
+      return dedupByBody(request, env, async () => {
       try {
         const { nombre, apellido, email, password, solicitanteEmail, solicitanteNombre } = await request.json();
         if (!nombre || !apellido || !email || !password)
@@ -226,6 +227,7 @@ export default {
 
         return json({ ok: true, email: data.primaryEmail }, 200, cors);
       } catch (err) { return json({ error: err.message }, 500, cors); }
+      }, 'create-user');
     }
 
     // ── GET /solicitud-cuenta/autorizar ───────────────────────
@@ -233,6 +235,11 @@ export default {
     // Verifica HMAC, marca la solicitud como autorizada (registrando quién y
     // cuándo). Idempotente: si ya está autorizada o procesada, muestra el
     // estado actual en lugar de error.
+    // Mitigación de race condition: el check `sol.estado === 'autorizada'`
+    // (más abajo) captura el caso común de dos autorizadores clickeando casi
+    // simultáneamente. Queda una ventana TOCTOU mínima (~ms) entre el read y
+    // el write; el peor caso es un email "[AUTORIZADA]" duplicado a IT, sin
+    // pérdida de datos. KV no soporta CAS; aceptamos esta ventana.
     if (request.method === 'GET' && path === '/solicitud-cuenta/autorizar') {
       const heroCyan   = 'linear-gradient(135deg,#06a3b6,#048395)';
       const heroAmber  = 'linear-gradient(135deg,#d97706,#f59e0b)';
@@ -369,6 +376,7 @@ export default {
     // tipoSolicitud: 'alta' (default) o 'baja'.
     // tipoPersona:   'agente' (default) o 'empleado' — sólo empleado requiere cargo/area.
     if (request.method === 'POST' && (path === '/solicitud-cuenta' || path === '/alta-agente')) {
+      return dedupByBody(request, env, async () => {
       try {
         const body = await request.json();
         const tipoSolicitud = body.tipoSolicitud === 'baja' ? 'baja' : 'alta';
@@ -540,6 +548,7 @@ export default {
 
         return json({ ok: true, id: solicitud.id, tipoSolicitud }, 200, cors);
       } catch (err) { return json({ error: err.message }, 500, cors); }
+      }, 'solicitud-cuenta');
     }
 
     // ── GET /alta-agente ──────────────────────────────────────
@@ -568,6 +577,7 @@ export default {
 
     // ── POST /ticket — crear ticket ───────────────────────────
     if (request.method === 'POST' && path === '/ticket') {
+      return dedupByBody(request, env, async () => {
       try {
         const { nombre, email, categoria, prioridad, asunto, descripcion } = await request.json();
         if (!nombre || !email || !categoria || !asunto || !descripcion)
@@ -645,6 +655,7 @@ export default {
 
         return json({ ok: true, id, ticketId }, 200, cors);
       } catch (err) { return json({ error: err.message }, 500, cors); }
+      }, 'ticket');
     }
 
     // ── GET /ticket — listar tickets ──────────────────────────
@@ -916,6 +927,40 @@ function json(data, status = 200, headers = {}) {
   return new Response(JSON.stringify(data), {
     status, headers: { ...headers, 'Content-Type': 'application/json' }
   });
+}
+
+// ── Idempotencia por hash del body ───────────────────────────
+// Evita duplicados en reintentos de red: si llega un POST con exactamente el
+// mismo body dentro de la ventana, devolvemos la respuesta original cacheada
+// en KV (sólo si fue 2xx) en lugar de re-ejecutar el handler. Esto previene
+// dobles tickets, dobles emails a autorizadores y usuarios Workspace duplicados.
+async function dedupByBody(request, env, fn, scope = '', ttlSec = 60) {
+  let bodyText = '';
+  try { bodyText = await request.clone().text(); } catch (_) { /* sin body */ }
+  if (!bodyText) return fn();
+  const hashBuf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(bodyText));
+  const hashHex = Array.from(new Uint8Array(hashBuf))
+    .map(b => b.toString(16).padStart(2, '0')).join('').slice(0, 32);
+  const cacheKey = 'dedup_' + scope + '_' + hashHex;
+  const cached = await env.HERO_KV.get(cacheKey);
+  if (cached) {
+    try {
+      const c = JSON.parse(cached);
+      return new Response(c.body, { status: c.status, headers: c.headers });
+    } catch (_) { /* cache corrupta, fall through */ }
+  }
+  const resp = await fn();
+  if (resp.status >= 200 && resp.status < 300) {
+    try {
+      const respBody = await resp.clone().text();
+      const headers = {};
+      resp.headers.forEach((v, k) => { headers[k] = v; });
+      await env.HERO_KV.put(cacheKey, JSON.stringify({
+        status: resp.status, body: respBody, headers
+      }), { expirationTtl: ttlSec });
+    } catch (_) { /* no bloqueamos la respuesta si falla el cache */ }
+  }
+  return resp;
 }
 
 function esc(s) {

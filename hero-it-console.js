@@ -1131,7 +1131,7 @@ async function loadAudit() {
     if (tipo) endpoint += '&tipo=' + tipo;
     if (q)    endpoint += '&q=' + encodeURIComponent(q);
 
-    const resp = await fetch(endpoint);
+    const resp = await authFetch(endpoint);
     const data = await resp.json();
     if (!resp.ok) throw new Error(data.error || 'Error');
     allAuditEntradas = data.entradas || [];
@@ -2486,7 +2486,7 @@ function renderSessionLogs() {
   }
   body.innerHTML = sessionLogs.map(l =>
     '<div class="log-line"><span class="log-time">' + l.time + '</span>' +
-    '<span class="log-msg ' + l.type + '">' + l.msg + '</span></div>'
+    '<span class="log-msg ' + l.type + '">' + l.message + '</span></div>'
   ).join('');
   body.scrollTop = body.scrollHeight;
 }
