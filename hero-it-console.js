@@ -2294,6 +2294,9 @@ async function crearUsuario() {
   const emailUser = document.getElementById('new-email-user').value.trim();
   const password  = document.getElementById('new-password').value.trim();
   const emailPers = document.getElementById('new-email-personal').value.trim();
+  const tipo      = document.getElementById('new-tipo').value;
+  const lang      = document.getElementById('new-lang-up').value;
+  const autoSend  = document.getElementById('new-auto-send').checked;
 
   if (!nombre || !apellido) { showToast('Falta nombre o apellido'); return; }
   if (!emailUser) { showToast('Falta el usuario del email'); return; }
@@ -2316,14 +2319,11 @@ async function crearUsuario() {
       })
     });
     const result = await resp.json();
-
     if (!resp.ok) throw new Error(result.error || 'Error al crear usuario');
 
     nuevoUsuario = { nombre: nombre + ' ' + apellido, email: emailCorp, password, emailPersonal: emailPers };
-
     addLog('Usuario creado: ' + emailCorp, 'success', 'log-new');
     auditLog('usuario', 'Usuario creado en Workspace: ' + nombre + ' ' + apellido, emailCorp);
-    showToast('Usuario creado en Workspace');
 
     // Si viene de una solicitud de alta, marcarla como procesada
     if (window._altaId) {
@@ -2337,9 +2337,35 @@ async function crearUsuario() {
       '<span style="color:var(--hero-success); font-family:var(--mono); font-size:12px;">Usuario creado correctamente</span><br>' +
       '<span style="font-family:var(--mono); font-size:11px; color:var(--hero-text-body);">' + emailCorp + '</span>';
 
-    // Mostrar opciones de onboarding si hay email personal
-    if (emailPers) {
-      document.getElementById('new-onboarding-box').style.display = 'block';
+    // Si el usuario optó por auto-send y hay email personal, mandamos el
+    // onboarding inmediatamente en lugar de pedirle un segundo click.
+    if (autoSend && emailPers) {
+      addLog('Enviando onboarding ' + tipo + ' (' + lang + ') a ' + emailPers + '...', 'info', 'log-new');
+      try {
+        const htmlBody = tipo === 'empleado'
+          ? buildEmailEmpleado(nuevoUsuario.nombre, emailCorp, password, lang)
+          : buildEmailAgente(nuevoUsuario.nombre, emailCorp, password, lang);
+        await sendViaResend({
+          to: emailPers,
+          subject: onboardingSubject(tipo, lang),
+          html: htmlBody,
+          text: onboardingText(nuevoUsuario.nombre, emailCorp, lang),
+        });
+        addLog('Onboarding enviado a ' + emailPers, 'success', 'log-new');
+        auditLog('onboarding', 'Onboarding ' + tipo + ' enviado a ' + emailPers, emailCorp);
+        showToast('Usuario creado y onboarding enviado');
+        resetCrearUsuario();
+      } catch (mailErr) {
+        addLog('Usuario creado pero onboarding falló: ' + mailErr.message, 'warn', 'log-new');
+        showToast('Usuario creado, pero el onboarding falló — usa el panel manual abajo');
+        // Caer al panel manual para que Fernando pueda reintentar
+        document.getElementById('new-onboarding-box').style.display = 'block';
+      }
+    } else {
+      showToast('Usuario creado en Workspace');
+      // Sin auto-send (o sin email personal): mostrar el panel manual para
+      // que Fernando decida si manda onboarding o no, y de qué tipo.
+      if (emailPers) document.getElementById('new-onboarding-box').style.display = 'block';
     }
 
   } catch (err) {
@@ -2348,7 +2374,7 @@ async function crearUsuario() {
   }
 
   btn.disabled = false;
-  btn.innerHTML = '➕ Crear usuario en Workspace';
+  btn.innerHTML = '✨ Crear usuario y enviar onboarding';
 }
 
 async function sendOnboardingNuevo(tipo) {
