@@ -107,7 +107,7 @@ const pageLabels = {
   'usuarios': 'Usuarios Workspace',
   'logs': 'Historial de Logs',
   'config': 'Configuración',
-  'solicitudes': 'Solicitudes de Alta',
+  'solicitudes': 'Solicitudes',
   'tickets': 'Tickets de Soporte',
   'auditoria': 'Auditoría',
   'crear-usuario': 'Crear Usuario',
@@ -1412,7 +1412,7 @@ async function guardarTicket() {
   btn.innerHTML = '💾 Guardar y notificar usuario';
 }
 
-// ── Módulo Solicitudes de Alta ────────────────────────────────
+// ── Módulo Solicitudes ────────────────────────────────────────
 let allSolicitudes = [];
 let solFilter = 'all';
 let solModalData = null;
