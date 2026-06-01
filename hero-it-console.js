@@ -1561,6 +1561,109 @@ const QUICK_REPLIES = {
   remoto:    'Hola, para resolver este problema necesitamos conectarnos remotamente a tu equipo via Zoho Assist. ¿Cuándo tienes disponibilidad?',
 };
 
+// Plantillas de casos recurrentes. Cada una carga una respuesta lista para
+// enviar al usuario + muestra un checklist de diagnóstico (sólo informativo,
+// no se envía) para que Fernando no se olvide de los pasos típicos.
+const TICKET_TEMPLATES = [
+  {
+    id: 'vpn', icon: '🔒', nombre: 'VPN no conecta',
+    respuesta: 'Hola, recibimos tu reporte sobre la VPN.\n\nProbemos lo siguiente en orden:\n1. Desconecta el cliente VPN completamente.\n2. Reinicia tu router (60 segundos sin corriente).\n3. Vuelve a conectar la VPN.\n\nSi sigue sin funcionar, dinos el mensaje exacto que te aparece al intentar conectar (una captura sería ideal).',
+    checklist: [
+      'Verificar credenciales del usuario',
+      'Revisar estado del servidor VPN (down? rebooting?)',
+      'Confirmar que no hay bloqueo geo/IP por país',
+      'Probar desde otra red (hotspot móvil) para descartar el ISP',
+    ],
+  },
+  {
+    id: 'outlook', icon: '📧', nombre: 'Outlook lento o no abre',
+    respuesta: 'Hola, recibimos tu reporte de Outlook.\n\nPor favor probá esto en orden:\n1. Cerrá Outlook completamente.\n2. Abrelo manteniendo presionada la tecla Ctrl (modo seguro).\n3. Si abre rápido en modo seguro, hay un complemento que lo ralentiza.\n\nContame cómo te fue y, si seguís con problemas, agendamos un soporte remoto.',
+    checklist: [
+      '¿Funciona en modo seguro?',
+      'Tamaño del PST/OST (si pasa 20 GB pesa)',
+      'Add-ins instalados (deshabilitar uno por uno)',
+      'Caché de auto-complete corrupta (limpiar con archivo .NK2 o cmd:/cleanautocompletecache)',
+    ],
+  },
+  {
+    id: 'pwd', icon: '🔑', nombre: 'Contraseña olvidada',
+    respuesta: 'Hola, recibimos tu solicitud de reset de contraseña.\n\nEn unos minutos te envío una contraseña temporal a este mismo correo. Al ingresar con ella el sistema te va a pedir que la cambies por una nueva tuya.\n\nNo la compartas con nadie ni la guardes en texto plano.',
+    checklist: [
+      'Confirmar identidad del usuario (foto + correo conocido)',
+      'Generar nueva pwd desde Reset Password',
+      'Forzar cambio en próximo login (default ON)',
+      'Registrar la acción en Auditoría (se hace solo al usar el módulo)',
+    ],
+  },
+  {
+    id: 'wifi', icon: '📶', nombre: 'Wifi débil o inestable',
+    respuesta: 'Hola, recibimos tu reporte de problemas con el Wifi.\n\nPara diagnosticarlo necesito un par de datos:\n1. ¿En qué piso/oficina estás?\n2. ¿El problema es solo en tu equipo o también pasa con el celular en la misma red?\n3. ¿Hay momentos del día puntuales donde es peor?\n\nCon esa info vemos si es el equipo, el AP o la red en general.',
+    checklist: [
+      'Speedtest en cable vs wifi (descarta el ISP)',
+      'Signal strength y canal del AP más cercano',
+      'Probar con cable ethernet directo',
+      'Considerar reubicación del AP si el área tiene mucho concreto',
+    ],
+  },
+  {
+    id: 'printer', icon: '🖨️', nombre: 'Impresora no funciona',
+    respuesta: 'Hola, recibimos tu reporte de la impresora.\n\nProbemos esto:\n1. Confirmá que la impresora esté encendida y conectada a la red.\n2. Revisá que no haya papel atascado ni tóner agotado.\n3. Avisame qué impresora es (modelo) y qué mensaje te aparece — con eso reinicio el spooler desde mi equipo.',
+    checklist: [
+      'Modelo + ubicación de la impresora',
+      'Estado de la cola de impresión (vaciar si está colgada)',
+      'Reinstalar driver si el ping al IP de la impresora no responde',
+      'Verificar contadores de tóner/tinta',
+    ],
+  },
+  {
+    id: 'lentitud', icon: '🐌', nombre: 'Equipo lento en general',
+    respuesta: 'Hola, recibimos tu reporte de lentitud.\n\nVamos a hacer un primer diagnóstico:\n1. Reiniciá el equipo (no apagar/encender, sino Reiniciar desde el menú).\n2. Después del reinicio, esperá 5 minutos sin tocar nada y proba de nuevo.\n3. Si sigue lento, agendá un soporte remoto y revisamos juntos.',
+    checklist: [
+      'Memoria RAM ocupada (Task Manager → Memoria)',
+      'Disco al 100% (revisar antivirus o búsqueda de Windows indexando)',
+      'Procesos consumidores: Chrome/Teams/Antivirus',
+      'Espacio en C: (<10% libre = lento)',
+      'Considerar limpieza de archivos temporales + reinicio',
+    ],
+  },
+  {
+    id: 'office', icon: '📄', nombre: 'Office no activa / sale "Producto sin licencia"',
+    respuesta: 'Hola, recibimos tu reporte de activación de Office.\n\nLo más rápido es:\n1. Cerrá todas las apps de Office.\n2. Abrí Word.\n3. Archivo → Cuenta → "Iniciar sesión" con tu correo @heroinsuranceusa.com\n4. Si ya estás logueado, click en "Actualizar licencia".\n\nSi sigue sin activar, agendamos remoto.',
+    checklist: [
+      'Confirmar que la cuenta de Workspace tenga licencia Office asignada',
+      'Verificar que el equipo no esté con otra cuenta vieja loggeada',
+      'Limpiar credenciales en Administrador de Credenciales de Windows',
+      'Último recurso: desinstalar + reinstalar Office desde portal',
+    ],
+  },
+];
+
+function toggleTicketTemplates() {
+  const panel = document.getElementById('ticket-templates-panel');
+  if (panel.style.display !== 'none') { panel.style.display = 'none'; return; }
+  panel.innerHTML = '<div style="font-size:10px;color:var(--hero-text-muted);margin-bottom:8px;letter-spacing:1px;text-transform:uppercase;">Elige una plantilla — carga respuesta + checklist</div>'
+    + TICKET_TEMPLATES.map(t =>
+        '<button onclick="loadTicketTemplate(\'' + escJs(t.id) + '\')" class="btn btn-secondary" style="font-size:11px;padding:5px 10px;margin:2px;">'
+        + escHtml(t.icon + ' ' + t.nombre)
+        + '</button>'
+      ).join('');
+  panel.style.display = 'block';
+}
+
+function loadTicketTemplate(id) {
+  const t = TICKET_TEMPLATES.find(x => x.id === id);
+  if (!t) return;
+  document.getElementById('modal-respuesta').value = t.respuesta;
+  const cl = document.getElementById('ticket-checklist');
+  cl.innerHTML = '<div style="font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--hero-primary-text);margin-bottom:6px;">Checklist de diagnóstico · ' + escHtml(t.nombre) + '</div>'
+    + '<ul style="margin:0;padding-left:18px;font-size:12px;color:var(--hero-text-body);line-height:1.7;">'
+    + t.checklist.map(c => '<li>' + escHtml(c) + '</li>').join('')
+    + '</ul>';
+  cl.style.display = 'block';
+  document.getElementById('ticket-templates-panel').style.display = 'none';
+  showToast('Plantilla "' + t.nombre + '" cargada');
+}
+
 function setTicketView(view) {
   ticketView = view;
   persistState('ticket_view', view);
@@ -1726,6 +1829,11 @@ function openTicketModal(id) {
   document.getElementById('modal-estado').value    = t.estado;
   document.getElementById('modal-prioridad').value = t.prioridad;
   document.getElementById('modal-respuesta').value = '';
+  // Reset paneles de plantilla al abrir cada ticket
+  const tplPanel = document.getElementById('ticket-templates-panel');
+  if (tplPanel) tplPanel.style.display = 'none';
+  const tplCheck = document.getElementById('ticket-checklist');
+  if (tplCheck) tplCheck.style.display = 'none';
 
   // Historial
   const hist = t.historial || [];

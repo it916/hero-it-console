@@ -1709,15 +1709,18 @@ html { scroll-behavior: smooth; }
               </div>
             </div>
 
-            <!-- Quick replies -->
+            <!-- Quick replies + plantillas de casos comunes -->
             <div style="margin-bottom:10px;">
-              <label class="form-label">Respuestas rápidas</label>
+              <label class="form-label">Respuestas rápidas y plantillas</label>
               <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;">
                 <button onclick="setQuickReply('revisando')" class="btn btn-secondary" style="font-size:11px;padding:5px 10px;">📋 Revisando</button>
                 <button onclick="setQuickReply('info')"      class="btn btn-secondary" style="font-size:11px;padding:5px 10px;">❓ Necesito info</button>
                 <button onclick="setQuickReply('resuelto')"  class="btn btn-secondary" style="font-size:11px;padding:5px 10px;">✅ Resuelto</button>
                 <button onclick="setQuickReply('remoto')"    class="btn btn-secondary" style="font-size:11px;padding:5px 10px;">🖥️ Soporte remoto</button>
+                <button onclick="toggleTicketTemplates()" id="btn-templates" class="btn btn-secondary" style="font-size:11px;padding:5px 10px;">📂 Plantillas casos comunes ▾</button>
               </div>
+              <div id="ticket-templates-panel" style="display:none;margin-top:8px;background:var(--hero-bg-page);border:1px solid var(--hero-border-card);border-radius:8px;padding:8px;"></div>
+              <div id="ticket-checklist" style="display:none;margin-top:8px;background:rgba(6,163,182,0.06);border-left:3px solid var(--hero-primary);border-radius:6px;padding:10px 14px;"></div>
             </div>
 
             <div class="form-group">
