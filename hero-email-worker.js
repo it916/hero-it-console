@@ -264,6 +264,10 @@ export default {
           estado: u.suspended ? 'suspendido' : 'activo',
           creado: u.creationTime || '', ultimoLogin: u.lastLoginTime || '',
           orgUnitPath: u.orgUnitPath || '/',
+          // Admin SDK reporta si el usuario tiene 2FA activado (`isEnrolledIn2Sv`)
+          // y si está forzado a usarlo por política (`isEnforcedIn2Sv`).
+          mfaEnrolled: !!u.isEnrolledIn2Sv,
+          mfaEnforced: !!u.isEnforcedIn2Sv,
         }));
         return json({ users }, 200, cors);
       } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: 'Error interno del servidor' }, 500, cors); }

@@ -2515,7 +2515,7 @@ async function loadUsers() {
     // usr-tbody es un <tbody>: necesitamos un <tr> en lugar del <div> de renderError.
     const tbody = document.getElementById('usr-tbody');
     tbody.innerHTML =
-        '<tr><td colspan="7" style="padding:32px;text-align:center;">'
+        '<tr><td colspan="8" style="padding:32px;text-align:center;">'
       +   '<div style="font-size:32px;opacity:0.4;margin-bottom:12px;">⚠️</div>'
       +   '<div style="font-family:var(--mono);font-size:12px;color:var(--hero-danger);margin-bottom:14px;">' + escHtml(err.message) + '</div>'
       +   '<button class="btn btn-secondary" id="usr-retry" style="font-size:12px;">↺ Reintentar</button>'
@@ -2533,7 +2533,7 @@ function renderUsers(users) {
   document.getElementById('usr-count').textContent = users.length + ' usuario' + (users.length !== 1 ? 's' : '');
 
   if (!users.length) {
-    tbody.innerHTML = '<tr><td colspan="7" style="padding:32px;text-align:center;color:var(--hero-text-muted);font-family:var(--mono);font-size:12px;">Sin resultados</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8" style="padding:32px;text-align:center;color:var(--hero-text-muted);font-family:var(--mono);font-size:12px;">Sin resultados</td></tr>';
     return;
   }
 
@@ -2546,6 +2546,13 @@ function renderUsers(users) {
       : 'Nunca';
     const rowBg = i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.02)';
     const ouLabel = !u.orgUnitPath || u.orgUnitPath === '/' ? '—' : u.orgUnitPath.replace(/^\//, '');
+    // 2FA: ✓ verde si está enrolado, ⚠ rojo si no. Si está enforced por
+    // política pero el usuario aún no se enroló (mfaEnforced && !mfaEnrolled),
+    // se muestra igual como faltante.
+    const mfaLabel = u.mfaEnrolled ? '✓' : '⚠';
+    const mfaColor = u.mfaEnrolled ? 'var(--hero-success)' : 'var(--hero-danger)';
+    const mfaBg    = u.mfaEnrolled ? 'rgba(34,160,107,0.1)' : 'rgba(214,69,69,0.1)';
+    const mfaTitle = u.mfaEnrolled ? '2FA activado' : (u.mfaEnforced ? '2FA obligatorio pero sin enrolar' : '2FA no activado');
 
     return '<tr style="border-bottom:1px solid var(--hero-border-card);background:' + rowBg + ';">' +
       '<td style="padding:10px 16px;color:var(--hero-text-primary);">' + escHtml(u.nombre) + '</td>' +
@@ -2553,6 +2560,9 @@ function renderUsers(users) {
       '<td style="padding:10px 16px;font-family:var(--mono);font-size:11px;color:var(--hero-text-body);">' + escHtml(ouLabel) + '</td>' +
       '<td style="padding:10px 16px;">' +
         '<span style="font-family:var(--mono);font-size:10px;padding:3px 8px;border-radius:20px;background:' + estadoBg + ';color:' + estadoColor + ';">' + escHtml(u.estado) + '</span>' +
+      '</td>' +
+      '<td style="padding:10px 16px;text-align:center;" title="' + mfaTitle + '">' +
+        '<span style="font-family:var(--mono);font-size:12px;font-weight:700;padding:3px 8px;border-radius:20px;background:' + mfaBg + ';color:' + mfaColor + ';">' + mfaLabel + '</span>' +
       '</td>' +
       '<td style="padding:10px 16px;font-family:var(--mono);font-size:11px;color:var(--hero-text-body);">' + creado + '</td>' +
       '<td style="padding:10px 16px;font-family:var(--mono);font-size:11px;color:var(--hero-text-body);">' + login + '</td>' +
@@ -2582,11 +2592,13 @@ function populateOuFilter(users) {
 function filterUsers() {
   const q = document.getElementById('usr-search').value.toLowerCase();
   const ou = document.getElementById('usr-filter-ou')?.value || '';
+  const mfa = document.getElementById('usr-filter-mfa')?.value || '';
   if (!allUsers.length) return;
   const filtered = allUsers.filter(u => {
     const matchText = u.nombre.toLowerCase().includes(q) || u.email.toLowerCase().includes(q);
     const matchOu = !ou || (u.orgUnitPath || '/') === ou;
-    return matchText && matchOu;
+    const matchMfa = !mfa || (mfa === 'si' ? u.mfaEnrolled : !u.mfaEnrolled);
+    return matchText && matchOu && matchMfa;
   });
   renderUsers(filtered);
 }

@@ -1179,6 +1179,11 @@ html { scroll-behavior: smooth; }
         <select class="form-input" id="usr-filter-ou" onchange="filterUsers()" style="min-width:200px;">
           <option value="">OU: Todas</option>
         </select>
+        <select class="form-input" id="usr-filter-mfa" onchange="filterUsers()" style="min-width:170px;">
+          <option value="">2FA: Todos</option>
+          <option value="no">Sin 2FA</option>
+          <option value="si">Con 2FA</option>
+        </select>
         <button class="btn btn-primary" onclick="loadUsers()" id="btn-load-users">
           ↺ Cargar usuarios
         </button>
@@ -1195,6 +1200,7 @@ html { scroll-behavior: smooth; }
                 <th style="padding:11px 16px; text-align:left; font-family:var(--mono); font-size:10px; letter-spacing:1px; color:var(--hero-text-muted); font-weight:500; text-transform:uppercase;">Email</th>
                 <th style="padding:11px 16px; text-align:left; font-family:var(--mono); font-size:10px; letter-spacing:1px; color:var(--hero-text-muted); font-weight:500; text-transform:uppercase;">OU</th>
                 <th style="padding:11px 16px; text-align:left; font-family:var(--mono); font-size:10px; letter-spacing:1px; color:var(--hero-text-muted); font-weight:500; text-transform:uppercase;">Estado</th>
+                <th style="padding:11px 16px; text-align:center; font-family:var(--mono); font-size:10px; letter-spacing:1px; color:var(--hero-text-muted); font-weight:500; text-transform:uppercase;" title="Verificación en 2 pasos">2FA</th>
                 <th style="padding:11px 16px; text-align:left; font-family:var(--mono); font-size:10px; letter-spacing:1px; color:var(--hero-text-muted); font-weight:500; text-transform:uppercase;">Creado</th>
                 <th style="padding:11px 16px; text-align:left; font-family:var(--mono); font-size:10px; letter-spacing:1px; color:var(--hero-text-muted); font-weight:500; text-transform:uppercase;">Último login</th>
                 <th style="padding:11px 16px; text-align:center; font-family:var(--mono); font-size:10px; letter-spacing:1px; color:var(--hero-text-muted); font-weight:500; text-transform:uppercase;">Acciones</th>
@@ -1202,7 +1208,7 @@ html { scroll-behavior: smooth; }
             </thead>
             <tbody id="usr-tbody">
               <tr>
-                <td colspan="7" style="padding:48px; text-align:center; color:var(--hero-text-muted); font-family:var(--mono); font-size:12px;">
+                <td colspan="8" style="padding:48px; text-align:center; color:var(--hero-text-muted); font-family:var(--mono); font-size:12px;">
                   Presiona "Cargar usuarios" para consultar Workspace
                 </td>
               </tr>
