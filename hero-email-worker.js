@@ -209,10 +209,7 @@ export default {
 
         // Notificación al solicitante si viene de una alta
         if (solicitanteEmail) {
-          await fetch('https://api.resend.com/emails', {
-            method: 'POST',
-            headers: { 'Authorization': 'Bearer ' + env.RESEND_API_KEY, 'Content-Type': 'application/json' },
-            body: JSON.stringify({
+          await sendResend(env, {
               from: 'Fernando Romero <it@heroinsuranceusa.com>',
               to: [solicitanteEmail],
               subject: 'Tu solicitud fue procesada: ' + nombre + ' ' + apellido,
@@ -234,8 +231,7 @@ export default {
                 + '<div style="padding:14px 40px;background:#f0f4f8;text-align:center;"><p style="margin:0;font-size:10px;color:#a0aec0;">CONFIDENTIALITY NOTICE: This email is intended solely for the addressee.</p></div>'
                 + '</div></div>',
               text: 'Hola ' + (solicitanteNombre || '') + ', la solicitud de alta para ' + nombre + ' ' + apellido + ' (' + email + ') fue procesada correctamente.',
-            }),
-          });
+          }, { event: 'create_user_notif_solicitante' });
         }
 
         return json({ ok: true, email: data.primaryEmail }, 200, cors);
@@ -364,22 +360,16 @@ export default {
 
         // Notifica a IT que la solicitud fue autorizada (no a los otros autorizadores
         // para no spamearlos — la Console refleja el estado).
-        try {
-          await fetch('https://api.resend.com/emails', {
-            method: 'POST',
-            headers: { 'Authorization': 'Bearer ' + env.RESEND_API_KEY, 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              from: 'Fernando Romero <it@heroinsuranceusa.com>',
-              to:   ['it@heroinsuranceusa.com'],
-              subject: '[AUTORIZADA] Solicitud de ' + tipoLabel + ': ' + persona,
-              text: 'Autorizada por: ' + nombreAut + ' <' + by + '>\n'
-                + 'Tipo: ' + tipoLabel.toUpperCase() + '\n'
-                + 'Persona: ' + persona + '\n'
-                + (correoSol ? 'Correo: ' + correoSol + '\n' : '')
-                + 'ID: ' + id,
-            }),
-          });
-        } catch (_) { /* notificación best-effort */ }
+        await sendResend(env, {
+          from: 'Fernando Romero <it@heroinsuranceusa.com>',
+          to:   ['it@heroinsuranceusa.com'],
+          subject: '[AUTORIZADA] Solicitud de ' + tipoLabel + ': ' + persona,
+          text: 'Autorizada por: ' + nombreAut + ' <' + by + '>\n'
+            + 'Tipo: ' + tipoLabel.toUpperCase() + '\n'
+            + 'Persona: ' + persona + '\n'
+            + (correoSol ? 'Correo: ' + correoSol + '\n' : '')
+            + 'ID: ' + id,
+        }, { event: 'autorizar_notif_it', id });
 
         return htmlResponse(buildAuthorizePage({
           titulo: 'Solicitud autorizada', icono: '✓', color: heroCyan,
@@ -564,17 +554,13 @@ export default {
           const html = link
             ? buildEmailFor(auth, link)
             : buildEmailFor(auth, '#').replace('✓ Autorizar solicitud', 'Autoriza desde la Hero IT Console');
-          return fetch('https://api.resend.com/emails', {
-            method: 'POST',
-            headers: { 'Authorization': 'Bearer ' + env.RESEND_API_KEY, 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              from: 'Fernando Romero <it@heroinsuranceusa.com>',
-              to:   [auth.email],
-              subject: subject,
-              html:    html,
-              text:    textoPlano + '\n\nAutorizar: ' + (link || '(usa la Hero IT Console)'),
-            }),
-          }).catch(() => null);
+          return sendResend(env, {
+            from: 'Fernando Romero <it@heroinsuranceusa.com>',
+            to:   [auth.email],
+            subject: subject,
+            html:    html,
+            text:    textoPlano + '\n\nAutorizar: ' + (link || '(usa la Hero IT Console)'),
+          }, { event: 'solicitud_cuenta_to_autorizador', autorizador: auth.email, id: solicitud.id });
         });
         await Promise.all(sends);
 
@@ -636,10 +622,7 @@ export default {
         const color = colores[prioridad] || '#f0b429';
 
         // Email a IT
-        await fetch('https://api.resend.com/emails', {
-          method: 'POST',
-          headers: { 'Authorization': 'Bearer ' + env.RESEND_API_KEY, 'Content-Type': 'application/json' },
-          body: JSON.stringify({
+        await sendResend(env, {
             from: 'Hero IT Console <it@heroinsuranceusa.com>',
             to: ['it@heroinsuranceusa.com'],
             subject: '[' + ticketId + '] ' + asunto,
@@ -656,14 +639,10 @@ export default {
               + '<p style="color:#4a5568;line-height:1.7;">' + esc(descripcion).split('\n').join('<br/>') + '</p>'
               + '</div></div>',
             text: '[' + ticketId + '] ' + asunto + '\nDe: ' + nombre + ' (' + email + ')\nCategoria: ' + categoria + '\nPrioridad: ' + prioridad + '\n\n' + descripcion,
-          }),
-        });
+        }, { event: 'ticket_notif_it', ticketId });
 
         // Email de confirmación al usuario
-        await fetch('https://api.resend.com/emails', {
-          method: 'POST',
-          headers: { 'Authorization': 'Bearer ' + env.RESEND_API_KEY, 'Content-Type': 'application/json' },
-          body: JSON.stringify({
+        await sendResend(env, {
             from: 'Fernando Romero <it@heroinsuranceusa.com>',
             to: [email],
             subject: 'Recibimos tu solicitud [' + ticketId + ']',
@@ -688,8 +667,7 @@ export default {
               + '<p style="margin:0;font-size:10px;color:#a0aec0;">CONFIDENTIALITY NOTICE: This email is intended solely for the addressee.</p>'
               + '</div></div></div>',
             text: 'Hola ' + nombre + ', recibimos tu ticket ' + ticketId + '.\nAsunto: ' + asunto + '\nCategoria: ' + categoria + '\nPrioridad: ' + prioridad + '\nNuestro equipo te contactara pronto.',
-          }),
-        });
+        }, { event: 'ticket_notif_user', ticketId });
 
         return json({ ok: true, id, ticketId }, 200, cors);
       } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: err.message }, 500, cors); }
@@ -744,17 +722,13 @@ export default {
           const statusMsgs = buildStatusMsgs(estado, ticket, ticketInfo);
           if (statusMsgs[estado]) {
             const msg = statusMsgs[estado];
-            await fetch('https://api.resend.com/emails', {
-              method: 'POST',
-              headers: { 'Authorization': 'Bearer ' + env.RESEND_API_KEY, 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                from: 'Fernando Romero <it' + '@' + 'heroinsuranceusa.com>',
-                to: [ticket.email],
-                subject: '[' + ticket.ticketId + '] ' + msg.titulo,
-                html: buildEmail(msg.titulo, ticket.ticketId + ' · ' + esc(ticket.asunto), msg.body),
-                text: msg.titulo + ' - ' + ticket.ticketId,
-              }),
-            });
+            await sendResend(env, {
+              from: 'Fernando Romero <it' + '@' + 'heroinsuranceusa.com>',
+              to: [ticket.email],
+              subject: '[' + ticket.ticketId + '] ' + msg.titulo,
+              html: buildEmail(msg.titulo, ticket.ticketId + ' · ' + esc(ticket.asunto), msg.body),
+              text: msg.titulo + ' - ' + ticket.ticketId,
+            }, { event: 'ticket_status_change', ticketId: ticket.ticketId, estado });
           }
         }
 
@@ -769,17 +743,13 @@ export default {
             + '<p style="margin:0 0 8px;font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#06a3b6;">Respuesta</p>'
             + '<p style="margin:0;font-size:13px;color:#444;line-height:1.7;">' + esc(respuesta).split('\n').join('<br/>') + '</p></div>'
             + '<p style="font-size:13px;color:#777;">Estado: <strong style="color:' + (estadoColores[ticket.estado]||'#444') + ';">' + ticket.estado + '</strong></p>';
-          await fetch('https://api.resend.com/emails', {
-            method: 'POST',
-            headers: { 'Authorization': 'Bearer ' + env.RESEND_API_KEY, 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              from: 'Fernando Romero <it' + '@' + 'heroinsuranceusa.com>',
-              to: [ticket.email],
-              subject: 'Re: [' + ticket.ticketId + '] ' + ticket.asunto,
-              html: buildEmail('Respuesta a tu ticket', ticket.ticketId + ' · ' + esc(ticket.asunto), replyBody),
-              text: 'Respuesta: ' + respuesta,
-            }),
-          });
+          await sendResend(env, {
+            from: 'Fernando Romero <it' + '@' + 'heroinsuranceusa.com>',
+            to: [ticket.email],
+            subject: 'Re: [' + ticket.ticketId + '] ' + ticket.asunto,
+            html: buildEmail('Respuesta a tu ticket', ticket.ticketId + ' · ' + esc(ticket.asunto), replyBody),
+            text: 'Respuesta: ' + respuesta,
+          }, { event: 'ticket_reply', ticketId: ticket.ticketId });
         }
         await env.HERO_KV.put(id, JSON.stringify(ticket));
         return json({ ok: true }, 200, cors);
@@ -943,15 +913,12 @@ export default {
       try {
         const { to, subject, html, text, from } = await request.json();
         if (!to || !subject || !html) return json({ error: 'Faltan campos: to, subject, html' }, 400, cors);
-        const resendResp = await fetch('https://api.resend.com/emails', {
-          method: 'POST',
-          headers: { 'Authorization': 'Bearer ' + env.RESEND_API_KEY, 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            from: from || 'Fernando Romero <it@heroinsuranceusa.com>',
-            to: Array.isArray(to) ? to : [to],
-            subject, html, text: text || '',
-          }),
-        });
+        const resendResp = await sendResend(env, {
+          from: from || 'Fernando Romero <it@heroinsuranceusa.com>',
+          to: Array.isArray(to) ? to : [to],
+          subject, html, text: text || '',
+        }, { event: 'generic_email_post' });
+        if (!resendResp) return json({ error: 'No se pudo enviar el correo' }, 502, cors);
         const result = await resendResp.json();
         return json(result, resendResp.status, cors);
       } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: err.message }, 500, cors); }
@@ -981,6 +948,41 @@ function logError(event, err, ctx = {}) {
       ...ctx
     }));
   } catch (_) {}
+}
+
+// ── Resend con chequeo de error ───────────────────────────────
+// Si Resend devuelve 429/500 o la key vencó, antes el mail se perdía sin que
+// nadie se enterara. Ahora loggeamos a Cloudflare tail logs y dejamos rastro
+// en KV `audit_` para que aparezca en la página Auditoría del Console.
+async function sendResend(env, payload, ctx = {}) {
+  try {
+    const resp = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + env.RESEND_API_KEY, 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!resp.ok) {
+      let bodyText = '';
+      try { bodyText = (await resp.clone().text()).slice(0, 500); } catch (_) {}
+      const toStr = Array.isArray(payload.to) ? payload.to.join(',') : (payload.to || '');
+      logError('resend_send_failed', new Error('status ' + resp.status), {
+        ...ctx, status: resp.status, body: bodyText, to: toStr, subject: payload.subject
+      });
+      try {
+        const auditId = 'audit_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
+        await env.HERO_KV.put(auditId, JSON.stringify({
+          id: auditId, tipo: 'error',
+          descripcion: 'Email no enviado: ' + (payload.subject || '(sin subject)'),
+          detalle: 'Resend ' + resp.status + ' → ' + toStr + (ctx.event ? ' · ' + ctx.event : ''),
+          fecha: new Date().toISOString(), usuario: 'system',
+        }));
+      } catch (_) { /* mejor perder el audit que romper la respuesta al cliente */ }
+    }
+    return resp;
+  } catch (err) {
+    logError('resend_send_threw', err, { ...ctx, subject: payload && payload.subject });
+    return null;
+  }
 }
 
 // ── Anti-abuso para endpoints públicos ────────────────────────
