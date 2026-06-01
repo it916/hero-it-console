@@ -173,7 +173,7 @@ function updateClock() {
   document.getElementById('clock').textContent =
     now.toLocaleTimeString('es-MX', opts) + ' ET';
 }
-setInterval(updateClock, 1000);
+let _clockInterval = setInterval(updateClock, 1000);
 updateClock();
 
 // ── Worker URL ────────────────────────────────────────────────
@@ -200,6 +200,7 @@ function handleAuthExpired() {
   sessionStorage.removeItem('hero_token');
   sessionStorage.removeItem('hero_auth');
   if (notifInterval) { clearInterval(notifInterval); notifInterval = null; }
+  if (_clockInterval) { clearInterval(_clockInterval); _clockInterval = null; }
   const login = document.getElementById('login-screen');
   const app   = document.getElementById('app-content');
   if (login) login.style.display = 'flex';
@@ -518,7 +519,7 @@ async function pollForUpdates() {
     const elS = document.getElementById('stat-solicitudes-pending');
     if (elT) { elT.textContent = openTickets;      elT.style.color = openTickets > 0      ? 'var(--hero-danger)'  : 'var(--hero-success)'; }
     if (elS) { elS.textContent = pendingSolicitud; elS.style.color = pendingSolicitud > 0 ? 'var(--hero-warning)' : 'var(--hero-success)'; }
-  } catch(e) { console.warn('pollForUpdates:', e.message); }
+  } catch(e) { addLog('pollForUpdates: ' + e.message, 'warn'); }
 }
 
 function startPolling() {
@@ -529,12 +530,19 @@ function startPolling() {
 
 async function auditLog(tipo, descripcion, detalle = null) {
   try {
+    // Toma el nombre real del usuario logueado en lugar de hardcodear "Fernando
+    // Romero" — si en algún momento entra otra persona, queda registrado bien.
+    let usuario = 'Sistema';
+    try {
+      const auth = JSON.parse(sessionStorage.getItem('hero_auth') || '{}');
+      if (auth.nombre) usuario = auth.nombre;
+    } catch (_) {}
     await authFetch(WORKER_URL + '/audit', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ tipo, descripcion, detalle, usuario: 'Fernando Romero' })
+      body: JSON.stringify({ tipo, descripcion, detalle, usuario })
     });
-  } catch(e) { console.warn('auditLog error:', e.message); }
+  } catch(e) { addLog('auditLog error: ' + e.message, 'warn'); }
 }
 async function sendViaResend({ to, subject, html, text }) {
   const resp = await authFetch(WORKER_URL, {
@@ -793,10 +801,6 @@ function validateForm(prefix) {
 }
 
 // ── Verificar API key ─────────────────────────────────────────
-function checkApiKey() {
-  return true; // API Key vive segura en el Worker
-}
-
 // ── Reset Password — integrado con Workspace ─────────────────
 let rstSelectedUser = null;
 
@@ -836,18 +840,36 @@ function clearResetUser() {
   document.getElementById('rst-new-password').value = '';
 }
 
-function generateResetPassword() {
-  const upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
-  const lower = 'abcdefghjkmnpqrstuvwxyz';
-  const digits = '23456789';
+// Genera una contraseña fuerte de 12 chars (1 mayúscula, 1 minúscula, 1 dígito,
+// 1 especial + 8 random). Sin caracteres ambiguos (0/O/I/l/1). Usa
+// crypto.getRandomValues — Math.random no es criptográficamente seguro.
+function _generateStrongPassword() {
+  const upper   = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+  const lower   = 'abcdefghjkmnpqrstuvwxyz';
+  const digits  = '23456789';
   const special = '!@#*$';
-  let pwd = upper[Math.floor(Math.random()*upper.length)]
-    + lower[Math.floor(Math.random()*lower.length)]
-    + digits[Math.floor(Math.random()*digits.length)]
-    + special[Math.floor(Math.random()*special.length)];
-  const all = upper + lower + digits + special;
-  for (let i = 0; i < 8; i++) pwd += all[Math.floor(Math.random()*all.length)];
-  pwd = pwd.split('').sort(() => Math.random()-0.5).join('');
+  const all     = upper + lower + digits + special;
+  const rand = (max) => {
+    const buf = new Uint32Array(1);
+    crypto.getRandomValues(buf);
+    return buf[0] % max;
+  };
+  let pwd = upper[rand(upper.length)]
+          + lower[rand(lower.length)]
+          + digits[rand(digits.length)]
+          + special[rand(special.length)];
+  for (let i = 0; i < 8; i++) pwd += all[rand(all.length)];
+  // Fisher-Yates shuffle para que los 4 primeros chars no estén siempre en orden U-L-D-S
+  const arr = pwd.split('');
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = rand(i + 1);
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr.join('');
+}
+
+function generateResetPassword() {
+  const pwd = _generateStrongPassword();
   document.getElementById('rst-new-password').value = pwd;
   navigator.clipboard?.writeText(pwd).catch(()=>{});
   showToast('Contraseña generada y copiada');
@@ -897,10 +919,6 @@ async function executeReset() {
 
 
 // ── Config ────────────────────────────────────────────────────
-function saveConfig() {
-  // El API Key ya no se guarda aquí — vive seguro en el Worker
-}
-
 async function testConexion() {
   addLog('Enviando email de prueba via Worker...', 'info');
   try {
@@ -1174,23 +1192,8 @@ function closeUserModal() {
 }
 
 function generateUserPassword() {
-  const upper   = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
-  const lower   = 'abcdefghjkmnpqrstuvwxyz';
-  const digits  = '23456789';
-  const special = '!@#*$';
-  // Guarantee at least one of each type
-  let pwd = '';
-  pwd += upper[Math.floor(Math.random() * upper.length)];
-  pwd += lower[Math.floor(Math.random() * lower.length)];
-  pwd += digits[Math.floor(Math.random() * digits.length)];
-  pwd += special[Math.floor(Math.random() * special.length)];
-  // Fill remaining 8 chars from all pools
-  const all = upper + lower + digits + special;
-  for (let i = 0; i < 8; i++) pwd += all[Math.floor(Math.random() * all.length)];
-  // Shuffle
-  pwd = pwd.split('').sort(() => Math.random() - 0.5).join('');
+  const pwd = _generateStrongPassword();
   document.getElementById('um-new-password').value = pwd;
-  // Copy to clipboard silently
   navigator.clipboard?.writeText(pwd).catch(() => {});
   showToast('Contraseña generada y copiada al portapapeles');
 }
@@ -1883,7 +1886,8 @@ function openSolModal(id) {
   document.getElementById('sol-modal-solicitante-email').textContent = s.solicitanteEmail || '';
   document.getElementById('sm-nombre').value   = s.nombre;
   document.getElementById('sm-apellido').value = s.apellido;
-  // Suggest email
+  // Suggest email — quita diacríticos combinables (U+0300–U+036F) usando
+  // escapes unicode para que el archivo no dependa de su codificación.
   const sugerido = (s.nombre.charAt(0) + s.apellido).toLowerCase()
     .normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/\s/g,'');
   document.getElementById('sm-email-user').value = sugerido;
@@ -1904,17 +1908,7 @@ function previewSolEmail() {
 }
 
 function generateSolPassword() {
-  const upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
-  const lower = 'abcdefghjkmnpqrstuvwxyz';
-  const digits = '23456789';
-  const special = '!@#*$';
-  let pwd = upper[Math.floor(Math.random()*upper.length)]
-    + lower[Math.floor(Math.random()*lower.length)]
-    + digits[Math.floor(Math.random()*digits.length)]
-    + special[Math.floor(Math.random()*special.length)];
-  const all = upper + lower + digits + special;
-  for (let i = 0; i < 8; i++) pwd += all[Math.floor(Math.random()*all.length)];
-  pwd = pwd.split('').sort(() => Math.random()-0.5).join('');
+  const pwd = _generateStrongPassword();
   document.getElementById('sm-password').value = pwd;
   navigator.clipboard?.writeText(pwd).catch(()=>{});
   showToast('Contraseña generada y copiada');
@@ -1977,10 +1971,6 @@ async function crearUsuarioDesdeModal() {
   btn.innerHTML = '✓ Crear usuario y notificar';
 }
 
-function procesarAlta(id, nombre, apellido, correo, solicitanteEmail, solicitanteNombre) {
-  openSolModal(id);
-}
-
 // ── Módulo Crear Usuario ──────────────────────────────────────
 let nuevoUsuario = null;
 
@@ -1997,13 +1987,7 @@ function previewEmail() {
 }
 
 function generatePassword() {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
-  const special = '!@#*';
-  let pwd = '';
-  for (let i = 0; i < 10; i++) pwd += chars[Math.floor(Math.random() * chars.length)];
-  pwd += special[Math.floor(Math.random() * special.length)];
-  pwd += Math.floor(Math.random() * 90 + 10);
-  document.getElementById('new-password').value = pwd;
+  document.getElementById('new-password').value = _generateStrongPassword();
 }
 
 async function crearUsuario() {
