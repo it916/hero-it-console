@@ -343,6 +343,22 @@ async function runGlobalSearch() {
         found.push({ type:'👤 Usuario', title: u.nombre, sub: u.email + ' · ' + u.estado, action: "showPage('usuarios')" });
     });
   }
+  // Licencias — útil para "¿dónde guardé el password de X?"
+  if (typeof allLicencias !== 'undefined' && Array.isArray(allLicencias)) {
+    allLicencias.forEach(l => {
+      const blob = (l.nombre + ' ' + (l.plan||'') + ' ' + (l.notas||'')).toLowerCase();
+      if (blob.includes(q))
+        found.push({ type:'🔑 Licencia', title: l.nombre, sub: (l.plan || 'sin plan') + ' · ' + (l.estado || 'activa'), action: "showPage('licencias')" });
+    });
+  }
+  // Auditoría — buscar en descripción/detalle de entradas recientes
+  if (typeof allAuditEntradas !== 'undefined' && Array.isArray(allAuditEntradas)) {
+    allAuditEntradas.slice(0, 200).forEach(e => {
+      const blob = ((e.descripcion||'') + ' ' + (e.detalle||'')).toLowerCase();
+      if (blob.includes(q))
+        found.push({ type:'📋 Auditoría', title: e.descripcion || '(sin descripción)', sub: (e.tipo || '') + ' · ' + (e.usuario || ''), action: "showPage('auditoria')" });
+    });
+  }
   if (!found.length) {
     results.innerHTML = '<div style="text-align:center;padding:24px;color:var(--hero-text-muted);font-size:13px;">Sin resultados para "' + escHtml(q) + '"</div>';
     return;
@@ -621,12 +637,28 @@ function escJs(s) {
     .replace(/\n/g, '\\n');
 }
 
-// ── Toast ─────────────────────────────────────────────────────
+// ── Toast (con cola) ──────────────────────────────────────────
+// Antes showToast sobreescribía el mensaje anterior si llegaban dos en sucesión.
+// Ahora encolamos: el segundo espera a que el primero termine (3.2s) y luego
+// se muestra. La cola se vacía sola.
+const _toastQueue = [];
+let _toastShowing = false;
 function showToast(msg) {
+  _toastQueue.push(String(msg == null ? '' : msg));
+  if (!_toastShowing) _drainToast();
+}
+function _drainToast() {
+  if (!_toastQueue.length) { _toastShowing = false; return; }
+  _toastShowing = true;
   const t = document.getElementById('toast');
+  const msg = _toastQueue.shift();
   t.textContent = msg;
   t.classList.add('show');
-  setTimeout(() => t.classList.remove('show'), 3200);
+  setTimeout(() => {
+    t.classList.remove('show');
+    // Pequeño gap entre toasts para que el cambio sea visible
+    setTimeout(_drainToast, 200);
+  }, 3200);
 }
 
 // ── Persistencia de preferencias UI (filtros, vistas) ─────────
@@ -2753,9 +2785,84 @@ function installModalA11y() {
   });
 }
 
+// ── Atajos de teclado ─────────────────────────────────────────
+// "/" foco al buscador, "?" muestra cheatsheet, "g X" navega entre páginas.
+// Se desactivan cuando hay foco en un input editable o un modal abierto,
+// para no interferir con el usuario tipeando.
+function _shortcutsHelp() {
+  let modal = document.getElementById('shortcuts-modal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'shortcuts-modal';
+    modal.setAttribute('role', 'dialog');
+    modal.setAttribute('aria-modal', 'true');
+    modal.setAttribute('aria-label', 'Atajos de teclado');
+    modal.setAttribute('data-close-fn', '__shortcutsClose');
+    modal.style.cssText = 'display:none;position:fixed;inset:0;background:rgba(26,39,51,0.5);z-index:200;overflow-y:auto;padding:24px;';
+    modal.innerHTML =
+        '<div style="background:#fff;border:1px solid var(--hero-border);border-radius:14px;max-width:440px;margin:60px auto;padding:24px;box-shadow:0 10px 40px rgba(0,0,0,0.18);">'
+      +   '<div style="font-size:16px;font-weight:700;color:var(--hero-text-primary);margin-bottom:14px;">⌨️ Atajos de teclado</div>'
+      +   '<div style="display:grid;grid-template-columns:auto 1fr;gap:10px 16px;font-size:13px;align-items:center;">'
+      +     '<kbd>/</kbd><span>Buscador global</span>'
+      +     '<kbd>g d</kbd><span>Dashboard</span>'
+      +     '<kbd>g t</kbd><span>Tickets</span>'
+      +     '<kbd>g s</kbd><span>Solicitudes</span>'
+      +     '<kbd>g u</kbd><span>Usuarios</span>'
+      +     '<kbd>g l</kbd><span>Licencias</span>'
+      +     '<kbd>g a</kbd><span>Auditoría</span>'
+      +     '<kbd>g r</kbd><span>Reset contraseña</span>'
+      +     '<kbd>Esc</kbd><span>Cerrar modal</span>'
+      +     '<kbd>?</kbd><span>Mostrar este panel</span>'
+      +   '</div>'
+      +   '<div style="display:flex;justify-content:flex-end;margin-top:18px;">'
+      +     '<button id="shortcuts-close" class="btn btn-secondary" style="font-size:13px;">Cerrar</button>'
+      +   '</div>'
+      + '</div>';
+    document.body.appendChild(modal);
+    const style = document.createElement('style');
+    style.textContent = '#shortcuts-modal kbd { font-family: var(--mono); background: var(--hero-bg-page); border: 1px solid var(--hero-border-card); border-radius: 4px; padding: 2px 8px; font-size: 11px; color: var(--hero-text-primary); display: inline-block; min-width: 30px; text-align: center; }';
+    document.head.appendChild(style);
+    if (typeof _setupModalA11y === 'function') _setupModalA11y(modal);
+    const close = () => { modal.style.display = 'none'; };
+    window.__shortcutsClose = close;
+    modal.querySelector('#shortcuts-close').onclick = close;
+  }
+  modal.style.display = 'block';
+}
+
+function installKeyboardShortcuts() {
+  let lastG = 0;
+  document.addEventListener('keydown', (e) => {
+    // No interferir si está escribiendo en un input editable
+    const tag = (e.target.tagName || '').toUpperCase();
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || e.target.isContentEditable) return;
+    // No interferir si hay un dialog abierto (Esc lo maneja installModalA11y)
+    const modalOpen = Array.from(document.querySelectorAll('[role="dialog"][aria-modal="true"]')).some(_isModalVisible);
+    if (modalOpen) return;
+    // "?" sin modificadores → cheatsheet
+    if (e.key === '?') { e.preventDefault(); _shortcutsHelp(); return; }
+    // "/" sin modificadores → buscador
+    if (e.key === '/' && !e.ctrlKey && !e.metaKey) { e.preventDefault(); openGlobalSearch(); return; }
+    // "g" inicia combo
+    if (e.key === 'g' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      lastG = Date.now();
+      return;
+    }
+    if (lastG && Date.now() - lastG < 800) {
+      const map = { d:'dashboard', t:'tickets', s:'solicitudes', u:'usuarios', l:'licencias', a:'auditoria', r:'reset' };
+      if (map[e.key]) {
+        e.preventDefault();
+        showPage(map[e.key]);
+        lastG = 0;
+      }
+    }
+  });
+}
+
 // ── Init ──────────────────────────────────────────────────────
 (function init() {
   installModalA11y();
+  installKeyboardShortcuts();
   // Check existing session first
   if (!checkExistingSession()) {
     // Show login screen - already visible by default

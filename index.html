@@ -896,7 +896,7 @@ html { scroll-behavior: smooth; }
   <div class="topbar" style="position:relative;">
     <div style="display:flex;align-items:center;gap:12px;">
       <button class="btn-hamburger" onclick="toggleSidebar()" aria-label="Abrir menú lateral">☰</button>
-      <div class="topbar-title">Hero IT Console / <span id="current-section-label">Dashboard</span></div>
+      <div class="topbar-title"><button onclick="showPage('dashboard')" style="background:transparent;border:none;color:inherit;font:inherit;cursor:pointer;padding:0;" title="Volver al dashboard">Hero IT Console</button> / <span id="current-section-label">Dashboard</span></div>
     </div>
     <div class="topbar-right">
         <button onclick="toggleTheme()" id="btn-theme" title="Cambiar tema" aria-label="Cambiar tema claro/oscuro" style="background:var(--hero-bg);border:1px solid var(--hero-border);color:var(--hero-text-muted);width:36px;height:36px;border-radius:var(--hero-radius-btn);cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">☀️</button>
