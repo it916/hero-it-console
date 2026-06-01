@@ -1054,8 +1054,86 @@ export default {
     }
 
     return json({ error: 'Ruta no encontrada' }, 404, cors);
+  },
+
+  // ── Cron diario: recordatorios de licencias por vencer ──────
+  // Dispara una vez al día (cron trigger en wrangler.toml). Revisa cada
+  // licencia con `vencimiento` y, si el día actual coincide con 30/7/1/0
+  // días antes del vencimiento, manda un email a IT — una sola vez por
+  // (licencia, período) usando marcas en KV con TTL 32 días.
+  async scheduled(event, env, ctx) {
+    ctx.waitUntil(runLicenciaReminders(env));
   }
 };
+
+async function runLicenciaReminders(env) {
+  try {
+    const list = await env.HERO_KV.list({ prefix: 'lic_' });
+    const lics = await Promise.all(list.keys.map(async k => {
+      try { const v = await env.HERO_KV.get(k.name); return v ? JSON.parse(v) : null; }
+      catch { return null; }
+    }));
+    const today = new Date();
+    today.setUTCHours(0, 0, 0, 0);
+    const PERIODS = [30, 7, 1, 0];
+    let sent = 0, skipped = 0;
+    for (const lic of lics.filter(Boolean)) {
+      if (!lic.vencimiento) continue;
+      const v = new Date(lic.vencimiento);
+      v.setUTCHours(0, 0, 0, 0);
+      const days = Math.round((v - today) / 86400000);
+      if (!PERIODS.includes(days)) continue;
+      const warnKey = 'cron_lic_warned_' + lic.id + '_' + days;
+      const already = await env.HERO_KV.get(warnKey);
+      if (already) { skipped++; continue; }
+      const urgency = days === 0 ? 'VENCE HOY'
+                    : days === 1 ? 'Vence mañana'
+                    : 'Vence en ' + days + ' días';
+      const resp = await sendResend(env, {
+        from: 'Hero IT Console <it@heroinsuranceusa.com>',
+        to:   ['it@heroinsuranceusa.com'],
+        subject: '[' + urgency.toUpperCase() + '] Licencia: ' + lic.nombre,
+        html: buildLicReminderEmail(lic, days, urgency),
+        text: lic.nombre + ' — ' + urgency + ' (vence el ' + lic.vencimiento + ').'
+            + (lic.plan ? '\nPlan: ' + lic.plan : '')
+            + (lic.costo > 0 ? '\nCosto: $' + lic.costo + '/mes (' + (lic.tipoSub || 'mensual') + ')' : ''),
+      }, { event: 'cron_lic_reminder', lic: lic.id, days });
+      if (resp && resp.ok) {
+        await env.HERO_KV.put(warnKey, '1', { expirationTtl: 32 * 86400 });
+        sent++;
+      }
+    }
+    logEvent('cron_lic_reminders_done', { sent, skipped, day: today.toISOString().slice(0, 10) });
+  } catch (err) {
+    logError('cron_lic_reminders_failed', err);
+  }
+}
+
+function buildLicReminderEmail(lic, days, urgency) {
+  const urgencyColor = days === 0 || days === 1 ? '#d64545'
+                     : days <= 7 ? '#e8a317'
+                     : '#06a3b6';
+  return '<div style="font-family:Trebuchet MS,Arial,sans-serif;max-width:560px;background:#f0f4f8;padding:24px;">'
+    + '<div style="background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);">'
+    + '<div style="background:linear-gradient(135deg,#06a3b6,#048395);padding:24px 32px;text-align:center;">'
+    +   '<img src="https://i.ibb.co/Gr4mzLv/Nuevo-Logo-Cuadrado-compress.png" width="80" style="display:block;margin:0 auto 12px;"/>'
+    +   '<div style="display:inline-block;background:' + urgencyColor + ';color:#fff;font-weight:700;font-size:11px;letter-spacing:2px;padding:5px 14px;border-radius:20px;">' + esc(urgency.toUpperCase()) + '</div>'
+    +   '<h1 style="color:#fff;margin:10px 0 0;font-size:18px;">Recordatorio de licencia</h1>'
+    + '</div>'
+    + '<div style="padding:28px 32px;">'
+    +   '<div style="font-size:16px;font-weight:700;color:#1a202c;margin-bottom:6px;">' + esc(lic.nombre) + '</div>'
+    +   (lic.plan ? '<div style="font-size:13px;color:#777;margin-bottom:14px;">Plan: ' + esc(lic.plan) + '</div>' : '')
+    +   '<div style="background:#f7faff;border-radius:8px;padding:14px 16px;margin:14px 0;">'
+    +     '<div style="font-size:10px;font-weight:700;letter-spacing:2px;color:#06a3b6;text-transform:uppercase;margin-bottom:6px;">Vencimiento</div>'
+    +     '<div style="font-size:14px;color:#1a202c;font-weight:600;">' + esc(lic.vencimiento) + '</div>'
+    +   '</div>'
+    +   (lic.costo > 0 ? '<div style="font-size:13px;color:#444;">💵 Costo: $' + lic.costo + '/mes (' + esc(lic.tipoSub || 'mensual') + ')</div>' : '')
+    +   (lic.usuarios > 0 ? '<div style="font-size:13px;color:#444;margin-top:4px;">👤 ' + esc(String(lic.usuarios)) + ' usuarios</div>' : '')
+    +   '<p style="font-size:13px;color:#666;line-height:1.6;margin-top:18px;">Revisa en la Hero IT Console si toca renovar o cancelar.</p>'
+    + '</div>'
+    + '<div style="padding:12px 32px;background:#f0f4f8;text-align:center;"><p style="margin:0;font-size:10px;color:#aaa;">Hero IT Console · Recordatorio automático</p></div>'
+    + '</div></div>';
+}
 
 function json(data, status = 200, headers = {}) {
   return new Response(JSON.stringify(data), {

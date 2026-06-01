@@ -21,3 +21,11 @@ compatibility_date = "2025-01-01"
 [[kv_namespaces]]
 binding = "HERO_KV"
 id = "1da921302dbd4923a67c7823e449ae34"
+
+# ── Cron triggers ──
+# Diario a las 13:00 UTC (9am EDT / 8am EST). Dispara el handler `scheduled`
+# del worker, que revisa licencias por vencer (30/7/1/0 días) y manda un
+# correo recordatorio a IT. Marca cada combinación (lic + período) como
+# avisada en KV para no repetir en el mismo ciclo.
+[triggers]
+crons = ["0 13 * * *"]
