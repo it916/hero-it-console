@@ -229,11 +229,14 @@ export default {
     // ── GET /licencia — listar ─────────────────────────────────
     if (request.method === 'GET' && path === '/licencia') {
       try {
-        const list = await env.HERO_KV.list({ prefix: 'lic_' });
+        const list = await env.HERO_KV.list({ prefix: 'lic_', ...paginationParams(url) });
         const items = await Promise.all(list.keys.map(async k => {
           const v = await env.HERO_KV.get(k.name); return v ? JSON.parse(v) : null;
         }));
-        return json({ licencias: items.filter(Boolean).sort((a,b) => a.nombre.localeCompare(b.nombre)) }, 200, cors);
+        return json({
+          licencias: items.filter(Boolean).sort((a,b) => a.nombre.localeCompare(b.nombre)),
+          ...listMeta(list)
+        }, 200, cors);
       } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: 'Error interno del servidor' }, 500, cors); }
     }
 
@@ -674,11 +677,14 @@ export default {
     // ── GET /alta-agente ──────────────────────────────────────
     if (request.method === 'GET' && path === '/alta-agente') {
       try {
-        const list = await env.HERO_KV.list({ prefix: 'alta_' });
+        const list = await env.HERO_KV.list({ prefix: 'alta_', ...paginationParams(url) });
         const items = await Promise.all(list.keys.map(async k => {
           const v = await env.HERO_KV.get(k.name); return v ? JSON.parse(v) : null;
         }));
-        return json({ solicitudes: items.filter(Boolean).sort((a,b) => new Date(b.fecha) - new Date(a.fecha)) }, 200, cors);
+        return json({
+          solicitudes: items.filter(Boolean).sort((a,b) => new Date(b.fecha) - new Date(a.fecha)),
+          ...listMeta(list)
+        }, 200, cors);
       } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: 'Error interno del servidor' }, 500, cors); }
     }
 
@@ -779,12 +785,13 @@ export default {
     // ── GET /ticket — listar tickets ──────────────────────────
     if (request.method === 'GET' && path === '/ticket') {
       try {
-        const list = await env.HERO_KV.list({ prefix: 'ticket_' });
+        const list = await env.HERO_KV.list({ prefix: 'ticket_', ...paginationParams(url) });
         const items = await Promise.all(list.keys.map(async k => {
           const v = await env.HERO_KV.get(k.name); return v ? JSON.parse(v) : null;
         }));
         return json({
-          tickets: items.filter(Boolean).sort((a,b) => new Date(b.fecha) - new Date(a.fecha))
+          tickets: items.filter(Boolean).sort((a,b) => new Date(b.fecha) - new Date(a.fecha)),
+          ...listMeta(list)
         }, 200, cors);
       } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: 'Error interno del servidor' }, 500, cors); }
     }
@@ -909,7 +916,7 @@ export default {
         const q = url.searchParams.get('q') || '';
         const tipo = url.searchParams.get('tipo') || '';
         const limit = parseInt(url.searchParams.get('limit') || '200');
-        const list = await env.HERO_KV.list({ prefix: 'audit_' });
+        const list = await env.HERO_KV.list({ prefix: 'audit_', ...paginationParams(url) });
         const items = await Promise.all(list.keys.map(async k => {
           const v = await env.HERO_KV.get(k.name); return v ? JSON.parse(v) : null;
         }));
@@ -921,7 +928,7 @@ export default {
           (e.detalle || '').toLowerCase().includes(q.toLowerCase()) ||
           (e.usuario || '').toLowerCase().includes(q.toLowerCase())
         );
-        return json({ entradas: entradas.slice(0, limit), total: entradas.length }, 200, cors);
+        return json({ entradas: entradas.slice(0, limit), total: entradas.length, ...listMeta(list) }, 200, cors);
       } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: 'Error interno del servidor' }, 500, cors); }
     }
 
@@ -949,12 +956,13 @@ export default {
     // ── GET /device — listar dispositivos ─────────────────────
     if (request.method === 'GET' && path === '/device') {
       try {
-        const list = await env.HERO_KV.list({ prefix: 'device_' });
+        const list = await env.HERO_KV.list({ prefix: 'device_', ...paginationParams(url) });
         const items = await Promise.all(list.keys.map(async k => {
           const v = await env.HERO_KV.get(k.name); return v ? JSON.parse(v) : null;
         }));
         return json({
-          devices: items.filter(Boolean).sort((a, b) => new Date(b.fecha) - new Date(a.fecha))
+          devices: items.filter(Boolean).sort((a, b) => new Date(b.fecha) - new Date(a.fecha)),
+          ...listMeta(list)
         }, 200, cors);
       } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: 'Error interno del servidor' }, 500, cors); }
     }
@@ -1016,11 +1024,12 @@ export default {
     }
 
 
-    // ── POST / → email via Resend ─────────────────────────────
-    // Acepta cualquier path (catch-all). Restringimos `to` y `from` al
+    // ── POST /email → email via Resend ────────────────────────
+    // Path explícito (antes era POST / catch-all — footgun: cualquier POST a
+    // ruta no reconocida disparaba un envío). Restringimos `to` y `from` al
     // dominio corporativo para que un bug en el frontend no pueda
     // accidentalmente mandar a destinos externos desde la dirección de IT.
-    if (request.method === 'POST') {
+    if (request.method === 'POST' && path === '/email') {
       try {
         const { to, subject, html, text, from } = await request.json();
         if (!to || !subject || !html) return json({ error: 'Faltan campos: to, subject, html' }, 400, cors);
@@ -1103,6 +1112,19 @@ async function sendResend(env, payload, ctx = {}) {
     logError('resend_send_threw', err, { ...ctx, subject: payload && payload.subject });
     return null;
   }
+}
+
+// ── Paginación para list endpoints ────────────────────────────
+// KV.list() corta en 1000 keys; si hay más, devuelve cursor + list_complete:false.
+// Estos helpers permiten que los GET endpoints acepten ?cursor= para iterar.
+// Backwards-compat: si el cliente no manda cursor, recibe la primera página
+// como antes; ahora la respuesta incluye `cursor` y `complete` para que el
+// frontend pueda pedir más cuando escale.
+function paginationParams(url) {
+  return { cursor: url.searchParams.get('cursor') || undefined };
+}
+function listMeta(list) {
+  return { cursor: list.list_complete ? null : list.cursor, complete: list.list_complete };
 }
 
 // ── Anti-abuso para endpoints públicos ────────────────────────

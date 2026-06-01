@@ -568,7 +568,7 @@ async function auditLog(tipo, descripcion, detalle = null) {
   } catch(e) { addLog('auditLog error: ' + e.message, 'warn'); }
 }
 async function sendViaResend({ to, subject, html, text }) {
-  const resp = await authFetch(WORKER_URL, {
+  const resp = await authFetch(WORKER_URL + '/email', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ to, subject, html, text })
