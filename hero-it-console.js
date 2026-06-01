@@ -103,6 +103,7 @@ let sessionActionCount = 0;
 // ── Navegación ────────────────────────────────────────────────
 const pageLabels = {
   'dashboard': 'Dashboard',
+  'mi-dia': 'Mi día',
   'reset': 'Reset de Contraseña',
   'usuarios': 'Usuarios Workspace',
   'logs': 'Historial de Logs',
@@ -150,6 +151,7 @@ function showPage(id) {
 
   // Auto-cargar datos al navegar
   const autoLoad = {
+    'mi-dia':       () => loadMiDia(),
     'usuarios':     () => loadUsers(),
     'tickets':      () => loadTickets(),
     'solicitudes':  () => loadSolicitudes(),
@@ -1393,6 +1395,151 @@ function exportAuditCSV() {
   a.download = 'hero-auditoria-' + new Date().toISOString().slice(0,10) + '.csv';
   a.click();
   showToast('CSV exportado');
+}
+
+// ── Módulo "Mi día" — cola priorizada ─────────────────────────
+// Vista consolidada: tickets prioritarios abiertos + solicitudes que esperan
+// a IT + licencias por vencer. Una sola página para que Fernando entre y sepa
+// qué hacer primero sin navegar 3 secciones distintas.
+async function loadMiDia() {
+  // Saludo dinámico según la hora ET
+  const hET = new Date().toLocaleString('en-US', { timeZone: 'America/New_York', hour: 'numeric', hour12: false });
+  const h = parseInt(hET, 10);
+  const saludo = h < 12 ? 'Buenos días' : h < 19 ? 'Buenas tardes' : 'Buenas noches';
+  const auth = (() => { try { return JSON.parse(sessionStorage.getItem('hero_auth') || '{}'); } catch { return {}; } })();
+  const nombre = (auth.nombre || '').split(' ')[0] || 'Fernando';
+  const saludoEl = document.getElementById('mi-dia-saludo');
+  if (saludoEl) saludoEl.textContent = saludo + ', ' + nombre + ' — esto necesita tu atención ahora.';
+
+  // Skeletons en las 3 secciones mientras carga
+  renderSkeleton(document.getElementById('md-tickets'), { type: 'card', rows: 2 });
+  renderSkeleton(document.getElementById('md-sols'),    { type: 'card', rows: 2 });
+  renderSkeleton(document.getElementById('md-lics'),    { type: 'card', rows: 2 });
+
+  let tickets = [], sols = [], lics = [];
+  try {
+    const [t, s, l] = await Promise.all([
+      authFetch(WORKER_URL + '/ticket'),
+      authFetch(WORKER_URL + '/alta-agente'),
+      authFetch(WORKER_URL + '/licencia'),
+    ]);
+    if (t.ok) tickets = (await t.json()).tickets || [];
+    if (s.ok) sols    = (await s.json()).solicitudes || [];
+    if (l.ok) lics    = (await l.json()).licencias || [];
+  } catch (e) {
+    addLog('Mi día: error cargando datos: ' + e.message, 'warn');
+  }
+
+  // 1. Tickets prioritarios — abiertos con Urgente o Alta, viejos primero
+  const PRIO_WEIGHT = { Urgente: 3, Alta: 2, Media: 1, Baja: 0 };
+  const ticketsPri = tickets
+    .filter(t => t.estado === 'abierto' && (PRIO_WEIGHT[t.prioridad] || 0) >= 2)
+    .sort((a, b) => {
+      const dw = (PRIO_WEIGHT[b.prioridad] || 0) - (PRIO_WEIGHT[a.prioridad] || 0);
+      return dw !== 0 ? dw : new Date(a.fecha) - new Date(b.fecha);
+    });
+
+  // 2. Solicitudes que esperan a IT — pendiente o autorizada (autorizada =
+  //    alguien aprobó pero IT aún no creó/eliminó la cuenta)
+  const solsAccion = sols
+    .filter(s => s.estado === 'pendiente' || s.estado === 'autorizada')
+    .sort((a, b) => new Date(a.fecha) - new Date(b.fecha));
+
+  // 3. Licencias que vencen dentro de 30 días (o ya vencidas)
+  const today = Date.now();
+  const licsVencer = lics
+    .filter(l => l.vencimiento && (new Date(l.vencimiento).getTime() - today) < 30 * 86400000)
+    .sort((a, b) => new Date(a.vencimiento) - new Date(b.vencimiento));
+
+  // Stats
+  document.getElementById('md-stat-tickets').textContent = ticketsPri.length;
+  document.getElementById('md-stat-sols').textContent    = solsAccion.length;
+  document.getElementById('md-stat-lics').textContent    = licsVencer.length;
+
+  // Render cada sección (con empty state propio)
+  _renderMiDiaTickets(ticketsPri);
+  _renderMiDiaSols(solsAccion);
+  _renderMiDiaLics(licsVencer);
+}
+
+function _renderMiDiaTickets(items) {
+  const el = document.getElementById('md-tickets');
+  if (!items.length) {
+    renderEmpty(el, { icon: '✅', message: 'Sin tickets prioritarios abiertos. Buen trabajo.' });
+    return;
+  }
+  el.innerHTML = items.map(t => {
+    const prioColor = (PRIORIDAD_COLOR && PRIORIDAD_COLOR[t.prioridad]) || { color: 'var(--hero-warning)', bg: 'rgba(232,163,23,0.12)' };
+    const elapsed = getElapsedTime(t.fecha);
+    const elColor = getElapsedColor(t.fecha, t.estado);
+    return '<div class="action-card" style="cursor:pointer;padding:14px;" onclick="showPage(\'tickets\');setTimeout(() => openTicketModal(\'' + escJs(t.id) + '\'), 200)">'
+      + '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:6px;">'
+      +   '<div style="min-width:0;flex:1;">'
+      +     '<div style="font-family:var(--mono);font-size:10px;color:var(--hero-text-muted);margin-bottom:2px;">' + escHtml(t.ticketId || '') + '</div>'
+      +     '<div style="font-size:13px;font-weight:600;color:var(--hero-text-primary);">' + escHtml(t.asunto) + '</div>'
+      +     '<div style="font-size:11px;color:var(--hero-text-muted);margin-top:2px;">' + escHtml(t.nombre || '') + ' · ' + escHtml(t.categoria || '') + '</div>'
+      +   '</div>'
+      +   '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0;">'
+      +     '<span style="font-family:var(--mono);font-size:10px;padding:2px 8px;border-radius:12px;background:' + prioColor.bg + ';color:' + prioColor.color + ';">' + escHtml(t.prioridad) + '</span>'
+      +     '<span style="font-family:var(--mono);font-size:10px;color:' + elColor + ';">⏱ ' + elapsed + '</span>'
+      +   '</div>'
+      + '</div>'
+      + '</div>';
+  }).join('');
+}
+
+function _renderMiDiaSols(items) {
+  const el = document.getElementById('md-sols');
+  if (!items.length) {
+    renderEmpty(el, { icon: '✅', message: 'No hay solicitudes esperando acción.' });
+    return;
+  }
+  el.innerHTML = items.map(s => {
+    const isBaja = s.tipoSolicitud === 'baja';
+    const tipoLabel = isBaja ? 'BAJA' : 'ALTA';
+    const tipoColor = isBaja ? 'var(--hero-danger)' : 'var(--hero-primary-text)';
+    const tipoBg    = isBaja ? 'rgba(214,69,69,0.10)' : 'rgba(6,163,182,0.10)';
+    const titulo    = isBaja ? (s.nombre || '') : ((s.nombre || '') + ' ' + (s.apellido || '')).trim();
+    const estadoBadge = s.estado === 'autorizada' ? '✓ Autorizada' : '⏳ Pendiente';
+    const estadoColor = s.estado === 'autorizada' ? 'var(--hero-primary-text)' : 'var(--hero-warning)';
+    const elapsed = getElapsedTime(s.fecha);
+    return '<div class="action-card" style="cursor:pointer;padding:14px;" onclick="showPage(\'solicitudes\')">'
+      + '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;">'
+      +   '<div style="min-width:0;flex:1;">'
+      +     '<span style="font-family:var(--mono);font-size:9px;font-weight:700;padding:2px 8px;border-radius:12px;background:' + tipoBg + ';color:' + tipoColor + ';letter-spacing:1px;">' + tipoLabel + '</span>'
+      +     '<div style="font-size:13px;font-weight:600;color:var(--hero-text-primary);margin-top:4px;">' + escHtml(titulo) + '</div>'
+      +     '<div style="font-size:11px;color:var(--hero-text-muted);margin-top:2px;">por ' + escHtml(s.solicitanteNombre || '?') + '</div>'
+      +   '</div>'
+      +   '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0;">'
+      +     '<span style="font-family:var(--mono);font-size:10px;color:' + estadoColor + ';">' + estadoBadge + '</span>'
+      +     '<span style="font-family:var(--mono);font-size:10px;color:var(--hero-text-muted);">⏱ ' + elapsed + '</span>'
+      +   '</div>'
+      + '</div>'
+      + '</div>';
+  }).join('');
+}
+
+function _renderMiDiaLics(items) {
+  const el = document.getElementById('md-lics');
+  if (!items.length) {
+    renderEmpty(el, { icon: '✅', message: 'Ninguna licencia vence en los próximos 30 días.' });
+    return;
+  }
+  const today = Date.now();
+  el.innerHTML = items.map(l => {
+    const days = Math.ceil((new Date(l.vencimiento).getTime() - today) / 86400000);
+    const badgeColor = days < 0 ? 'var(--hero-danger)' : days <= 7 ? 'var(--hero-danger)' : 'var(--hero-warning)';
+    const badgeText  = days < 0 ? 'VENCIDA' : days === 0 ? 'VENCE HOY' : days === 1 ? 'Vence mañana' : 'Vence en ' + days + ' días';
+    return '<div class="action-card" style="cursor:pointer;padding:14px;" onclick="showPage(\'licencias\')">'
+      + '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">'
+      +   '<div style="min-width:0;flex:1;">'
+      +     '<div style="font-size:13px;font-weight:600;color:var(--hero-text-primary);">' + escHtml(l.nombre) + '</div>'
+      +     '<div style="font-size:11px;color:var(--hero-text-muted);margin-top:2px;">' + escHtml(l.plan || 'sin plan') + (l.costo > 0 ? ' · $' + Number(l.costo).toFixed(2) + '/mes' : '') + '</div>'
+      +   '</div>'
+      +   '<span style="font-family:var(--mono);font-size:10px;font-weight:700;color:' + badgeColor + ';">' + badgeText + '</span>'
+      + '</div>'
+      + '</div>';
+  }).join('');
 }
 
 // ── Módulo Tickets de Soporte ─────────────────────────────────
@@ -2805,6 +2952,7 @@ function _shortcutsHelp() {
       +   '<div style="display:grid;grid-template-columns:auto 1fr;gap:10px 16px;font-size:13px;align-items:center;">'
       +     '<kbd>/</kbd><span>Buscador global</span>'
       +     '<kbd>g d</kbd><span>Dashboard</span>'
+      +     '<kbd>g m</kbd><span>Mi día</span>'
       +     '<kbd>g t</kbd><span>Tickets</span>'
       +     '<kbd>g s</kbd><span>Solicitudes</span>'
       +     '<kbd>g u</kbd><span>Usuarios</span>'
@@ -2849,7 +2997,7 @@ function installKeyboardShortcuts() {
       return;
     }
     if (lastG && Date.now() - lastG < 800) {
-      const map = { d:'dashboard', t:'tickets', s:'solicitudes', u:'usuarios', l:'licencias', a:'auditoria', r:'reset' };
+      const map = { d:'dashboard', m:'mi-dia', t:'tickets', s:'solicitudes', u:'usuarios', l:'licencias', a:'auditoria', r:'reset' };
       if (map[e.key]) {
         e.preventDefault();
         showPage(map[e.key]);
