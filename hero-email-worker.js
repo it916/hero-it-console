@@ -267,12 +267,22 @@ export default {
         const id  = url.searchParams.get('id')  || '';
         const by  = (url.searchParams.get('by')  || '').toLowerCase();
         const sig = url.searchParams.get('sig') || '';
+        const exp = url.searchParams.get('exp') || '';
 
-        if (!id || !by || !sig) {
+        if (!id || !by || !sig || !exp) {
           return htmlResponse(buildAuthorizePage({
             titulo: 'Link inválido', icono: '⚠️', color: heroAmber,
-            mensaje: 'El enlace está incompleto. Vuelve al correo original y haz click en el botón <strong>Autorizar solicitud</strong>.'
+            mensaje: 'El enlace está incompleto o es de una versión anterior. Pide a IT que reenvíe la solicitud.'
           }), 400, cors);
+        }
+
+        // Si el link expiró, mensaje claro antes de revelar otros detalles.
+        const expNum = parseInt(exp, 10);
+        if (!expNum || expNum * 1000 < Date.now()) {
+          return htmlResponse(buildAuthorizePage({
+            titulo: 'Link expirado', icono: '⏳', color: heroAmber,
+            mensaje: 'Este link de autorización ya no es válido (los links caducan a los 7 días). Pide a IT que reenvíe la solicitud.'
+          }), 410, cors);
         }
 
         const authorizerObj = AUTHORIZER_BY_EMAIL(by);
@@ -283,7 +293,7 @@ export default {
           }), 403, cors);
         }
 
-        const ok = await verifyAuth(env, id, by, sig);
+        const ok = await verifyAuth(env, id, by, sig, exp);
         if (!ok) {
           return htmlResponse(buildAuthorizePage({
             titulo: 'Link no válido', icono: '🔒', color: heroRed,
@@ -539,13 +549,18 @@ export default {
         // Genera y envía un email por autorizador en paralelo. No bloqueamos
         // el response del Worker si Resend tarda — usamos waitUntil-like await
         // pero capturamos errores individuales para no fallar todo.
+        // Los links expiran a los 7 días. Después de eso, hay que reenviar
+        // la solicitud desde el Console. Esto evita que un email reenviado /
+        // archivado siga siendo válido indefinidamente.
+        const linkExp = Math.floor(Date.now() / 1000) + 7 * 24 * 3600;
         const sends = AUTHORIZERS.map(async auth => {
           let link;
           try {
-            const sig = await signAuth(env, solicitud.id, auth.email);
+            const sig = await signAuth(env, solicitud.id, auth.email, linkExp);
             link = workerBase + '/solicitud-cuenta/autorizar'
               + '?id=' + encodeURIComponent(solicitud.id)
               + '&by=' + encodeURIComponent(auth.email)
+              + '&exp=' + linkExp
               + '&sig=' + encodeURIComponent(sig);
           } catch (e) {
             // Si falta el secret, mandamos un email sin botón (fallback) y dejamos rastro.
@@ -1065,15 +1080,20 @@ async function hmacSign(secret, message) {
     .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 
-async function signAuth(env, id, email) {
+// Firma HMAC sobre `id|email|exp`. El `exp` (epoch seconds) viene como parte
+// del link en la URL; la firma lo cubre para que no se pueda extender desde
+// fuera. Sin exp el link ya no se acepta (decisión consciente: cortar links
+// viejos sin caducidad — eran perpetuos mientras el secret no rotara).
+async function signAuth(env, id, email, exp) {
   if (!env.AUTH_HMAC_SECRET) throw new Error('Falta AUTH_HMAC_SECRET');
-  return hmacSign(env.AUTH_HMAC_SECRET, id + '|' + email.toLowerCase());
+  return hmacSign(env.AUTH_HMAC_SECRET, id + '|' + email.toLowerCase() + '|' + exp);
 }
 
-async function verifyAuth(env, id, email, sig) {
-  if (!sig || !email || !id) return false;
-  const expected = await signAuth(env, id, email);
-  // Comparación constante simple — los strings son cortos
+async function verifyAuth(env, id, email, sig, exp) {
+  if (!sig || !email || !id || !exp) return false;
+  const expNum = parseInt(exp, 10);
+  if (!expNum) return false;
+  const expected = await signAuth(env, id, email, expNum);
   if (expected.length !== sig.length) return false;
   let diff = 0;
   for (let i = 0; i < expected.length; i++) diff |= expected.charCodeAt(i) ^ sig.charCodeAt(i);
@@ -1093,6 +1113,12 @@ async function verifyGoogleIdToken(credential) {
   const resp = await fetch('https://oauth2.googleapis.com/tokeninfo?id_token=' + encodeURIComponent(credential));
   if (!resp.ok) throw new Error('Token rechazado por Google');
   const claims = await resp.json();
+  // Defensa en profundidad: además de la audiencia (aud), confirmamos que el
+  // token fue emitido por Google y no por otro IdP que pudiera compartir
+  // formato. Google acepta ambas variantes del issuer.
+  if (claims.iss !== 'https://accounts.google.com' && claims.iss !== 'accounts.google.com') {
+    throw new Error('Issuer inválido');
+  }
   if (claims.aud !== GOOGLE_CLIENT_ID) throw new Error('Audiencia inválida');
   if (claims.email_verified !== 'true' && claims.email_verified !== true) throw new Error('Email no verificado');
   return claims;

@@ -1293,13 +1293,21 @@ function renderAudit(entradas, total) {
   }).join('');
 }
 
+// Anti CSV-injection: si una celda empieza con = + - @ \t o \r, Excel/Sheets
+// la trata como fórmula al abrir. Prefijamos con apostrofe (queda invisible
+// al usuario) para que el contenido se vea como texto literal.
+function csvCell(v) {
+  const s = String(v == null ? '' : v);
+  const needsEscape = /^[=+\-@\t\r]/.test(s);
+  return '"' + (needsEscape ? "'" : '') + s.replace(/"/g, '""') + '"';
+}
+
 function exportAuditCSV() {
   if (!allAuditEntradas.length) { showToast('Carga el historial primero'); return; }
   const header = 'Fecha ET,Tipo,Descripcion,Detalle,Usuario';
   const rows = allAuditEntradas.map(e => {
     const fecha = new Date(e.fecha).toLocaleString('es-MX', { timeZone:'America/New_York' });
-    return [fecha, e.tipo, e.descripcion, e.detalle || '', e.usuario || '']
-      .map(v => '"' + String(v).replace(/"/g,'""') + '"').join(',');
+    return [fecha, e.tipo, e.descripcion, e.detalle || '', e.usuario || ''].map(csvCell).join(',');
   });
   const csv = [header, ...rows].join('\n');
   const blob = new Blob([csv], { type:'text/csv;charset=utf-8;' });
@@ -2514,7 +2522,7 @@ function exportDeviceReport() {
   csv += '"Fecha","Tipo","Descripcion","Notas"\n';
   (d.intervenciones || []).forEach(i => {
     const f = new Date(i.fecha).toLocaleString('es-MX', { timeZone:'America/New_York' });
-    csv += '"' + f + '","' + i.tipo + '","' + i.descripcion.replace(/"/g,'""') + '","' + (i.notas || '').replace(/"/g,'""') + '"\n';
+    csv += [f, i.tipo, i.descripcion, i.notas || ''].map(csvCell).join(',') + '\n';
   });
 
   const blob = new Blob([csv], { type:'text/csv;charset=utf-8;' });
@@ -3102,7 +3110,7 @@ async function generateMonthlyReport() {
       csv += '"ID","Asunto","Usuario","Categoría","Prioridad","Estado","Fecha"\n';
       tickets.forEach(t => {
         const f = new Date(t.fecha).toLocaleDateString('es-MX', { timeZone: 'America/New_York' });
-        csv += [t.ticketId, t.asunto, t.nombre, t.categoria, t.prioridad, t.estado, f].map(v => '"' + String(v||'').replace(/"/g,'""') + '"').join(',') + '\n';
+        csv += [t.ticketId, t.asunto, t.nombre, t.categoria, t.prioridad, t.estado, f].map(csvCell).join(',') + '\n';
       });
       csv += '"Total tickets","' + tickets.length + '"\n';
       csv += '"Resueltos","' + tickets.filter(t => t.estado === 'resuelto').length + '"\n\n';
@@ -3122,7 +3130,7 @@ async function generateMonthlyReport() {
       csv += '"Fecha","Tipo","Descripción","Detalle"\n';
       entradas.forEach(e => {
         const f = new Date(e.fecha).toLocaleString('es-MX', { timeZone: 'America/New_York' });
-        csv += [f, e.tipo, e.descripcion, e.detalle||''].map(v => '"' + String(v||'').replace(/"/g,'""') + '"').join(',') + '\n';
+        csv += [f, e.tipo, e.descripcion, e.detalle||''].map(csvCell).join(',') + '\n';
       });
       csv += '"Total acciones","' + entradas.length + '"\n\n';
     }
@@ -3146,7 +3154,7 @@ async function generateMonthlyReport() {
       csv += '"Dispositivo","Usuario","Tipo","Descripción","Fecha"\n';
       intervencionesMes.forEach(i => {
         const f = new Date(i.fecha).toLocaleDateString('es-MX', { timeZone: 'America/New_York' });
-        csv += [i.dispositivo, i.usuario||'', i.tipo, i.descripcion, f].map(v => '"' + String(v||'').replace(/"/g,'""') + '"').join(',') + '\n';
+        csv += [i.dispositivo, i.usuario||'', i.tipo, i.descripcion, f].map(csvCell).join(',') + '\n';
       });
       csv += '"Total intervenciones","' + intervencionesMes.length + '"\n\n';
     }
