@@ -12,6 +12,9 @@
   --hero-primary:        #06a3b6;
   --hero-primary-hover:  #058fa0;
   --hero-primary-light:  #d6edf0;
+  /* Variante oscura para texto cyan sobre fondo claro o cyan-light
+     (WCAG AA exige >=4.5:1 para texto normal; #036070 sobre blanco da 7.5:1). */
+  --hero-primary-text:   #036070;
   --hero-bg-page:        #f0f4f8;
   --hero-bg-card:        #ffffff;
   --hero-bg-preview:     #f9fafb;
@@ -65,6 +68,9 @@
   --hero-primary:        #06a3b6;
   --hero-primary-hover:  #07bdd4;
   --hero-primary-light:  rgba(6,163,182,0.15);
+  /* En dark mode el texto cyan vive sobre fondos oscuros: necesita ser más
+     claro (no más oscuro) para contraste AA. #5ce0f0 sobre #0f1117 da 11:1. */
+  --hero-primary-text:   #5ce0f0;
   --hero-bg-page:        #0f1117;
   --hero-bg-card:        #1a1d27;
   --hero-bg-preview:     #141720;
@@ -213,7 +219,7 @@ nav { padding: 12px; flex: 1; }
 .nav-item.active {
   background: var(--hero-primary-light);
   border-color: rgba(6,163,182,0.25);
-  color: var(--hero-primary);
+  color: var(--hero-primary-text);
   font-weight: 600;
 }
 .nav-item.active::before {
@@ -325,7 +331,7 @@ nav { padding: 12px; flex: 1; }
   text-transform: uppercase;
 }
 .badge-manual { background:#fff3e0; border:1px solid #ffe0b2; color:#e67e22; }
-.badge-auto   { background:var(--hero-primary-light); border:1px solid rgba(6,163,182,0.3); color:var(--hero-primary); }
+.badge-auto   { background:var(--hero-primary-light); border:1px solid rgba(6,163,182,0.3); color:var(--hero-primary-text); }
 .card-title { font-size: 14px; font-weight: 700; color: var(--hero-text-primary); margin-bottom: 4px; }
 .card-desc  { font-size: 12px; color: var(--hero-text-muted); line-height: 1.6; margin-bottom: 14px; }
 
@@ -337,8 +343,10 @@ nav { padding: 12px; flex: 1; }
   border: none; transition: var(--hero-transition);
   font-family: var(--hero-font); text-decoration: none;
 }
-.btn-primary { background: var(--hero-primary); color: #fff; }
-.btn-primary:hover { background: var(--hero-primary-hover); }
+/* Usamos --hero-primary-hover (#058fa0) en lugar de --hero-primary (#06a3b6)
+   para que el blanco encima pase WCAG AA (#fff sobre #058fa0 ≈ 4.5:1). */
+.btn-primary { background: var(--hero-primary-hover); color: #fff; }
+.btn-primary:hover { background: var(--hero-primary-text); }
 .btn-secondary { background: transparent; color: var(--hero-text-body); border: 1px solid var(--hero-border-btn); }
 .btn-secondary:hover { background: var(--hero-bg-page); color: var(--hero-text-primary); }
 .btn-danger { background: var(--hero-error-bg); color: var(--hero-error); border: 1px solid #f5b7b1; }
@@ -720,7 +728,15 @@ html { scroll-behavior: smooth; }
 .kanban-card-meta  { font-size: 11px; color: var(--hero-text-muted); }
 .kanban-card-time  { font-size: 10px; font-family: var(--mono); margin-top: 6px; }
 @media (max-width: 900px) {
-  #tickets-kanban { grid-template-columns: 1fr !important; }
+  /* Mobile kanban → tabs. Headers funcionan como pestañas (con onclick que
+     dispara setKanbanTab); solo la columna con .mobile-active muestra sus
+     cards. Los counts siempre se ven en los headers. */
+  #tickets-kanban { grid-template-columns: 1fr !important; gap: 6px !important; }
+  #tickets-kanban .kanban-col-header { cursor: pointer; }
+  #tickets-kanban .kanban-col:not(.mobile-active) .kanban-cards { display: none; }
+  #tickets-kanban .kanban-col.mobile-active .kanban-col-header {
+    box-shadow: inset 0 -3px 0 var(--hero-primary-hover);
+  }
 }
 
 /* ── Last updated indicator ─────────────────────────────── */
@@ -1535,22 +1551,22 @@ html { scroll-behavior: smooth; }
 
       <!-- Kanban view -->
       <div id="tickets-kanban" style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;">
-        <div class="kanban-col" id="col-abierto">
-          <div class="kanban-col-header" style="--col-color:#d64545;">
+        <div class="kanban-col mobile-active" id="col-abierto" data-estado="abierto">
+          <div class="kanban-col-header" style="--col-color:#d64545;" onclick="setKanbanTab('abierto')" role="button" tabindex="0">
             <span class="kanban-col-title">🔴 Abierto</span>
             <span class="kanban-col-count" id="count-abierto">0</span>
           </div>
           <div class="kanban-cards" id="cards-abierto"></div>
         </div>
-        <div class="kanban-col" id="col-en-progreso">
-          <div class="kanban-col-header" style="--col-color:#e8a317;">
+        <div class="kanban-col" id="col-en-progreso" data-estado="en-progreso">
+          <div class="kanban-col-header" style="--col-color:#e8a317;" onclick="setKanbanTab('en-progreso')" role="button" tabindex="0">
             <span class="kanban-col-title">🟡 En progreso</span>
             <span class="kanban-col-count" id="count-en-progreso">0</span>
           </div>
           <div class="kanban-cards" id="cards-en-progreso"></div>
         </div>
-        <div class="kanban-col" id="col-resuelto">
-          <div class="kanban-col-header" style="--col-color:#22a06b;">
+        <div class="kanban-col" id="col-resuelto" data-estado="resuelto">
+          <div class="kanban-col-header" style="--col-color:#22a06b;" onclick="setKanbanTab('resuelto')" role="button" tabindex="0">
             <span class="kanban-col-title">✅ Resuelto</span>
             <span class="kanban-col-count" id="count-resuelto">0</span>
           </div>

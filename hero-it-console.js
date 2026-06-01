@@ -627,6 +627,19 @@ function showToast(msg) {
   setTimeout(() => t.classList.remove('show'), 3200);
 }
 
+// ── Persistencia de preferencias UI (filtros, vistas) ─────────
+// localStorage es sincrónico y barato; un try/catch cubre el caso de modo
+// privado o cuota llena (raro en SPA tan pequeña pero no rompe la app).
+function persistState(key, value) {
+  try { localStorage.setItem('hero_' + key, JSON.stringify(value)); } catch (_) {}
+}
+function restoreState(key, defaultValue) {
+  try {
+    const v = localStorage.getItem('hero_' + key);
+    return v == null ? defaultValue : JSON.parse(v);
+  } catch (_) { return defaultValue; }
+}
+
 // ── Confirm modal estilizado (reemplazo de window.confirm) ───
 // Devuelve Promise<boolean>. Mantiene branding + soporta:
 //   destructive: true     → botón rojo
@@ -1339,13 +1352,22 @@ const QUICK_REPLIES = {
 
 function setTicketView(view) {
   ticketView = view;
+  persistState('ticket_view', view);
   document.getElementById('tickets-kanban').style.display = view === 'kanban' ? 'grid' : 'none';
   document.getElementById('tickets-list').style.display   = view === 'list'   ? 'block' : 'none';
-  document.getElementById('btn-view-kanban').style.background = view === 'kanban' ? 'var(--hero-primary)' : 'transparent';
+  document.getElementById('btn-view-kanban').style.background = view === 'kanban' ? 'var(--hero-primary-hover)' : 'transparent';
   document.getElementById('btn-view-kanban').style.color      = view === 'kanban' ? '#fff' : 'var(--hero-text-muted)';
-  document.getElementById('btn-view-list').style.background   = view === 'list'   ? 'var(--hero-primary)' : 'transparent';
+  document.getElementById('btn-view-list').style.background   = view === 'list'   ? 'var(--hero-primary-hover)' : 'transparent';
   document.getElementById('btn-view-list').style.color        = view === 'list'   ? '#fff' : 'var(--hero-text-muted)';
   filterTickets();
+}
+
+// Tabs mobile en kanban: muestra sólo la columna activa cuando width < 900px.
+// En desktop no afecta nada (las 3 columnas se ven siempre).
+function setKanbanTab(estado) {
+  document.querySelectorAll('#tickets-kanban .kanban-col').forEach(col => {
+    col.classList.toggle('mobile-active', col.dataset.estado === estado);
+  });
 }
 
 function getElapsedTime(fechaStr) {
@@ -1366,6 +1388,14 @@ function getElapsedColor(fechaStr, estado) {
 }
 
 async function loadTickets() {
+  // Restaurar preferencias UI guardadas (vista kanban/lista, filtros prioridad/categoría)
+  const prioSel = document.getElementById('ticket-filter-prioridad');
+  const catSel  = document.getElementById('ticket-filter-categoria');
+  if (prioSel) prioSel.value = restoreState('ticket_filter_prioridad', '');
+  if (catSel)  catSel.value  = restoreState('ticket_filter_categoria', '');
+  const savedView = restoreState('ticket_view', 'kanban');
+  if (savedView !== ticketView) setTicketView(savedView);
+
   const btn = document.getElementById('btn-load-tickets');
   if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>'; }
   try {
@@ -1386,6 +1416,9 @@ function filterTickets() {
   const prioridad  = document.getElementById('ticket-filter-prioridad')?.value || '';
   const categoria  = document.getElementById('ticket-filter-categoria')?.value  || '';
   const q          = document.getElementById('ticket-search')?.value.toLowerCase() || '';
+  // Persistimos las selects (no la búsqueda — esa es per-sesión).
+  persistState('ticket_filter_prioridad', prioridad);
+  persistState('ticket_filter_categoria', categoria);
   let filtered = allTickets;
   if (prioridad) filtered = filtered.filter(t => t.prioridad === prioridad);
   if (categoria) filtered = filtered.filter(t => t.categoria === categoria);
@@ -1539,6 +1572,7 @@ let solModalData = null;
 
 function setSolFilter(filter) {
   solFilter = filter;
+  persistState('sol_filter', filter);
   document.querySelectorAll('.sol-filter-chip').forEach(c => {
     c.classList.toggle('active', c.dataset.filter === filter);
   });
@@ -1546,6 +1580,14 @@ function setSolFilter(filter) {
 }
 
 async function loadSolicitudes() {
+  // Restaurar filtro guardado (Todas / Pendientes / Procesadas)
+  const savedFilter = restoreState('sol_filter', 'all');
+  if (savedFilter !== solFilter) {
+    solFilter = savedFilter;
+    document.querySelectorAll('.sol-filter-chip').forEach(c => {
+      c.classList.toggle('active', c.dataset.filter === solFilter);
+    });
+  }
   const btn = document.getElementById('btn-load-sol');
   if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>'; }
   try {
