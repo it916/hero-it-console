@@ -188,7 +188,14 @@ async function authFetch(url, opts = {}) {
   const headers = Object.assign({}, opts.headers || {});
   if (HERO_TOKEN) headers['Authorization'] = 'Bearer ' + HERO_TOKEN;
   const resp = await fetch(url, Object.assign({}, opts, { headers }));
-  if (resp.status === 401) handleAuthExpired();
+  if (resp.status === 401) {
+    handleAuthExpired();
+  } else if (resp.status >= 500) {
+    // 5xx implica fallo del Worker — antes se ignoraban silenciosamente.
+    // No mostramos toast en cada poll para no spamear; solo addLog que queda
+    // visible en el panel Logs si Fernando entra a investigar.
+    addLog('Worker ' + resp.status + ' en ' + (typeof url === 'string' ? url.replace(WORKER_URL, '') : '?'), 'warn');
+  }
   return resp;
 }
 
@@ -556,10 +563,14 @@ async function sendViaResend({ to, subject, html, text }) {
 }
 
 // ── Log helper ────────────────────────────────────────────────
+const SESSION_LOGS_MAX = 500;
 function addLog(message, type = 'info', consoleId = null) {
   const now = new Date();
   const t = now.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
   sessionLogs.push({ time: t, message, type });
+  // Cap a últimos 500 — sin esto, una sesión larga acumula sin fin y deja
+  // pesado el panel Logs cuando se renderiza por completo.
+  if (sessionLogs.length > SESSION_LOGS_MAX) sessionLogs.splice(0, sessionLogs.length - SESSION_LOGS_MAX);
   sessionActionCount++;
   document.getElementById('stat-logs').textContent = sessionActionCount;
   const line = `<div class="log-line"><span class="log-time">${t}</span><span class="log-msg ${type}">${escHtml(message)}</span></div>`;

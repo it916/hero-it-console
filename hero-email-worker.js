@@ -53,7 +53,8 @@ export default {
         return json({ token, email, nombre: claims.name || '' }, 200, cors);
       } catch (err) {
         logError('auth_login_failed', err);
-        return json({ error: 'No se pudo verificar la sesión: ' + err.message }, 401, cors);
+        // Mensaje genérico al cliente — los detalles quedan en logError para debug.
+        return json({ error: 'No se pudo verificar la sesión' }, 401, cors);
       }
     }
 
@@ -80,7 +81,7 @@ export default {
         });
         const text = await resp.text();
         return new Response(text, { status: resp.status, headers: { ...cors, 'Content-Type': 'application/json' } });
-      } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: err.message }, 500, cors); }
+      } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: 'Error interno del servidor' }, 500, cors); }
     }
 
     // ── GET /zoho/devices — listar dispositivos Zoho Assist ───
@@ -109,7 +110,7 @@ export default {
           ip:     c.device_info?.public_ip_address || c.device_info?.private_ip_address || '',
         }));
         return json({ devices }, 200, cors);
-      } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: err.message }, 500, cors); }
+      } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: 'Error interno del servidor' }, 500, cors); }
     }
 
     // ── GET /zoho/session/:id — iniciar sesión remota ─────────
@@ -118,7 +119,7 @@ export default {
         const computerId = path.replace('/zoho/session/', '');
         const sessionUrl = 'https://assist.zoho.com/portal/it265/app/home#/unattended/devices?computer_id=' + computerId;
         return json({ sessionUrl }, 200, cors);
-      } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: err.message }, 500, cors); }
+      } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: 'Error interno del servidor' }, 500, cors); }
     }
 
     // ── GET /stats — counts ligeros para el polling del dashboard ─
@@ -157,7 +158,7 @@ export default {
           solicitudes: { pending: s.count, total: solicitudes.keys.length, legacy: s.legacy },
           devices:     { total: devices.keys.length },
         }, 200, cors);
-      } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: err.message }, 500, cors); }
+      } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: 'Error interno del servidor' }, 500, cors); }
     }
 
     // ── POST /admin/backfill-metadata ─────────────────────────
@@ -195,7 +196,7 @@ export default {
         }
         logEvent('backfill_metadata_complete', { stats });
         return json({ ok: true, stats }, 200, cors);
-      } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: err.message }, 500, cors); }
+      } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: 'Error interno del servidor' }, 500, cors); }
     }
 
 
@@ -222,7 +223,7 @@ export default {
         };
         await env.HERO_KV.put(licId, JSON.stringify(lic), { metadata: summarizeLicencia(lic) });
         return json({ ok: true, id: licId }, 200, cors);
-      } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: err.message }, 500, cors); }
+      } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: 'Error interno del servidor' }, 500, cors); }
     }
 
     // ── GET /licencia — listar ─────────────────────────────────
@@ -233,7 +234,7 @@ export default {
           const v = await env.HERO_KV.get(k.name); return v ? JSON.parse(v) : null;
         }));
         return json({ licencias: items.filter(Boolean).sort((a,b) => a.nombre.localeCompare(b.nombre)) }, 200, cors);
-      } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: err.message }, 500, cors); }
+      } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: 'Error interno del servidor' }, 500, cors); }
     }
 
     // ── POST /licencia/delete ──────────────────────────────────
@@ -242,7 +243,7 @@ export default {
         const { id } = await request.json();
         await env.HERO_KV.delete(id);
         return json({ ok: true }, 200, cors);
-      } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: err.message }, 500, cors); }
+      } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: 'Error interno del servidor' }, 500, cors); }
     }
 
     // ── GET /users ────────────────────────────────────────────
@@ -262,7 +263,7 @@ export default {
           orgUnitPath: u.orgUnitPath || '/',
         }));
         return json({ users }, 200, cors);
-      } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: err.message }, 500, cors); }
+      } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: 'Error interno del servidor' }, 500, cors); }
     }
 
     // ── POST /create-user ─────────────────────────────────────
@@ -312,7 +313,7 @@ export default {
         }
 
         return json({ ok: true, email: data.primaryEmail }, 200, cors);
-      } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: err.message }, 500, cors); }
+      } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: 'Error interno del servidor' }, 500, cors); }
       }, 'create-user');
     }
 
@@ -350,6 +351,15 @@ export default {
           return htmlResponse(buildAuthorizePage({
             titulo: 'Link inválido', icono: '⚠️', color: heroAmber,
             mensaje: 'El enlace está incompleto o es de una versión anterior. Pide a IT que reenvíe la solicitud.'
+          }), 400, cors);
+        }
+        // Defensa en profundidad: el id debe corresponder a una solicitud de
+        // alta/baja. Si AUTH_HMAC_SECRET llegara a reusarse a futuro, un id
+        // con otro prefijo no podría ser autorizado por este endpoint.
+        if (!id.startsWith('alta_')) {
+          return htmlResponse(buildAuthorizePage({
+            titulo: 'Link inválido', icono: '⚠️', color: heroAmber,
+            mensaje: 'El enlace no apunta a una solicitud válida.'
           }), 400, cors);
         }
 
@@ -467,7 +477,7 @@ export default {
         logError('autorizar_failed', err, { path });
         return htmlResponse(buildAuthorizePage({
           titulo: 'Error', icono: '⚠️', color: heroRed,
-          mensaje: 'Ocurrió un error al procesar la autorización: ' + esc(err.message)
+          mensaje: 'Ocurrió un error al procesar la autorización. Si el problema persiste, contacta a IT.'
         }), 500, cors);
       }
     }
@@ -657,7 +667,7 @@ export default {
         await Promise.all(sends);
 
         return json({ ok: true, id: solicitud.id, tipoSolicitud }, 200, cors);
-      } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: err.message }, 500, cors); }
+      } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: 'Error interno del servidor' }, 500, cors); }
       }, 'solicitud-cuenta');
     }
 
@@ -669,7 +679,7 @@ export default {
           const v = await env.HERO_KV.get(k.name); return v ? JSON.parse(v) : null;
         }));
         return json({ solicitudes: items.filter(Boolean).sort((a,b) => new Date(b.fecha) - new Date(a.fecha)) }, 200, cors);
-      } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: err.message }, 500, cors); }
+      } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: 'Error interno del servidor' }, 500, cors); }
     }
 
     // ── POST /alta-agente/resolver ────────────────────────────
@@ -682,7 +692,7 @@ export default {
         item.estado = estado || 'procesada';
         await env.HERO_KV.put(id, JSON.stringify(item), { metadata: summarizeSolicitud(item) });
         return json({ ok: true }, 200, cors);
-      } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: err.message }, 500, cors); }
+      } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: 'Error interno del servidor' }, 500, cors); }
     }
 
     // ── POST /ticket — crear ticket ───────────────────────────
@@ -762,7 +772,7 @@ export default {
         }, { event: 'ticket_notif_user', ticketId });
 
         return json({ ok: true, id, ticketId }, 200, cors);
-      } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: err.message }, 500, cors); }
+      } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: 'Error interno del servidor' }, 500, cors); }
       }, 'ticket');
     }
 
@@ -776,7 +786,7 @@ export default {
         return json({
           tickets: items.filter(Boolean).sort((a,b) => new Date(b.fecha) - new Date(a.fecha))
         }, 200, cors);
-      } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: err.message }, 500, cors); }
+      } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: 'Error interno del servidor' }, 500, cors); }
     }
 
     // ── POST /ticket/update — actualizar ticket ───────────────
@@ -845,7 +855,7 @@ export default {
         }
         await env.HERO_KV.put(id, JSON.stringify(ticket), { metadata: summarizeTicket(ticket) });
         return json({ ok: true }, 200, cors);
-      } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: err.message }, 500, cors); }
+      } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: 'Error interno del servidor' }, 500, cors); }
     }
 
     // ── POST /user-action — gestionar usuario ─────────────────
@@ -873,7 +883,7 @@ export default {
         const data = await resp.json();
         if (!resp.ok) return json({ error: data.error?.message || 'Error' }, resp.status, cors);
         return json({ ok: true }, 200, cors);
-      } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: err.message }, 500, cors); }
+      } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: 'Error interno del servidor' }, 500, cors); }
     }
 
     // ── POST /audit — guardar entrada ─────────────────────────
@@ -890,7 +900,7 @@ export default {
         };
         await env.HERO_KV.put(id, JSON.stringify(entrada), { metadata: summarizeAudit(entrada) });
         return json({ ok: true, id }, 200, cors);
-      } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: err.message }, 500, cors); }
+      } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: 'Error interno del servidor' }, 500, cors); }
     }
 
     // ── GET /audit — listar entradas ──────────────────────────
@@ -912,7 +922,7 @@ export default {
           (e.usuario || '').toLowerCase().includes(q.toLowerCase())
         );
         return json({ entradas: entradas.slice(0, limit), total: entradas.length }, 200, cors);
-      } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: err.message }, 500, cors); }
+      } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: 'Error interno del servidor' }, 500, cors); }
     }
 
 // ── POST /device — crear dispositivo ──────────────────────
@@ -933,7 +943,7 @@ export default {
         };
         await env.HERO_KV.put(id, JSON.stringify(device), { metadata: summarizeDevice(device) });
         return json({ ok: true, id }, 200, cors);
-      } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: err.message }, 500, cors); }
+      } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: 'Error interno del servidor' }, 500, cors); }
     }
 
     // ── GET /device — listar dispositivos ─────────────────────
@@ -946,7 +956,7 @@ export default {
         return json({
           devices: items.filter(Boolean).sort((a, b) => new Date(b.fecha) - new Date(a.fecha))
         }, 200, cors);
-      } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: err.message }, 500, cors); }
+      } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: 'Error interno del servidor' }, 500, cors); }
     }
 
     // ── GET /device/:id — obtener dispositivo ─────────────────
@@ -956,7 +966,7 @@ export default {
         const v = await env.HERO_KV.get(id);
         if (!v) return json({ error: 'Dispositivo no encontrado' }, 404, cors);
         return json({ device: JSON.parse(v) }, 200, cors);
-      } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: err.message }, 500, cors); }
+      } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: 'Error interno del servidor' }, 500, cors); }
     }
 
     // ── POST /device/update — actualizar dispositivo ──────────
@@ -975,7 +985,7 @@ export default {
         if (estado  !== undefined) device.estado  = estado;
         await env.HERO_KV.put(id, JSON.stringify(device), { metadata: summarizeDevice(device) });
         return json({ ok: true }, 200, cors);
-      } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: err.message }, 500, cors); }
+      } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: 'Error interno del servidor' }, 500, cors); }
     }
 
     // ── POST /device/intervencion — registrar intervención ────
@@ -983,6 +993,12 @@ export default {
       try {
         const { id, tipo, descripcion, notas } = await request.json();
         if (!id || !tipo || !descripcion) return json({ error: 'Faltan campos' }, 400, cors);
+        // Lista blanca: alineada con el <select> del Console. Evita que un cliente
+        // autenticado escriba basura arbitraria al historial de intervenciones.
+        const TIPOS_VALIDOS = ['Instalación de software', 'Reparación o diagnóstico', 'Soporte remoto'];
+        if (!TIPOS_VALIDOS.includes(tipo)) {
+          return json({ error: 'Tipo de intervención no válido' }, 400, cors);
+        }
         const v = await env.HERO_KV.get(id);
         if (!v) return json({ error: 'Dispositivo no encontrado' }, 404, cors);
         const device = JSON.parse(v);
@@ -996,24 +1012,36 @@ export default {
         device.intervenciones.unshift(intervencion);
         await env.HERO_KV.put(id, JSON.stringify(device), { metadata: summarizeDevice(device) });
         return json({ ok: true, intervencion }, 200, cors);
-      } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: err.message }, 500, cors); }
+      } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: 'Error interno del servidor' }, 500, cors); }
     }
 
 
     // ── POST / → email via Resend ─────────────────────────────
+    // Acepta cualquier path (catch-all). Restringimos `to` y `from` al
+    // dominio corporativo para que un bug en el frontend no pueda
+    // accidentalmente mandar a destinos externos desde la dirección de IT.
     if (request.method === 'POST') {
       try {
         const { to, subject, html, text, from } = await request.json();
         if (!to || !subject || !html) return json({ error: 'Faltan campos: to, subject, html' }, 400, cors);
+        const allowedDomain = /@heroinsuranceusa\.com\s*>?\s*$/i;
+        const toList = Array.isArray(to) ? to : [to];
+        if (!toList.every(addr => allowedDomain.test(String(addr)))) {
+          return json({ error: 'Destino fuera de dominio @heroinsuranceusa.com' }, 400, cors);
+        }
+        const fromVal = from || 'Fernando Romero <it@heroinsuranceusa.com>';
+        if (!allowedDomain.test(fromVal)) {
+          return json({ error: 'From fuera de dominio @heroinsuranceusa.com' }, 400, cors);
+        }
         const resendResp = await sendResend(env, {
-          from: from || 'Fernando Romero <it@heroinsuranceusa.com>',
-          to: Array.isArray(to) ? to : [to],
+          from: fromVal,
+          to: toList,
           subject, html, text: text || '',
         }, { event: 'generic_email_post' });
         if (!resendResp) return json({ error: 'No se pudo enviar el correo' }, 502, cors);
         const result = await resendResp.json();
         return json(result, resendResp.status, cors);
-      } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: err.message }, 500, cors); }
+      } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: 'Error interno del servidor' }, 500, cors); }
     }
 
     return json({ error: 'Ruta no encontrada' }, 404, cors);
@@ -1243,13 +1271,22 @@ async function verifyGoogleIdToken(credential) {
   return claims;
 }
 
+// Encoding/decoding base64url para el pase de sesión. Antes usaba el patrón
+// btoa(unescape(encodeURIComponent(str))) — `escape`/`unescape` están
+// deprecados desde ES5. TextEncoder/TextDecoder son la API moderna y manejan
+// UTF-8 correctamente.
 function b64urlEncode(str) {
-  return btoa(unescape(encodeURIComponent(str)))
-    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  const bytes = new TextEncoder().encode(str);
+  let bin = '';
+  for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+  return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 function b64urlDecode(b64) {
   const pad = b64.length % 4 === 0 ? '' : '='.repeat(4 - (b64.length % 4));
-  return decodeURIComponent(escape(atob(b64.replace(/-/g, '+').replace(/_/g, '/') + pad)));
+  const bin = atob(b64.replace(/-/g, '+').replace(/_/g, '/') + pad);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return new TextDecoder().decode(bytes);
 }
 
 // Emite un pase de sesión firmado: payloadBase64.firmaHMAC
