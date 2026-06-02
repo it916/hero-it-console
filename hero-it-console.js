@@ -86,14 +86,14 @@ function toggleTheme() {
   html.setAttribute('data-theme', newTheme);
   localStorage.setItem('hero_theme', newTheme);
   const btn = document.getElementById('btn-theme');
-  if (btn) btn.textContent = newTheme === 'dark' ? '🌙' : '☀️';
+  if (btn) btn.innerHTML = '<iconify-icon icon="tabler:' + (newTheme === 'dark' ? 'moon' : 'sun') + '"></iconify-icon>';
 }
 
 function applyStoredTheme() {
   const stored = localStorage.getItem('hero_theme') || 'light';
   document.documentElement.setAttribute('data-theme', stored);
   const btn = document.getElementById('btn-theme');
-  if (btn) btn.textContent = stored === 'dark' ? '🌙' : '☀️';
+  if (btn) btn.innerHTML = '<iconify-icon icon="tabler:' + (stored === 'dark' ? 'moon' : 'sun') + '"></iconify-icon>';
 }
 
 // ── Logs globales ─────────────────────────────────────────────
@@ -316,7 +316,7 @@ async function runGlobalSearch() {
       const d = await r.json();
       (d.tickets || []).forEach(t => {
         if ((t.asunto||'').toLowerCase().includes(q) || (t.nombre||'').toLowerCase().includes(q) || (t.descripcion||'').toLowerCase().includes(q))
-          found.push({ type:'🎫 Ticket', title: t.ticketId + ' — ' + t.asunto, sub: t.nombre + ' · ' + t.estado, action: "showPage('tickets')" });
+          found.push({ type:'<iconify-icon icon="tabler:ticket"></iconify-icon> Ticket', title: t.ticketId + ' — ' + t.asunto, sub: t.nombre + ' · ' + t.estado, action: "showPage('tickets')" });
       });
     }
   } catch {}
@@ -326,7 +326,7 @@ async function runGlobalSearch() {
       const d = await r.json();
       (d.solicitudes || []).forEach(s => {
         if ((s.nombre||'').toLowerCase().includes(q) || (s.apellido||'').toLowerCase().includes(q) || (s.correo||'').toLowerCase().includes(q))
-          found.push({ type:'📥 Solicitud', title: s.nombre + ' ' + s.apellido, sub: s.correo + ' · ' + s.estado, action: "showPage('solicitudes')" });
+          found.push({ type:'<iconify-icon icon="tabler:inbox"></iconify-icon> Solicitud', title: s.nombre + ' ' + s.apellido, sub: s.correo + ' · ' + s.estado, action: "showPage('solicitudes')" });
       });
     }
   } catch {}
@@ -336,14 +336,14 @@ async function runGlobalSearch() {
       const d = await r.json();
       (d.devices || []).forEach(dev => {
         if ((dev.nombre||'').toLowerCase().includes(q) || (dev.usuario||'').toLowerCase().includes(q))
-          found.push({ type:'💻 Dispositivo', title: dev.nombre, sub: (dev.usuario||'Sin usuario') + ' · ' + dev.estado, action: "showPage('dispositivos')" });
+          found.push({ type:'<iconify-icon icon="tabler:device-desktop"></iconify-icon> Dispositivo', title: dev.nombre, sub: (dev.usuario||'Sin usuario') + ' · ' + dev.estado, action: "showPage('dispositivos')" });
       });
     }
   } catch {}
   if (window._workspaceUsers) {
     window._workspaceUsers.forEach(u => {
       if ((u.nombre||'').toLowerCase().includes(q) || (u.email||'').toLowerCase().includes(q))
-        found.push({ type:'👤 Usuario', title: u.nombre, sub: u.email + ' · ' + u.estado, action: "showPage('usuarios')" });
+        found.push({ type:'<iconify-icon icon="tabler:user"></iconify-icon> Usuario', title: u.nombre, sub: u.email + ' · ' + u.estado, action: "showPage('usuarios')" });
     });
   }
   // Licencias — útil para "¿dónde guardé el password de X?"
@@ -351,7 +351,7 @@ async function runGlobalSearch() {
     allLicencias.forEach(l => {
       const blob = (l.nombre + ' ' + (l.plan||'') + ' ' + (l.notas||'')).toLowerCase();
       if (blob.includes(q))
-        found.push({ type:'🔑 Licencia', title: l.nombre, sub: (l.plan || 'sin plan') + ' · ' + (l.estado || 'activa'), action: "showPage('licencias')" });
+        found.push({ type:'<iconify-icon icon="tabler:license"></iconify-icon> Licencia', title: l.nombre, sub: (l.plan || 'sin plan') + ' · ' + (l.estado || 'activa'), action: "showPage('licencias')" });
     });
   }
   // Auditoría — buscar en descripción/detalle de entradas recientes
@@ -359,7 +359,7 @@ async function runGlobalSearch() {
     allAuditEntradas.slice(0, 200).forEach(e => {
       const blob = ((e.descripcion||'') + ' ' + (e.detalle||'')).toLowerCase();
       if (blob.includes(q))
-        found.push({ type:'📋 Auditoría', title: e.descripcion || '(sin descripción)', sub: (e.tipo || '') + ' · ' + (e.usuario || ''), action: "showPage('auditoria')" });
+        found.push({ type:'<iconify-icon icon="tabler:files"></iconify-icon> Auditoría', title: e.descripcion || '(sin descripción)', sub: (e.tipo || '') + ' · ' + (e.usuario || ''), action: "showPage('auditoria')" });
     });
   }
   // Knowledge base — busca en título, contenido y tags
@@ -367,7 +367,7 @@ async function runGlobalSearch() {
     allKb.forEach(a => {
       const blob = (a.titulo + ' ' + (a.contenido || '') + ' ' + (a.tags || []).join(' ')).toLowerCase();
       if (blob.includes(q))
-        found.push({ type:'📚 KB', title: a.titulo, sub: (a.tags || []).slice(0, 3).join(', ') || 'sin tags', action: "showPage('kb')" });
+        found.push({ type:'<iconify-icon icon="tabler:book-2"></iconify-icon> KB', title: a.titulo, sub: (a.tags || []).slice(0, 3).join(', ') || 'sin tags', action: "showPage('kb')" });
     });
   }
   if (!found.length) {
@@ -434,18 +434,22 @@ function renderNotifPanel() {
   if (!list) return;
 
   if (!notifList.length) {
-    list.innerHTML = '<div id="notif-empty" style="padding:32px;text-align:center;font-size:12px;color:var(--hero-text-muted);"><div style="font-size:28px;margin-bottom:8px;opacity:0.4;">🔔</div>Sin notificaciones nuevas</div>';
+    list.innerHTML = '<div id="notif-empty" style="padding:32px;text-align:center;font-size:12px;color:var(--hero-text-muted);"><div style="font-size:28px;margin-bottom:8px;opacity:0.4;"><iconify-icon icon="tabler:bell-off"></iconify-icon></div>Sin notificaciones nuevas</div>';
     return;
   }
 
-  const iconos = { ticket: '🎫', solicitud: '📥', info: 'ℹ️' };
+  const iconos = {
+    ticket:    '<iconify-icon icon="tabler:ticket"></iconify-icon>',
+    solicitud: '<iconify-icon icon="tabler:inbox"></iconify-icon>',
+    info:      '<iconify-icon icon="tabler:info-circle"></iconify-icon>'
+  };
   const colores = { ticket: 'var(--hero-danger)', solicitud: 'var(--hero-warning)', info: 'var(--hero-primary)' };
 
   list.innerHTML = notifList.map(n => {
     const tiempo = getElapsedTime(n.fecha.toISOString ? n.fecha.toISOString() : n.fecha);
     const bg     = n.leida ? 'transparent' : 'var(--hero-primary-light)';
     return '<div onclick="clickNotif(' + n.id + ')" style="display:flex;gap:12px;align-items:flex-start;padding:12px 16px;border-bottom:1px solid var(--hero-border);cursor:pointer;background:' + bg + ';transition:background 0.15s;" onmouseover="this.style.background=\'var(--hero-bg)\'" onmouseout="this.style.background=\'' + bg + '\'">'
-      + '<div style="width:32px;height:32px;border-radius:50%;background:' + colores[n.tipo] + '20;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;">' + (iconos[n.tipo] || '🔔') + '</div>'
+      + '<div style="width:32px;height:32px;border-radius:50%;background:' + colores[n.tipo] + '20;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;color:' + colores[n.tipo] + ';">' + (iconos[n.tipo] || '<iconify-icon icon="tabler:bell"></iconify-icon>') + '</div>'
       + '<div style="flex:1;min-width:0;">'
       + '<div style="font-size:12px;font-weight:' + (n.leida ? '400' : '700') + ';color:var(--hero-text-primary);margin-bottom:2px;">' + n.titulo + '</div>'
       + '<div style="font-size:11px;color:var(--hero-text-muted);line-height:1.4;">' + n.cuerpo + '</div>'
@@ -767,7 +771,7 @@ function heroConfirm(opts) {
 // Usado cuando una colección está legítimamente vacía (no por error).
 function renderEmpty(el, opts) {
   if (!el) return;
-  const icon    = opts.icon || '📭';
+  const icon    = opts.icon || '<iconify-icon icon="tabler:mailbox"></iconify-icon>';
   const message = opts.message || 'Sin datos';
   const ctaText = opts.ctaText || '';
   const ctaFn   = opts.ctaFn || null;
@@ -805,7 +809,7 @@ function renderError(el, err, retryFn) {
   const msg = (err && err.message) || String(err || 'Error desconocido');
   el.innerHTML =
       '<div style="text-align:center;padding:32px;">'
-    +   '<div style="font-size:32px;opacity:0.4;margin-bottom:12px;">⚠️</div>'
+    +   '<div style="font-size:32px;opacity:0.4;margin-bottom:12px;color:var(--hero-warning);"><iconify-icon icon="tabler:alert-triangle"></iconify-icon></div>'
     +   '<div style="font-family:var(--mono);font-size:12px;color:var(--hero-danger);margin-bottom:14px;">' + escHtml(msg) + '</div>'
     +   (retryFn ? '<button class="btn btn-secondary" data-retry style="font-size:12px;">↺ Reintentar</button>' : '')
     + '</div>';
@@ -838,7 +842,7 @@ function clearForm(prefix) {
 function clearAllLogs() {
   ['log-full','log-dashboard','log-emp','log-agt','log-rst'].forEach(id => {
     const el = document.getElementById(id);
-    if (el) el.innerHTML = '<div class="log-empty"><div class="log-empty-icon">🗑</div><div class="log-empty-text">Logs limpiados</div></div>';
+    if (el) el.innerHTML = '<div class="log-empty"><div class="log-empty-icon"><iconify-icon icon="tabler:trash"></iconify-icon></div><div class="log-empty-text">Logs limpiados</div></div>';
   });
   sessionLogs.length = 0;
 }
@@ -968,7 +972,7 @@ async function executeReset() {
   }
 
   btn.disabled = false;
-  btn.innerHTML = '🔑 Resetear contraseña en Workspace y notificar';
+  btn.innerHTML = '<iconify-icon icon="tabler:key"></iconify-icon> Resetear contraseña en Workspace y notificar';
 }
 
 
@@ -1317,7 +1321,10 @@ const AUDIT_TIPO_COLOR = {
   ticket:  'var(--hero-success)',
 };
 const AUDIT_TIPO_ICON = {
-  email: '✉️', reset: '🔑', usuario: '👤', ticket: '🎫',
+  email: '<iconify-icon icon="tabler:mail"></iconify-icon>',
+  reset: '<iconify-icon icon="tabler:key"></iconify-icon>',
+  usuario: '<iconify-icon icon="tabler:user"></iconify-icon>',
+  ticket: '<iconify-icon icon="tabler:ticket"></iconify-icon>',
 };
 
 async function loadAudit() {
@@ -1356,7 +1363,7 @@ function renderAudit(entradas, total) {
 
   const body = document.getElementById('audit-body');
   if (!entradas.length) {
-    body.innerHTML = '<div class="log-empty"><div class="log-empty-icon">📭</div><div class="log-empty-text">Sin entradas con estos filtros</div></div>';
+    body.innerHTML = '<div class="log-empty"><div class="log-empty-icon"><iconify-icon icon="tabler:mailbox"></iconify-icon></div><div class="log-empty-text">Sin entradas con estos filtros</div></div>';
     return;
   }
 
@@ -1474,7 +1481,7 @@ async function loadMiDia() {
 function _renderMiDiaTickets(items) {
   const el = document.getElementById('md-tickets');
   if (!items.length) {
-    renderEmpty(el, { icon: '✅', message: 'Sin tickets prioritarios abiertos. Buen trabajo.' });
+    renderEmpty(el, { icon: '<iconify-icon icon="tabler:circle-check" style="color:var(--hero-success);"></iconify-icon>', message: 'Sin tickets prioritarios abiertos. Buen trabajo.' });
     return;
   }
   el.innerHTML = items.map(t => {
@@ -1500,7 +1507,7 @@ function _renderMiDiaTickets(items) {
 function _renderMiDiaSols(items) {
   const el = document.getElementById('md-sols');
   if (!items.length) {
-    renderEmpty(el, { icon: '✅', message: 'No hay solicitudes esperando acción.' });
+    renderEmpty(el, { icon: '<iconify-icon icon="tabler:circle-check" style="color:var(--hero-success);"></iconify-icon>', message: 'No hay solicitudes esperando acción.' });
     return;
   }
   el.innerHTML = items.map(s => {
@@ -1509,7 +1516,9 @@ function _renderMiDiaSols(items) {
     const tipoColor = isBaja ? 'var(--hero-danger)' : 'var(--hero-primary-text)';
     const tipoBg    = isBaja ? 'rgba(214,69,69,0.10)' : 'rgba(6,163,182,0.10)';
     const titulo    = isBaja ? (s.nombre || '') : ((s.nombre || '') + ' ' + (s.apellido || '')).trim();
-    const estadoBadge = s.estado === 'autorizada' ? '✓ Autorizada' : '⏳ Pendiente';
+    const estadoBadge = s.estado === 'autorizada'
+      ? '<iconify-icon icon="tabler:check"></iconify-icon> Autorizada'
+      : '<iconify-icon icon="tabler:hourglass"></iconify-icon> Pendiente';
     const estadoColor = s.estado === 'autorizada' ? 'var(--hero-primary-text)' : 'var(--hero-warning)';
     const elapsed = getElapsedTime(s.fecha);
     return '<div class="action-card" style="cursor:pointer;padding:14px;" onclick="showPage(\'solicitudes\')">'
@@ -1531,7 +1540,7 @@ function _renderMiDiaSols(items) {
 function _renderMiDiaLics(items) {
   const el = document.getElementById('md-lics');
   if (!items.length) {
-    renderEmpty(el, { icon: '✅', message: 'Ninguna licencia vence en los próximos 30 días.' });
+    renderEmpty(el, { icon: '<iconify-icon icon="tabler:circle-check" style="color:var(--hero-success);"></iconify-icon>', message: 'Ninguna licencia vence en los próximos 30 días.' });
     return;
   }
   const today = Date.now();
@@ -1575,7 +1584,7 @@ const QUICK_REPLIES = {
 // no se envía) para que Fernando no se olvide de los pasos típicos.
 const TICKET_TEMPLATES = [
   {
-    id: 'vpn', icon: '🔒', nombre: 'VPN no conecta',
+    id: 'vpn', icon: '<iconify-icon icon="tabler:shield-lock"></iconify-icon>', nombre: 'VPN no conecta',
     respuesta: 'Hola, recibimos tu reporte sobre la VPN.\n\nProbemos lo siguiente en orden:\n1. Desconecta el cliente VPN completamente.\n2. Reinicia tu router (60 segundos sin corriente).\n3. Vuelve a conectar la VPN.\n\nSi sigue sin funcionar, dinos el mensaje exacto que te aparece al intentar conectar (una captura sería ideal).',
     checklist: [
       'Verificar credenciales del usuario',
@@ -1585,7 +1594,7 @@ const TICKET_TEMPLATES = [
     ],
   },
   {
-    id: 'outlook', icon: '📧', nombre: 'Outlook lento o no abre',
+    id: 'outlook', icon: '<iconify-icon icon="tabler:mail"></iconify-icon>', nombre: 'Outlook lento o no abre',
     respuesta: 'Hola, recibimos tu reporte de Outlook.\n\nPor favor probá esto en orden:\n1. Cerrá Outlook completamente.\n2. Abrelo manteniendo presionada la tecla Ctrl (modo seguro).\n3. Si abre rápido en modo seguro, hay un complemento que lo ralentiza.\n\nContame cómo te fue y, si seguís con problemas, agendamos un soporte remoto.',
     checklist: [
       '¿Funciona en modo seguro?',
@@ -1595,7 +1604,7 @@ const TICKET_TEMPLATES = [
     ],
   },
   {
-    id: 'pwd', icon: '🔑', nombre: 'Contraseña olvidada',
+    id: 'pwd', icon: '<iconify-icon icon="tabler:key"></iconify-icon>', nombre: 'Contraseña olvidada',
     respuesta: 'Hola, recibimos tu solicitud de reset de contraseña.\n\nEn unos minutos te envío una contraseña temporal a este mismo correo. Al ingresar con ella el sistema te va a pedir que la cambies por una nueva tuya.\n\nNo la compartas con nadie ni la guardes en texto plano.',
     checklist: [
       'Confirmar identidad del usuario (foto + correo conocido)',
@@ -1605,7 +1614,7 @@ const TICKET_TEMPLATES = [
     ],
   },
   {
-    id: 'wifi', icon: '📶', nombre: 'Wifi débil o inestable',
+    id: 'wifi', icon: '<iconify-icon icon="tabler:wifi"></iconify-icon>', nombre: 'Wifi débil o inestable',
     respuesta: 'Hola, recibimos tu reporte de problemas con el Wifi.\n\nPara diagnosticarlo necesito un par de datos:\n1. ¿En qué piso/oficina estás?\n2. ¿El problema es solo en tu equipo o también pasa con el celular en la misma red?\n3. ¿Hay momentos del día puntuales donde es peor?\n\nCon esa info vemos si es el equipo, el AP o la red en general.',
     checklist: [
       'Speedtest en cable vs wifi (descarta el ISP)',
@@ -1615,7 +1624,7 @@ const TICKET_TEMPLATES = [
     ],
   },
   {
-    id: 'printer', icon: '🖨️', nombre: 'Impresora no funciona',
+    id: 'printer', icon: '<iconify-icon icon="tabler:printer"></iconify-icon>', nombre: 'Impresora no funciona',
     respuesta: 'Hola, recibimos tu reporte de la impresora.\n\nProbemos esto:\n1. Confirmá que la impresora esté encendida y conectada a la red.\n2. Revisá que no haya papel atascado ni tóner agotado.\n3. Avisame qué impresora es (modelo) y qué mensaje te aparece — con eso reinicio el spooler desde mi equipo.',
     checklist: [
       'Modelo + ubicación de la impresora',
@@ -1625,7 +1634,7 @@ const TICKET_TEMPLATES = [
     ],
   },
   {
-    id: 'lentitud', icon: '🐌', nombre: 'Equipo lento en general',
+    id: 'lentitud', icon: '<iconify-icon icon="tabler:hourglass-low"></iconify-icon>', nombre: 'Equipo lento en general',
     respuesta: 'Hola, recibimos tu reporte de lentitud.\n\nVamos a hacer un primer diagnóstico:\n1. Reiniciá el equipo (no apagar/encender, sino Reiniciar desde el menú).\n2. Después del reinicio, esperá 5 minutos sin tocar nada y proba de nuevo.\n3. Si sigue lento, agendá un soporte remoto y revisamos juntos.',
     checklist: [
       'Memoria RAM ocupada (Task Manager → Memoria)',
@@ -1636,7 +1645,7 @@ const TICKET_TEMPLATES = [
     ],
   },
   {
-    id: 'office', icon: '📄', nombre: 'Office no activa / sale "Producto sin licencia"',
+    id: 'office', icon: '<iconify-icon icon="tabler:file-text"></iconify-icon>', nombre: 'Office no activa / sale "Producto sin licencia"',
     respuesta: 'Hola, recibimos tu reporte de activación de Office.\n\nLo más rápido es:\n1. Cerrá todas las apps de Office.\n2. Abrí Word.\n3. Archivo → Cuenta → "Iniciar sesión" con tu correo @heroinsuranceusa.com\n4. Si ya estás logueado, click en "Actualizar licencia".\n\nSi sigue sin activar, agendamos remoto.',
     checklist: [
       'Confirmar que la cuenta de Workspace tenga licencia Office asignada',
@@ -1796,7 +1805,7 @@ function renderKanban(tickets) {
 function renderTicketList(tickets) {
   const container = document.getElementById('tickets-list');
   if (!tickets.length) {
-    container.innerHTML = '<div class="info-box" style="text-align:center;padding:40px;"><div style="font-size:32px;opacity:0.3;margin-bottom:12px;">📭</div><div style="font-size:12px;color:var(--hero-text-muted);">Sin tickets</div></div>';
+    container.innerHTML = '<div class="info-box" style="text-align:center;padding:40px;"><div style="font-size:32px;opacity:0.3;margin-bottom:12px;"><iconify-icon icon="tabler:mailbox"></iconify-icon></div><div style="font-size:12px;color:var(--hero-text-muted);">Sin tickets</div></div>';
     return;
   }
   const estadoColor = { 'abierto': '#d64545', 'en progreso': '#e8a317', 'resuelto': '#22a06b' };
@@ -1851,8 +1860,8 @@ function openTicketModal(id) {
     histBox.style.display = 'block';
     document.getElementById('modal-historial').innerHTML = hist.map(h => {
       const f = new Date(h.fecha).toLocaleString('es-MX', { timeZone:'America/New_York', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' });
-      if (h.tipo === 'estado')    return '<div style="font-size:12px;color:var(--hero-text-muted);padding:4px 0;border-bottom:1px solid var(--hero-border);">📋 Estado: <strong>' + h.de + '</strong> → <strong>' + h.a + '</strong> · <span style="font-family:var(--mono);font-size:10px;">' + f + '</span></div>';
-      if (h.tipo === 'respuesta') return '<div style="font-size:12px;color:var(--hero-text-muted);padding:4px 0;border-bottom:1px solid var(--hero-border);">💬 Respuesta enviada · <span style="font-family:var(--mono);font-size:10px;">' + f + '</span></div>';
+      if (h.tipo === 'estado')    return '<div style="font-size:12px;color:var(--hero-text-muted);padding:4px 0;border-bottom:1px solid var(--hero-border);"><iconify-icon icon="tabler:clipboard-list"></iconify-icon> Estado: <strong>' + h.de + '</strong> → <strong>' + h.a + '</strong> · <span style="font-family:var(--mono);font-size:10px;">' + f + '</span></div>';
+      if (h.tipo === 'respuesta') return '<div style="font-size:12px;color:var(--hero-text-muted);padding:4px 0;border-bottom:1px solid var(--hero-border);"><iconify-icon icon="tabler:message-circle"></iconify-icon> Respuesta enviada · <span style="font-family:var(--mono);font-size:10px;">' + f + '</span></div>';
       return '';
     }).join('');
   } else {
@@ -1899,7 +1908,7 @@ async function guardarTicket() {
     showToast('Error: ' + err.message);
   }
   btn.disabled = false;
-  btn.innerHTML = '💾 Guardar y notificar usuario';
+  btn.innerHTML = '<iconify-icon icon="tabler:device-floppy"></iconify-icon> Guardar y notificar usuario';
 }
 
 // ── Módulo Solicitudes ────────────────────────────────────────
@@ -1979,7 +1988,7 @@ function renderSolicitudes() {
   const container = document.getElementById('sol-list');
   if (!filtered.length) {
     container.innerHTML = '<div class="info-box" style="text-align:center;padding:40px;">'
-      + '<div style="font-size:32px;opacity:0.3;margin-bottom:12px;">📭</div>'
+      + '<div style="font-size:32px;opacity:0.3;margin-bottom:12px;"><iconify-icon icon="tabler:mailbox"></iconify-icon></div>'
       + '<div style="font-size:12px;color:var(--hero-text-muted);">Sin solicitudes con estos filtros</div></div>';
     return;
   }
@@ -2015,7 +2024,7 @@ function renderSolicitudes() {
     // Bloque "Autorizada por X el Y" cuando aplica
     const autorizadaHtml = (isAuthorized || s.autorizadaPor)
       ? '<div style="background:rgba(6,163,182,0.06);border-left:3px solid var(--hero-primary);padding:8px 12px;border-radius:6px;margin:0 0 10px;font-size:12px;color:var(--hero-text-body);">'
-        + '<span style="color:var(--hero-primary);font-weight:600;">✓ Autorizada</span>'
+        + '<span style="color:var(--hero-primary);font-weight:600;"><iconify-icon icon="tabler:check"></iconify-icon> Autorizada</span>'
         + (s.autorizadaPor ? ' por <strong>' + escHtml(s.autorizadaPor) + '</strong>' : '')
         + (s.autorizadaFecha
             ? ' · <span style="color:var(--hero-text-muted);">' + new Date(s.autorizadaFecha).toLocaleString('es-MX', { timeZone:'America/New_York', day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' }) + ' ET</span>'
@@ -2045,8 +2054,8 @@ function renderSolicitudes() {
         + (s.detalle ? '<div style="font-size:12px;color:var(--hero-text-muted);margin-top:6px;"><strong>Detalle:</strong> ' + escHtml(s.detalle) + '</div>' : '')
         + '</div>'
       : '<div style="display:flex;gap:16px;font-size:12px;color:var(--hero-text-muted);margin-bottom:14px;">'
-        + (s.telefono       ? '<span>📞 ' + escHtml(s.telefono) + '</span>' : '')
-        + (s.fechaRequerida ? '<span>📅 Requerida: ' + escHtml(s.fechaRequerida) + '</span>' : '')
+        + (s.telefono       ? '<span><iconify-icon icon="tabler:phone"></iconify-icon> ' + escHtml(s.telefono) + '</span>' : '')
+        + (s.fechaRequerida ? '<span><iconify-icon icon="tabler:calendar"></iconify-icon> Requerida: ' + escHtml(s.fechaRequerida) + '</span>' : '')
         + '</div>';
 
     // Botonera: distinta según tipo
@@ -2060,15 +2069,15 @@ function renderSolicitudes() {
     if (isOpen) {
       if (isBaja) {
         acciones = '<div style="display:flex;gap:8px;flex-wrap:wrap;">'
-          + '<button class="btn btn-primary" onclick="suspenderDesdeSolicitud(\'' + s.id + '\',\'' + safeCorreoEl + '\',\'' + safeTitulo + '\')" style="font-size:12px;flex:1;background:linear-gradient(135deg,#c0392b,#e67e22);">🔒 Suspender cuenta</button>'
-          + '<button class="btn btn-secondary" onclick="rechazarSolicitud(\'' + s.id + '\',\'' + safeSolEmail + '\',\'' + safeSolNombre + '\',\'' + safeTitulo + '\',\'baja\')" style="font-size:12px;">✗ Rechazar</button>'
-          + '<button class="btn btn-secondary" onclick="resolverSolicitud(\'' + s.id + '\',\'procesada\')" style="font-size:12px;">✓ Marcar procesada</button>'
+          + '<button class="btn btn-primary" onclick="suspenderDesdeSolicitud(\'' + s.id + '\',\'' + safeCorreoEl + '\',\'' + safeTitulo + '\')" style="font-size:12px;flex:1;background:linear-gradient(135deg,#c0392b,#e67e22);"><iconify-icon icon="tabler:lock"></iconify-icon> Suspender cuenta</button>'
+          + '<button class="btn btn-secondary" onclick="rechazarSolicitud(\'' + s.id + '\',\'' + safeSolEmail + '\',\'' + safeSolNombre + '\',\'' + safeTitulo + '\',\'baja\')" style="font-size:12px;"><iconify-icon icon="tabler:x"></iconify-icon> Rechazar</button>'
+          + '<button class="btn btn-secondary" onclick="resolverSolicitud(\'' + s.id + '\',\'procesada\')" style="font-size:12px;"><iconify-icon icon="tabler:check"></iconify-icon> Marcar procesada</button>'
           + '</div>';
       } else {
         acciones = '<div style="display:flex;gap:8px;flex-wrap:wrap;">'
-          + '<button class="btn btn-primary" onclick="openSolModal(\'' + s.id + '\')" style="font-size:12px;flex:1;">➕ Crear usuario</button>'
-          + '<button class="btn btn-secondary" onclick="rechazarSolicitud(\'' + s.id + '\',\'' + safeSolEmail + '\',\'' + safeSolNombre + '\',\'' + safeTitulo + '\',\'alta\')" style="font-size:12px;">✗ Rechazar</button>'
-          + '<button class="btn btn-secondary" onclick="resolverSolicitud(\'' + s.id + '\',\'procesada\')" style="font-size:12px;">✓ Marcar procesada</button>'
+          + '<button class="btn btn-primary" onclick="openSolModal(\'' + s.id + '\')" style="font-size:12px;flex:1;"><iconify-icon icon="tabler:user-plus"></iconify-icon> Crear usuario</button>'
+          + '<button class="btn btn-secondary" onclick="rechazarSolicitud(\'' + s.id + '\',\'' + safeSolEmail + '\',\'' + safeSolNombre + '\',\'' + safeTitulo + '\',\'alta\')" style="font-size:12px;"><iconify-icon icon="tabler:x"></iconify-icon> Rechazar</button>'
+          + '<button class="btn btn-secondary" onclick="resolverSolicitud(\'' + s.id + '\',\'procesada\')" style="font-size:12px;"><iconify-icon icon="tabler:check"></iconify-icon> Marcar procesada</button>'
           + '</div>';
       }
     }
@@ -2098,7 +2107,7 @@ function renderSolicitudes() {
       + '</div>'
       + autorizadaHtml
       + detalleBloque
-      + '<div style="font-size:11px;color:var(--hero-text-muted);margin-bottom:' + (isOpen ? '14px' : '0') + ';">🕐 ' + fecha + ' ET</div>'
+      + '<div style="font-size:11px;color:var(--hero-text-muted);margin-bottom:' + (isOpen ? '14px' : '0') + ';"><iconify-icon icon="tabler:clock"></iconify-icon> ' + fecha + ' ET</div>'
       + acciones
       + '</div>';
   }).join('');
@@ -2275,7 +2284,7 @@ async function crearUsuarioDesdeModal() {
     addLog('Error: ' + err.message, 'error');
   }
   btn.disabled = false;
-  btn.innerHTML = '✓ Crear usuario y notificar';
+  btn.innerHTML = '<iconify-icon icon="tabler:check"></iconify-icon> Crear usuario y notificar';
 }
 
 // ── Módulo Crear Usuario ──────────────────────────────────────
@@ -2383,7 +2392,7 @@ async function crearUsuario() {
   }
 
   btn.disabled = false;
-  btn.innerHTML = '✨ Crear usuario y enviar onboarding';
+  btn.innerHTML = '<iconify-icon icon="tabler:sparkles"></iconify-icon> Crear usuario y enviar onboarding';
 }
 
 async function sendOnboardingNuevo(tipo) {
@@ -2415,7 +2424,9 @@ async function sendOnboardingNuevo(tipo) {
     showToast('Error al enviar onboarding');
   }
   btn.disabled = false;
-  btn.innerHTML = tipo === 'empleado' ? '👤 Enviar como Empleado' : '🤝 Enviar como Agente';
+  btn.innerHTML = tipo === 'empleado'
+    ? '<iconify-icon icon="tabler:user"></iconify-icon> Enviar como Empleado'
+    : '<iconify-icon icon="tabler:briefcase"></iconify-icon> Enviar como Agente';
 }
 
 function skipOnboarding() {
@@ -2477,7 +2488,7 @@ function onbPreview() {
     + 'Para: <strong>' + (nombre || '—') + '</strong><br>'
     + 'Cuenta: ' + corp + '<br>'
     + 'Enviar a: ' + (personal || '—') + '<br>'
-    + 'Contraseña: ' + (incluir ? (pass || '(genera una con ⚡)') : 'no se incluye en el correo');
+    + 'Contraseña: ' + (incluir ? (pass || '(usa el botón generar)') : 'no se incluye en el correo');
 }
 
 async function enviarOnboarding() {
@@ -2519,7 +2530,7 @@ async function enviarOnboarding() {
     showToast('Error al enviar: ' + err.message);
   }
   btn.disabled = false;
-  btn.innerHTML = '✉️ Enviar correo de onboarding';
+  btn.innerHTML = '<iconify-icon icon="tabler:send"></iconify-icon> Enviar correo de onboarding';
 }
 
 // ── Módulo Usuarios Workspace ─────────────────────────────────
@@ -2551,7 +2562,7 @@ async function loadUsers() {
     const tbody = document.getElementById('usr-tbody');
     tbody.innerHTML =
         '<tr><td colspan="8" style="padding:32px;text-align:center;">'
-      +   '<div style="font-size:32px;opacity:0.4;margin-bottom:12px;">⚠️</div>'
+      +   '<div style="font-size:32px;opacity:0.4;margin-bottom:12px;color:var(--hero-warning);"><iconify-icon icon="tabler:alert-triangle"></iconify-icon></div>'
       +   '<div style="font-family:var(--mono);font-size:12px;color:var(--hero-danger);margin-bottom:14px;">' + escHtml(err.message) + '</div>'
       +   '<button class="btn btn-secondary" id="usr-retry" style="font-size:12px;">↺ Reintentar</button>'
       + '</td></tr>';
@@ -2581,10 +2592,12 @@ function renderUsers(users) {
       : 'Nunca';
     const rowBg = i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.02)';
     const ouLabel = !u.orgUnitPath || u.orgUnitPath === '/' ? '—' : u.orgUnitPath.replace(/^\//, '');
-    // 2FA: ✓ verde si está enrolado, ⚠ rojo si no. Si está enforced por
+    // 2FA: check verde si está enrolado, warning rojo si no. Si está enforced por
     // política pero el usuario aún no se enroló (mfaEnforced && !mfaEnrolled),
     // se muestra igual como faltante.
-    const mfaLabel = u.mfaEnrolled ? '✓' : '⚠';
+    const mfaLabel = u.mfaEnrolled
+      ? '<iconify-icon icon="tabler:check"></iconify-icon>'
+      : '<iconify-icon icon="tabler:alert-triangle"></iconify-icon>';
     const mfaColor = u.mfaEnrolled ? 'var(--hero-success)' : 'var(--hero-danger)';
     const mfaBg    = u.mfaEnrolled ? 'rgba(34,160,107,0.1)' : 'rgba(214,69,69,0.1)';
     const mfaTitle = u.mfaEnrolled ? '2FA activado' : (u.mfaEnforced ? '2FA obligatorio pero sin enrolar' : '2FA no activado');
@@ -2603,8 +2616,8 @@ function renderUsers(users) {
       '<td style="padding:10px 16px;font-family:var(--mono);font-size:11px;color:var(--hero-text-body);">' + login + '</td>' +
       '<td style="padding:10px 16px;text-align:center;">' +
         '<div style="display:flex;gap:6px;justify-content:center;">' +
-        '<button onclick="copyEmail(\'' + escJs(u.email) + '\')" style="background:transparent;border:1px solid var(--hero-border-card);color:var(--hero-text-body);padding:4px 8px;border-radius:6px;font-size:11px;cursor:pointer;" title="Copiar email">📋</button>' +
-        '<button onclick="openUserModal(\'' + escJs(u.email) + '\',\'' + escJs(u.nombre) + '\')" style="background:rgba(6,163,182,0.1);border:1px solid rgba(6,163,182,0.3);color:var(--hero-primary);padding:4px 8px;border-radius:6px;font-size:11px;cursor:pointer;" title="Gestionar">⚙️</button>' +
+        '<button onclick="copyEmail(\'' + escJs(u.email) + '\')" style="background:transparent;border:1px solid var(--hero-border-card);color:var(--hero-text-body);padding:4px 8px;border-radius:6px;font-size:11px;cursor:pointer;display:inline-flex;align-items:center;" title="Copiar email"><iconify-icon icon="tabler:copy"></iconify-icon></button>' +
+        '<button onclick="openUserModal(\'' + escJs(u.email) + '\',\'' + escJs(u.nombre) + '\')" style="background:rgba(6,163,182,0.1);border:1px solid rgba(6,163,182,0.3);color:var(--hero-primary);padding:4px 8px;border-radius:6px;font-size:11px;cursor:pointer;display:inline-flex;align-items:center;" title="Gestionar"><iconify-icon icon="tabler:settings"></iconify-icon></button>' +
         '</div>' +
       '</td>' +
     '</tr>';
@@ -2657,7 +2670,12 @@ const DEV_ESTADO_COLOR = {
   'en reparación': 'var(--hero-warning)',
   'dado de baja':  'var(--hero-error)',
 };
-const DEV_TIPO_ICON = { laptop: '💻', desktop: '🖥️', 'teléfono': '📱' };
+const DEV_TIPO_ICON = {
+  laptop:    '<iconify-icon icon="tabler:device-laptop"></iconify-icon>',
+  desktop:   '<iconify-icon icon="tabler:device-desktop"></iconify-icon>',
+  'teléfono': '<iconify-icon icon="tabler:device-mobile"></iconify-icon>'
+};
+const DEV_FALLBACK_ICON = '<iconify-icon icon="tabler:device-desktop"></iconify-icon>';
 const INT_TIPO_COLOR = {
   'Instalación de software': 'var(--hero-primary)',
   'Reparación o diagnóstico': 'var(--hero-warning)',
@@ -2702,12 +2720,12 @@ function renderDeviceGrid(devices) {
     ' · ' + onlines + ' online';
   const grid = document.getElementById('dev-grid');
   if (!devices.length) {
-    grid.innerHTML = '<div class="info-box" style="text-align:center;padding:40px;grid-column:1/-1;"><div style="font-size:32px;opacity:0.3;margin-bottom:12px;">💻</div><div style="font-family:var(--mono);font-size:12px;color:var(--hero-text-muted);">Sin dispositivos con estos filtros</div></div>';
+    grid.innerHTML = '<div class="info-box" style="text-align:center;padding:40px;grid-column:1/-1;"><div style="font-size:32px;opacity:0.3;margin-bottom:12px;"><iconify-icon icon="tabler:device-desktop"></iconify-icon></div><div style="font-family:var(--mono);font-size:12px;color:var(--hero-text-muted);">Sin dispositivos con estos filtros</div></div>';
     return;
   }
   grid.innerHTML = devices.map(d => {
     const eColor   = DEV_ESTADO_COLOR[d.estado] || 'var(--hero-text-body)';
-    const icon     = DEV_TIPO_ICON[d.tipo] || '💻';
+    const icon     = DEV_TIPO_ICON[d.tipo] || DEV_FALLBACK_ICON;
     const intCount = (d.intervenciones || []).length;
     const isOnline = (d.zohoStatus || '').toLowerCase() === 'online';
     const dotColor = isOnline ? 'var(--hero-success)' : 'var(--hero-text-muted)';
@@ -2736,7 +2754,7 @@ function renderDeviceGrid(devices) {
           : '')
       + '</div>'
       + (isOnline && d.zohoId
-          ? '<button onclick="event.stopPropagation();startZohoSession(\'' + escJs(d.zohoId) + '\',\'' + escJs(d.nombre) + '\')" class="btn btn-primary" style="width:100%;font-size:12px;margin-top:10px;">🖥️ Conectar (Zoho)</button>'
+          ? '<button onclick="event.stopPropagation();startZohoSession(\'' + escJs(d.zohoId) + '\',\'' + escJs(d.nombre) + '\')" class="btn btn-primary" style="width:100%;font-size:12px;margin-top:10px;"><iconify-icon icon="tabler:screen-share"></iconify-icon> Conectar (Zoho)</button>'
           : '')
       + '</div>';
   }).join('');
@@ -2783,7 +2801,7 @@ async function openDeviceDetail(id) {
   document.getElementById('dev-detail-title').innerHTML =
       '<div style="display:inline-flex;align-items:center;gap:10px;">'
     +   '<div style="width:10px;height:10px;border-radius:50%;background:' + dotColor + ';box-shadow:' + dotGlow + ';"></div>'
-    +   '<span>' + (DEV_TIPO_ICON[device.tipo] || '💻') + '  ' + escHtml(device.nombre) + '</span>'
+    +   '<span>' + (DEV_TIPO_ICON[device.tipo] || DEV_FALLBACK_ICON) + '  ' + escHtml(device.nombre) + '</span>'
     +   '<span style="font-family:var(--mono);font-size:10px;padding:2px 8px;border-radius:20px;background:rgba(0,0,0,0.06);color:' + dotColor + ';">' + (isOnline ? 'online' : 'offline') + '</span>'
     + '</div>';
 
@@ -2802,7 +2820,7 @@ async function openDeviceDetail(id) {
 
   // Filas live de Zoho (no editables; vienen de la API)
   const liveRows = device.zohoId
-    ? row('Estado conexión', '<span style="color:' + dotColor + ';">' + (isOnline ? '🟢 Online' : '⚫ Offline') + '</span>')
+    ? row('Estado conexión', '<span style="color:' + dotColor + ';"><iconify-icon icon="tabler:circle-filled"></iconify-icon> ' + (isOnline ? 'Online' : 'Offline') + '</span>')
       + (device.zohoLiveOs ? row('SO detectado', escHtml(device.zohoLiveOs)) : '')
       + (device.zohoIp     ? row('IP',            '<span style="font-family:var(--mono);">' + escHtml(device.zohoIp) + '</span>') : '')
       + (device.zohoGroup  ? row('Grupo Zoho',    escHtml(device.zohoGroup)) : '')
@@ -2814,12 +2832,12 @@ async function openDeviceDetail(id) {
     + row('Usuario', escHtml(device.usuario || '—'))
     + row('Tipo', escHtml(device.tipo))
     + row('SO (registrado)', escHtml(device.so || '—'))
-    + row('GCPW', device.gcpw ? '<span style="color:var(--hero-primary);">✓ Activado</span>' : '<span style="color:var(--hero-text-muted);">✗ No activado</span>')
+    + row('GCPW', device.gcpw ? '<span style="color:var(--hero-primary);"><iconify-icon icon="tabler:check"></iconify-icon> Activado</span>' : '<span style="color:var(--hero-text-muted);"><iconify-icon icon="tabler:x"></iconify-icon> No activado</span>')
     + row('Estado IT', '<span style="color:' + eColor + ';">' + escHtml(device.estado) + '</span>')
     + lifecycleRows
     + '</div>'
     + (isOnline && device.zohoId
-        ? '<button onclick="startZohoSession(\'' + escJs(device.zohoId) + '\',\'' + escJs(device.nombre) + '\')" class="btn btn-primary" style="width:100%;margin-top:14px;">🖥️ Iniciar sesión remota (Zoho)</button>'
+        ? '<button onclick="startZohoSession(\'' + escJs(device.zohoId) + '\',\'' + escJs(device.nombre) + '\')" class="btn btn-primary" style="width:100%;margin-top:14px;"><iconify-icon icon="tabler:screen-share"></iconify-icon> Iniciar sesión remota (Zoho)</button>'
         : '');
 
   // Apps
@@ -2843,7 +2861,7 @@ function row(label, val) {
 function renderHistorial(intervenciones) {
   const el = document.getElementById('dev-historial');
   if (!intervenciones.length) {
-    el.innerHTML = '<div class="log-empty"><div class="log-empty-icon">📋</div><div class="log-empty-text">Sin intervenciones registradas</div></div>';
+    el.innerHTML = '<div class="log-empty"><div class="log-empty-icon"><iconify-icon icon="tabler:clipboard-list"></iconify-icon></div><div class="log-empty-text">Sin intervenciones registradas</div></div>';
     return;
   }
   el.innerHTML = intervenciones.map(i => {
@@ -2907,7 +2925,7 @@ async function registrarIntervencion() {
     showToast('Error: ' + err.message);
   }
   btn.disabled = false;
-  btn.innerHTML = '✓ Registrar intervención';
+  btn.innerHTML = '<iconify-icon icon="tabler:check"></iconify-icon> Registrar intervención';
 }
 
 // ── Formulario nuevo/editar ───────────────────────────────────
@@ -2986,7 +3004,7 @@ async function saveDevice() {
     showToast('Error: ' + err.message);
   }
   btn.disabled = false;
-  btn.innerHTML = '💾 Guardar dispositivo';
+  btn.innerHTML = '<iconify-icon icon="tabler:device-floppy"></iconify-icon> Guardar dispositivo';
 }
 
 // ── Exportar reporte CSV ──────────────────────────────────────
@@ -3060,7 +3078,7 @@ function renderSessionLogs() {
   const body = document.getElementById('log-body');
   if (!body) return;
   if (!sessionLogs.length) {
-    body.innerHTML = '<div class="log-empty"><div class="log-empty-icon">📋</div><div class="log-empty-text">Sin actividad en esta sesión</div></div>';
+    body.innerHTML = '<div class="log-empty"><div class="log-empty-icon"><iconify-icon icon="tabler:clipboard-list"></iconify-icon></div><div class="log-empty-text">Sin actividad en esta sesión</div></div>';
     return;
   }
   body.innerHTML = sessionLogs.map(l =>
@@ -3224,14 +3242,14 @@ function installKeyboardShortcuts() {
 
 // ── Módulo Offboarding ────────────────────────────────────────
 const OB_STEPS = [
-  { id: 'suspend',    label: 'Suspender cuenta de Google Workspace',       icon: '🔒', auto: true  },
-  { id: 'sessions',  label: 'Revocar todas las sesiones activas',           icon: '🚫', auto: false },
-  { id: 'groups',    label: 'Remover de Google Groups y carpetas Drive',    icon: '📁', auto: false },
-  { id: 'shared',    label: 'Cambiar contraseñas de cuentas compartidas',   icon: '🔑', auto: false },
-  { id: 'zoho',      label: 'Revocar acceso a Zoho Assist',                icon: '🖥️', auto: false },
-  { id: 'external',  label: 'Revocar accesos a sistemas externos (carriers, ClickUp, etc.)', icon: '🌐', auto: false },
-  { id: 'equipment', label: 'Gestionar devolución de equipos',              icon: '💻', auto: false },
-  { id: 'record',    label: 'Registrar baja en sistema de RR.HH.',          icon: '📋', auto: false },
+  { id: 'suspend',    label: 'Suspender cuenta de Google Workspace',       icon: '<iconify-icon icon="tabler:lock"></iconify-icon>', auto: true  },
+  { id: 'sessions',  label: 'Revocar todas las sesiones activas',           icon: '<iconify-icon icon="tabler:ban"></iconify-icon>', auto: false },
+  { id: 'groups',    label: 'Remover de Google Groups y carpetas Drive',    icon: '<iconify-icon icon="tabler:folder"></iconify-icon>', auto: false },
+  { id: 'shared',    label: 'Cambiar contraseñas de cuentas compartidas',   icon: '<iconify-icon icon="tabler:key"></iconify-icon>', auto: false },
+  { id: 'zoho',      label: 'Revocar acceso a Zoho Assist',                icon: '<iconify-icon icon="tabler:screen-share"></iconify-icon>', auto: false },
+  { id: 'external',  label: 'Revocar accesos a sistemas externos (carriers, ClickUp, etc.)', icon: '<iconify-icon icon="tabler:world"></iconify-icon>', auto: false },
+  { id: 'equipment', label: 'Gestionar devolución de equipos',              icon: '<iconify-icon icon="tabler:device-desktop"></iconify-icon>', auto: false },
+  { id: 'record',    label: 'Registrar baja en sistema de RR.HH.',          icon: '<iconify-icon icon="tabler:clipboard-list"></iconify-icon>', auto: false },
 ];
 
 let obSelectedUser = null;
@@ -3254,7 +3272,7 @@ function renderOffboardingSteps() {
       + (s.auto ? '<div style="font-size:10px;color:var(--hero-primary);margin-top:2px;">Automático via API</div>' : '')
       + '</div>'
       + '<button onclick="toggleObStep(\'' + s.id + '\')" style="background:' + (isDone ? 'var(--hero-success)' : 'transparent') + ';border:1px solid ' + (isDone ? 'var(--hero-success)' : 'var(--hero-border)') + ';color:' + (isDone ? '#fff' : 'var(--hero-text-muted)') + ';width:28px;height:28px;border-radius:50%;cursor:pointer;font-size:14px;flex-shrink:0;">'
-      + (isDone ? '✓' : '') + '</button>'
+      + (isDone ? '<iconify-icon icon="tabler:check"></iconify-icon>' : '') + '</button>'
       + '</div>';
   }).join('');
   // Update progress
@@ -3345,7 +3363,7 @@ async function executeOffboarding() {
   showToast('Offboarding ejecutado. Cuenta suspendida.');
 
   btn.disabled = false;
-  btn.innerHTML = '🚪 Ejecutar offboarding';
+  btn.innerHTML = '<iconify-icon icon="tabler:door-exit"></iconify-icon> Ejecutar offboarding';
 }
 
 // ── Módulo Knowledge Base ─────────────────────────────────────
@@ -3383,9 +3401,9 @@ function renderKb(items) {
   const grid = document.getElementById('kb-grid');
   if (!items.length) {
     renderEmpty(grid, {
-      icon: '📚',
+      icon: '<iconify-icon icon="tabler:book-2"></iconify-icon>',
       message: allKb.length ? 'Sin resultados con ese filtro.' : 'Aún no hay artículos. Crea el primero o conviértelo desde un ticket resuelto.',
-      ctaText: allKb.length ? '' : '➕ Crear primer artículo',
+      ctaText: allKb.length ? '' : '<iconify-icon icon="tabler:plus"></iconify-icon> Crear primer artículo',
       ctaFn: allKb.length ? null : () => showKbForm(),
     });
     return;
@@ -3400,7 +3418,7 @@ function renderKb(items) {
       + '<div style="font-size:14px;font-weight:700;color:var(--hero-text-primary);margin-bottom:6px;">' + escHtml(a.titulo) + '</div>'
       + (tagsHtml ? '<div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px;">' + tagsHtml + '</div>' : '')
       + '<div style="font-size:12px;color:var(--hero-text-body);line-height:1.5;margin-bottom:10px;white-space:pre-wrap;">' + escHtml(preview) + '</div>'
-      + '<div style="font-size:10px;color:var(--hero-text-muted);font-family:var(--mono);">' + (fecha ? '📅 ' + fecha : '') + (a.ticketOrigen ? ' · 🎫 ' + escHtml(a.ticketOrigen) : '') + '</div>'
+      + '<div style="font-size:10px;color:var(--hero-text-muted);font-family:var(--mono);">' + (fecha ? '<iconify-icon icon="tabler:calendar"></iconify-icon> ' + fecha : '') + (a.ticketOrigen ? ' · <iconify-icon icon="tabler:ticket"></iconify-icon> ' + escHtml(a.ticketOrigen) : '') + '</div>'
       + '</div>';
   }).join('');
 }
@@ -3470,7 +3488,7 @@ async function saveKb() {
     showToast('Error: ' + e.message);
   }
   btn.disabled = false;
-  btn.innerHTML = '💾 Guardar artículo';
+  btn.innerHTML = '<iconify-icon icon="tabler:device-floppy"></iconify-icon> Guardar artículo';
 }
 
 async function deleteKbCurrent() {
@@ -3537,7 +3555,7 @@ function renderLicencias() {
   const count = document.getElementById('lic-count');
   if (count) count.textContent = allLicencias.length + ' licencia' + (allLicencias.length !== 1 ? 's' : '');
   if (!allLicencias.length) {
-    grid.innerHTML = '<div class="info-box" style="text-align:center;padding:40px;grid-column:1/-1;"><div style="font-size:32px;opacity:0.3;margin-bottom:12px;">🔑</div><div style="font-family:var(--mono);font-size:12px;color:var(--hero-text-muted);">Sin licencias registradas. Agrega la primera con el botón ➕</div></div>';
+    grid.innerHTML = '<div class="info-box" style="text-align:center;padding:40px;grid-column:1/-1;"><div style="font-size:32px;opacity:0.3;margin-bottom:12px;"><iconify-icon icon="tabler:license"></iconify-icon></div><div style="font-family:var(--mono);font-size:12px;color:var(--hero-text-muted);">Sin licencias registradas. Agrega la primera con el botón Nueva licencia.</div></div>';
     return;
   }
   const today = new Date();
@@ -3558,23 +3576,23 @@ function renderLicencias() {
       + '</div>'
       + (l.plan ? '<div style="font-size:12px;color:var(--hero-text-muted);margin-bottom:4px;">Plan: ' + escHtml(l.plan) + '</div>' : '')
       + '<div style="display:flex;gap:16px;font-size:12px;color:var(--hero-text-muted);margin-bottom:10px;">'
-      + (l.costo > 0 ? '<span>💵 $' + Number(l.costo).toFixed(2) + '/mes</span>' : '')
-      + (l.usuarios > 0 ? '<span>👤 ' + l.usuarios + ' usuarios</span>' : '')
+      + (l.costo > 0 ? '<span><iconify-icon icon="tabler:cash"></iconify-icon> $' + Number(l.costo).toFixed(2) + '/mes</span>' : '')
+      + (l.usuarios > 0 ? '<span><iconify-icon icon="tabler:user"></iconify-icon> ' + l.usuarios + ' usuarios</span>' : '')
       + '</div>'
       + (expiryBadge ? '<div style="margin-bottom:10px;">' + expiryBadge + '</div>' : '')
       + (l.notas ? '<div style="font-size:11px;color:var(--hero-text-muted);margin-bottom:12px;">' + escHtml(l.notas) + '</div>' : '')
       + ((l.credUsuario || l.credPassword || l.codigoLicencia)
         ? '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;">'
-          + (l.credUsuario || l.credPassword ? '<span style="font-size:10px;padding:2px 8px;border-radius:20px;background:rgba(6,163,182,0.08);color:var(--hero-primary);">🔐 Credenciales</span>' : '')
-          + (l.codigoLicencia ? '<span style="font-size:10px;padding:2px 8px;border-radius:20px;background:rgba(6,163,182,0.08);color:var(--hero-primary);">🔑 Código</span>' : '')
+          + (l.credUsuario || l.credPassword ? '<span style="font-size:10px;padding:2px 8px;border-radius:20px;background:rgba(6,163,182,0.08);color:var(--hero-primary);"><iconify-icon icon="tabler:lock"></iconify-icon> Credenciales</span>' : '')
+          + (l.codigoLicencia ? '<span style="font-size:10px;padding:2px 8px;border-radius:20px;background:rgba(6,163,182,0.08);color:var(--hero-primary);"><iconify-icon icon="tabler:key"></iconify-icon> Código</span>' : '')
           + '</div>'
         : '')
       + '<div style="display:flex;gap:8px;">'
-      + '<button onclick="editLicencia(\'' + escJs(l.id) + '\')" class="btn btn-secondary" style="flex:1;font-size:12px;">✏️ Editar</button>'
+      + '<button onclick="editLicencia(\'' + escJs(l.id) + '\')" class="btn btn-secondary" style="flex:1;font-size:12px;"><iconify-icon icon="tabler:pencil"></iconify-icon> Editar</button>'
       + ((l.credUsuario || l.credPassword || l.codigoLicencia)
-        ? '<button onclick="verCredenciales(\'' + escJs(l.id) + '\')" class="btn btn-secondary" style="font-size:12px;padding:8px 12px;" title="Ver credenciales">🔐</button>'
+        ? '<button onclick="verCredenciales(\'' + escJs(l.id) + '\')" class="btn btn-secondary" style="font-size:12px;padding:8px 12px;" title="Ver credenciales"><iconify-icon icon="tabler:lock"></iconify-icon></button>'
         : '')
-      + '<button onclick="deleteLicencia(\'' + escJs(l.id) + '\',\'' + escJs(l.nombre) + '\')" class="btn btn-danger" style="font-size:12px;padding:8px 10px;">🗑</button>'
+      + '<button onclick="deleteLicencia(\'' + escJs(l.id) + '\',\'' + escJs(l.nombre) + '\')" class="btn btn-danger" style="font-size:12px;padding:8px 10px;"><iconify-icon icon="tabler:trash"></iconify-icon></button>'
       + '</div></div>';
   }).join('');
 }
@@ -3602,8 +3620,8 @@ function showLicenciaForm(lic = null) {
 function toggleLicPassword() {
   const input = document.getElementById('lic-f-cred-password');
   const btn   = document.getElementById('btn-toggle-lic-pwd');
-  if (input.type === 'password') { input.type = 'text';     btn.textContent = '🙈'; }
-  else                           { input.type = 'password'; btn.textContent = '👁';  }
+  if (input.type === 'password') { input.type = 'text';     btn.innerHTML = '<iconify-icon icon="tabler:eye-off"></iconify-icon>'; }
+  else                           { input.type = 'password'; btn.innerHTML = '<iconify-icon icon="tabler:eye"></iconify-icon>';  }
 }
 
 function verCredenciales(id) {
@@ -3611,9 +3629,9 @@ function verCredenciales(id) {
   if (!l) return;
 
   const rows = [
-    l.credUsuario    ? ['👤 Usuario',          l.credUsuario,    false] : null,
-    l.credPassword   ? ['🔑 Contraseña',        l.credPassword,   true]  : null,
-    l.codigoLicencia ? ['🔐 Código de licencia', l.codigoLicencia, false] : null,
+    l.credUsuario    ? ['<iconify-icon icon="tabler:user"></iconify-icon> Usuario',          l.credUsuario,    false] : null,
+    l.credPassword   ? ['<iconify-icon icon="tabler:key"></iconify-icon> Contraseña',        l.credPassword,   true]  : null,
+    l.codigoLicencia ? ['<iconify-icon icon="tabler:lock-square"></iconify-icon> Código de licencia', l.codigoLicencia, false] : null,
   ].filter(Boolean);
 
   if (!rows.length) { showToast('Esta licencia no tiene credenciales guardadas'); return; }
@@ -3631,9 +3649,9 @@ function verCredenciales(id) {
       + (isPassword ? '••••••••' : escHtml(value))
       + '</code>'
       + (isPassword
-        ? '<button data-val="' + safeAttr + '" onclick="toggleCredVal(this)" style="background:transparent;border:1px solid var(--hero-border);border-radius:6px;padding:6px 10px;cursor:pointer;font-size:14px;color:var(--hero-text-muted);">👁</button>'
+        ? '<button data-val="' + safeAttr + '" onclick="toggleCredVal(this)" style="background:transparent;border:1px solid var(--hero-border);border-radius:6px;padding:6px 10px;cursor:pointer;font-size:14px;color:var(--hero-text-muted);"><iconify-icon icon="tabler:eye"></iconify-icon></button>'
         : '')
-      + '<button data-val="' + safeAttr + '" onclick="navigator.clipboard.writeText(this.dataset.val);showToast(\'Copiado ✓\')" style="background:transparent;border:1px solid var(--hero-border);border-radius:6px;padding:6px 10px;cursor:pointer;font-size:14px;color:var(--hero-text-muted);">📋</button>'
+      + '<button data-val="' + safeAttr + '" onclick="navigator.clipboard.writeText(this.dataset.val);showToast(\'Copiado\')" style="background:transparent;border:1px solid var(--hero-border);border-radius:6px;padding:6px 10px;cursor:pointer;font-size:14px;color:var(--hero-text-muted);"><iconify-icon icon="tabler:copy"></iconify-icon></button>'
       + '</div></div>';
   }).join('');
 
@@ -3647,18 +3665,18 @@ function verCredenciales(id) {
       '<div style="background:#ffffff;border:1px solid rgba(6,163,182,0.3);border-radius:16px;max-width:460px;margin:0 auto;overflow:hidden;box-shadow:0 8px 32px rgba(0,0,0,0.2);">'
       + '<div style="background:linear-gradient(135deg,#06a3b6,#048395);padding:18px 24px;display:flex;justify-content:space-between;align-items:center;">'
       + '<div id="cred-modal-title" style="font-size:15px;font-weight:700;color:#fff;"></div>'
-      + '<button onclick="document.getElementById(\'cred-view-modal\').style.display=\'none\'" style="background:rgba(255,255,255,0.2);border:none;color:#fff;width:30px;height:30px;border-radius:6px;cursor:pointer;font-size:16px;">✕</button>'
+      + '<button onclick="document.getElementById(\'cred-view-modal\').style.display=\'none\'" style="background:rgba(255,255,255,0.2);border:none;color:#fff;width:30px;height:30px;border-radius:6px;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;"><iconify-icon icon="tabler:x"></iconify-icon></button>'
       + '</div>'
       + '<div id="cred-modal-body" style="padding:20px 24px;"></div>'
       + '<div style="padding:0 24px 20px;display:flex;gap:8px;">'
-      + '<button onclick="copyAllCreds()" class="btn btn-primary" style="flex:1;font-size:12px;">📋 Copiar todo</button>'
+      + '<button onclick="copyAllCreds()" class="btn btn-primary" style="flex:1;font-size:12px;"><iconify-icon icon="tabler:copy"></iconify-icon> Copiar todo</button>'
       + '<button onclick="document.getElementById(\'cred-view-modal\').style.display=\'none\'" class="btn btn-secondary" style="font-size:12px;">Cerrar</button>'
       + '</div></div>';
     document.body.appendChild(modal);
   }
 
   modal._licId = id;
-  document.getElementById('cred-modal-title').textContent = '🔐 ' + l.nombre;
+  document.getElementById('cred-modal-title').innerHTML = '<iconify-icon icon="tabler:lock"></iconify-icon> ' + escHtml(l.nombre);
   document.getElementById('cred-modal-body').innerHTML = rowsHtml;
   modal.style.display = 'block';
 }
@@ -3668,10 +3686,10 @@ function toggleCredVal(btn) {
   const val  = btn.dataset.val;
   if (code.textContent === '••••••••') {
     code.textContent = val;
-    btn.textContent  = '🙈';
+    btn.innerHTML    = '<iconify-icon icon="tabler:eye-off"></iconify-icon>';
   } else {
     code.textContent = '••••••••';
-    btn.textContent  = '👁';
+    btn.innerHTML    = '<iconify-icon icon="tabler:eye"></iconify-icon>';
   }
 }
 
@@ -3685,7 +3703,7 @@ function copyAllCreds() {
     l.codigoLicencia ? 'Codigo: '     + l.codigoLicencia : '',
   ].filter(Boolean).join('\n');
   navigator.clipboard.writeText(text).catch(()=>{});
-  showToast('Credenciales copiadas ✓');
+  showToast('Credenciales copiadas');
 }
 
 
@@ -3723,7 +3741,7 @@ async function saveLicencia() {
     closeLicenciaModal();
     loadLicencias();
   } catch(e) { showToast('Error: ' + e.message); }
-  btn.disabled = false; btn.innerHTML = '💾 Guardar';
+  btn.disabled = false; btn.innerHTML = '<iconify-icon icon="tabler:device-floppy"></iconify-icon> Guardar';
 }
 async function deleteLicencia(id, nombre) {
   if (!(await heroConfirm({

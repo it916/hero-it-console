@@ -911,14 +911,14 @@ html { scroll-behavior: smooth; }
   <!-- Top bar -->
   <div class="topbar" style="position:relative;">
     <div style="display:flex;align-items:center;gap:12px;">
-      <button class="btn-hamburger" onclick="toggleSidebar()" aria-label="Abrir menú lateral">☰</button>
+      <button class="btn-hamburger" onclick="toggleSidebar()" aria-label="Abrir menú lateral"><iconify-icon icon="tabler:menu-2"></iconify-icon></button>
       <div class="topbar-title"><button onclick="showPage('dashboard')" style="background:transparent;border:none;color:inherit;font:inherit;cursor:pointer;padding:0;" title="Volver al dashboard">Hero IT Console</button> / <span id="current-section-label">Dashboard</span></div>
     </div>
     <div class="topbar-right">
-        <button onclick="toggleTheme()" id="btn-theme" title="Cambiar tema" aria-label="Cambiar tema claro/oscuro" style="background:var(--hero-bg);border:1px solid var(--hero-border);color:var(--hero-text-muted);width:36px;height:36px;border-radius:var(--hero-radius-btn);cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">☀️</button>
+        <button onclick="toggleTheme()" id="btn-theme" title="Cambiar tema" aria-label="Cambiar tema claro/oscuro" style="background:var(--hero-bg);border:1px solid var(--hero-border);color:var(--hero-text-muted);width:36px;height:36px;border-radius:var(--hero-radius-btn);cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;flex-shrink:0;"><iconify-icon icon="tabler:sun"></iconify-icon></button>
         <!-- Notification bell -->
         <div style="position:relative;flex-shrink:0;">
-          <button onclick="toggleNotifPanel()" id="btn-notif" title="Notificaciones" aria-label="Centro de notificaciones" aria-haspopup="true" style="background:var(--hero-bg);border:1px solid var(--hero-border);color:var(--hero-text-muted);width:36px;height:36px;border-radius:var(--hero-radius-btn);cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center;">🔔</button>
+          <button onclick="toggleNotifPanel()" id="btn-notif" title="Notificaciones" aria-label="Centro de notificaciones" aria-haspopup="true" style="background:var(--hero-bg);border:1px solid var(--hero-border);color:var(--hero-text-muted);width:36px;height:36px;border-radius:var(--hero-radius-btn);cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center;"><iconify-icon icon="tabler:bell"></iconify-icon></button>
           <span id="notif-badge" role="status" aria-live="polite" aria-atomic="true" style="display:none;position:absolute;top:-4px;right:-4px;background:var(--hero-danger);color:#fff;font-size:10px;font-weight:700;min-width:18px;height:18px;border-radius:9px;text-align:center;line-height:18px;padding:0 4px;pointer-events:none;"></span>
         </div>
         <!-- Notification panel -->
@@ -929,12 +929,12 @@ html { scroll-behavior: smooth; }
           </div>
           <div id="notif-list" style="max-height:360px;overflow-y:auto;">
             <div id="notif-empty" style="padding:32px;text-align:center;font-size:12px;color:var(--hero-text-muted);">
-              <div style="font-size:28px;margin-bottom:8px;opacity:0.4;">🔔</div>
+              <div style="font-size:28px;margin-bottom:8px;opacity:0.4;"><iconify-icon icon="tabler:bell-off"></iconify-icon></div>
               Sin notificaciones nuevas
             </div>
           </div>
         </div>
-        <button onclick="openGlobalSearch()" aria-label="Búsqueda global (tickets, solicitudes, dispositivos, usuarios)" style="background:var(--hero-bg);border:1px solid var(--hero-border);color:var(--hero-text-muted);padding:6px 12px;border-radius:var(--hero-radius-sm);cursor:pointer;font-size:12px;font-family:var(--hero-font);display:flex;align-items:center;gap:6px;"><span aria-hidden="true">🔍</span> <span style="color:var(--hero-text-muted)">Buscar...</span></button>
+        <button onclick="openGlobalSearch()" aria-label="Búsqueda global (tickets, solicitudes, dispositivos, usuarios)" style="background:var(--hero-bg);border:1px solid var(--hero-border);color:var(--hero-text-muted);padding:6px 12px;border-radius:var(--hero-radius-sm);cursor:pointer;font-size:12px;font-family:var(--hero-font);display:flex;align-items:center;gap:6px;"><iconify-icon icon="tabler:search" aria-hidden="true"></iconify-icon> <span style="color:var(--hero-text-muted)">Buscar...</span></button>
       <div class="clock" id="clock"></div>
       <div id="global-status">● SISTEMA LISTO</div>
     </div>
@@ -1011,7 +1011,7 @@ html { scroll-behavior: smooth; }
 
         <div class="action-card" style="--card-color: #f56565">
           <div class="card-header">
-            <div class="card-icon">📥</div>
+            <div class="card-icon"><iconify-icon icon="tabler:inbox"></iconify-icon></div>
             <span class="card-badge badge-manual">Gestión</span>
           </div>
           <div class="card-title">Solicitudes</div>
@@ -1021,7 +1021,7 @@ html { scroll-behavior: smooth; }
 
         <div class="action-card" style="--card-color: #f0b429">
           <div class="card-header">
-            <div class="card-icon">🎫</div>
+            <div class="card-icon"><iconify-icon icon="tabler:ticket"></iconify-icon></div>
             <span class="card-badge badge-manual">Soporte</span>
           </div>
           <div class="card-title">Tickets de Soporte</div>
@@ -1031,7 +1031,7 @@ html { scroll-behavior: smooth; }
 
         <div class="action-card" style="--card-color: #19CDEB">
           <div class="card-header">
-            <div class="card-icon">💻</div>
+            <div class="card-icon"><iconify-icon icon="tabler:device-desktop"></iconify-icon></div>
             <span class="card-badge badge-auto">Inventario</span>
           </div>
           <div class="card-title">Dispositivos</div>
@@ -1041,7 +1041,7 @@ html { scroll-behavior: smooth; }
 
         <div class="action-card" style="--card-color: #a78bfa">
           <div class="card-header">
-            <div class="card-icon">👥</div>
+            <div class="card-icon"><iconify-icon icon="tabler:users"></iconify-icon></div>
             <span class="card-badge badge-auto">Consulta</span>
           </div>
           <div class="card-title">Usuarios Workspace</div>
@@ -1055,7 +1055,7 @@ html { scroll-behavior: smooth; }
       <div class="panel-grid" style="margin-bottom:20px;">
         <div class="info-box">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
-            <div class="info-box-title" style="margin-bottom:0;">🏢 Asistencia hoy</div>
+            <div class="info-box-title" style="margin-bottom:0;"><iconify-icon icon="tabler:building"></iconify-icon> Asistencia hoy</div>
             <button class="btn btn-secondary" onclick="loadOfficeStatus()" style="font-size:11px;padding:5px 10px;">↺</button>
           </div>
           <div id="office-status-card">
@@ -1064,7 +1064,7 @@ html { scroll-behavior: smooth; }
           <a href="https://it916.github.io/office-manager-app/" target="_blank" style="display:block;margin-top:12px;font-size:11px;color:var(--hero-primary);text-align:center;">Abrir Office Manager →</a>
         </div>
         <div class="info-box">
-          <div class="info-box-title">📊 Reporte mensual IT</div>
+          <div class="info-box-title"><iconify-icon icon="tabler:chart-bar"></iconify-icon> Reporte mensual IT</div>
           <p style="font-size:12px;color:var(--hero-text-muted);margin-bottom:16px;line-height:1.6;">Genera un reporte completo del mes con tickets resueltos, usuarios creados, intervenciones de dispositivos y acciones registradas en Auditoría.</p>
           <div class="form-group">
             <label class="form-label">Mes del reporte</label>
@@ -1123,7 +1123,7 @@ html { scroll-behavior: smooth; }
                   <div id="rst-sel-email" style="font-size:12px;color:var(--hero-primary);font-family:var(--mono);margin-top:2px;"></div>
                   <div id="rst-sel-estado" style="font-size:11px;color:var(--hero-text-muted);margin-top:2px;"></div>
                 </div>
-                <button onclick="clearResetUser()" style="background:transparent;border:none;color:var(--hero-text-muted);cursor:pointer;font-size:18px;">✕</button>
+                <button onclick="clearResetUser()" style="background:transparent;border:none;color:var(--hero-text-muted);cursor:pointer;font-size:18px;display:inline-flex;align-items:center;"><iconify-icon icon="tabler:x"></iconify-icon></button>
               </div>
             </div>
           </div>
@@ -1134,7 +1134,7 @@ html { scroll-behavior: smooth; }
             <div style="display:flex;gap:8px;margin-top:10px;">
               <input class="form-input" id="rst-new-password" type="text"
                 placeholder="Escribe o genera una contraseña..." style="flex:1;"/>
-              <button class="btn btn-secondary" onclick="generateResetPassword()" title="Generar contraseña segura" style="flex-shrink:0;">⚡ Generar</button>
+              <button class="btn btn-secondary" onclick="generateResetPassword()" title="Generar contraseña segura" style="flex-shrink:0;"><iconify-icon icon="tabler:bolt"></iconify-icon> Generar</button>
             </div>
             <div style="margin-top:8px;font-size:11px;color:var(--hero-text-muted);">
               El usuario deberá cambiarla en su próximo inicio de sesión.
@@ -1143,7 +1143,7 @@ html { scroll-behavior: smooth; }
 
           <!-- Step 3: Execute -->
           <button class="btn btn-primary" id="btn-exec-reset" onclick="executeReset()" style="padding:14px;">
-            🔑 Resetear contraseña en Workspace y notificar
+            <iconify-icon icon="tabler:key"></iconify-icon> Resetear contraseña en Workspace y notificar
           </button>
         </div>
 
@@ -1170,7 +1170,7 @@ html { scroll-behavior: smooth; }
             </div>
             <div class="log-body" id="log-rst">
               <div class="log-empty">
-                <div class="log-empty-icon">🔑</div>
+                <div class="log-empty-icon"><iconify-icon icon="tabler:key"></iconify-icon></div>
                 <div class="log-empty-text">Busca un usuario para comenzar</div>
               </div>
             </div>
@@ -1241,15 +1241,15 @@ html { scroll-behavior: smooth; }
               <div id="um-nombre" style="font-size:15px;font-weight:600;color:var(--hero-text-primary);"></div>
               <div id="um-email" style="font-family:var(--mono);font-size:12px;color:var(--hero-primary);margin-top:2px;"></div>
             </div>
-            <button onclick="closeUserModal()" aria-label="Cerrar" style="background:transparent;border:1px solid var(--hero-border-card);color:var(--hero-text-body);width:32px;height:32px;border-radius:8px;cursor:pointer;font-size:16px;">✕</button>
+            <button onclick="closeUserModal()" aria-label="Cerrar" style="background:transparent;border:1px solid var(--hero-border-card);color:var(--hero-text-body);width:32px;height:32px;border-radius:8px;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;"><iconify-icon icon="tabler:x"></iconify-icon></button>
           </div>
           <div class="info-box" style="margin-bottom:12px;">
-            <div class="info-box-title">🔑 Resetear contraseña</div>
+            <div class="info-box-title"><iconify-icon icon="tabler:key"></iconify-icon> Resetear contraseña</div>
             <div style="display:flex;gap:8px;margin-top:10px;">
               <input class="form-input" id="um-new-password" type="text" placeholder="Nueva contraseña temporal" style="flex:1;"/>
-              <button class="btn btn-secondary" onclick="generateUserPassword()" title="Generar">⚡</button>
+              <button class="btn btn-secondary" onclick="generateUserPassword()" title="Generar"><iconify-icon icon="tabler:bolt"></iconify-icon></button>
             </div>
-            <button class="btn btn-primary" onclick="userAction('reset')" style="width:100%;margin-top:10px;font-size:13px;">🔑 Aplicar reset</button>
+            <button class="btn btn-primary" onclick="userAction('reset')" style="width:100%;margin-top:10px;font-size:13px;"><iconify-icon icon="tabler:key"></iconify-icon> Aplicar reset</button>
           </div>
           <div class="info-box" style="margin-bottom:12px;">
             <div class="info-box-title">⏸ Suspender / Restaurar cuenta</div>
@@ -1291,7 +1291,7 @@ html { scroll-behavior: smooth; }
             <label class="form-label">Contraseña temporal</label>
             <div style="display:flex; gap:8px;">
               <input class="form-input" id="new-password" type="text" placeholder="TemporalHero2026*" style="flex:1"/>
-              <button class="btn btn-secondary" onclick="generatePassword()" title="Generar contraseña">⚡</button>
+              <button class="btn btn-secondary" onclick="generatePassword()" title="Generar contraseña"><iconify-icon icon="tabler:bolt"></iconify-icon></button>
             </div>
           </div>
           <div class="form-group">
@@ -1325,7 +1325,7 @@ html { scroll-behavior: smooth; }
           </div>
 
           <button class="btn btn-primary" id="btn-crear-usuario" onclick="crearUsuario()" style="width:100%; margin-top:8px;">
-            ✨ Crear usuario y enviar onboarding
+            <iconify-icon icon="tabler:sparkles"></iconify-icon> Crear usuario y enviar onboarding
           </button>
         </div>
 
@@ -1357,11 +1357,11 @@ html { scroll-behavior: smooth; }
             </div>
             <div style="display:flex; flex-direction:column; gap:8px;">
               <button class="btn btn-primary" onclick="sendOnboardingNuevo('empleado')" id="btn-ob-emp">
-                👤 Enviar como Empleado
+                <iconify-icon icon="tabler:user"></iconify-icon> Enviar como Empleado
               </button>
               <button class="btn btn-primary" onclick="sendOnboardingNuevo('agente')" id="btn-ob-agt"
                 style="background:rgba(25,205,235,0.15); color:var(--hero-primary); border:1px solid rgba(25,205,235,0.3);">
-                🤝 Enviar como Agente
+                <iconify-icon icon="tabler:briefcase"></iconify-icon> Enviar como Agente
               </button>
               <button class="btn btn-secondary" onclick="skipOnboarding()">
                 Omitir por ahora
@@ -1382,7 +1382,7 @@ html { scroll-behavior: smooth; }
         </div>
         <div class="log-body" id="log-new">
           <div class="log-empty">
-            <div class="log-empty-icon">➕</div>
+            <div class="log-empty-icon"><iconify-icon icon="tabler:user-plus"></iconify-icon></div>
             <div class="log-empty-text">Completa el formulario para crear un usuario</div>
           </div>
         </div>
@@ -1441,13 +1441,13 @@ html { scroll-behavior: smooth; }
             <label class="form-label">Contraseña temporal</label>
             <div style="display:flex; gap:8px;">
               <input class="form-input" id="onb-password" type="text" placeholder="TemporalHero2026*" style="flex:1" oninput="onbPreview()"/>
-              <button class="btn btn-secondary" onclick="onbGenPassword()" title="Generar contraseña">⚡</button>
+              <button class="btn btn-secondary" onclick="onbGenPassword()" title="Generar contraseña"><iconify-icon icon="tabler:bolt"></iconify-icon></button>
             </div>
             <p style="font-size:11px; color:var(--hero-text-muted); margin:6px 0 0;">Si la dejas sin marcar, el correo dirá que la contraseña se asignará al iniciar sesión (útil para reenvíos).</p>
           </div>
 
           <button class="btn btn-primary" id="btn-onb-enviar" onclick="enviarOnboarding()" style="width:100%; margin-top:8px;">
-            ✉️ Enviar correo de onboarding
+            <iconify-icon icon="tabler:send"></iconify-icon> Enviar correo de onboarding
           </button>
         </div>
 
@@ -1472,7 +1472,7 @@ html { scroll-behavior: smooth; }
         </div>
         <div class="log-body" id="log-onb">
           <div class="log-empty">
-            <div class="log-empty-icon">✉️</div>
+            <div class="log-empty-icon"><iconify-icon icon="tabler:mail"></iconify-icon></div>
             <div class="log-empty-text">Completa el formulario para enviar el correo de onboarding</div>
           </div>
         </div>
@@ -1505,7 +1505,7 @@ html { scroll-behavior: smooth; }
       <!-- Tickets urgentes/altos abiertos -->
       <div style="margin-bottom:18px;">
         <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:10px;">
-          <h3 style="font-size:14px;font-weight:700;color:var(--hero-text-primary);margin:0;">🎫 Tickets prioritarios abiertos</h3>
+          <h3 style="font-size:14px;font-weight:700;color:var(--hero-text-primary);margin:0;display:flex;align-items:center;gap:8px;"><iconify-icon icon="tabler:ticket"></iconify-icon> Tickets prioritarios abiertos</h3>
           <button class="btn btn-secondary" onclick="loadMiDia()" style="font-size:11px;padding:4px 10px;">↺ Actualizar</button>
         </div>
         <div id="md-tickets" style="display:flex;flex-direction:column;gap:8px;"></div>
@@ -1513,13 +1513,13 @@ html { scroll-behavior: smooth; }
 
       <!-- Solicitudes pendientes/autorizadas -->
       <div style="margin-bottom:18px;">
-        <h3 style="font-size:14px;font-weight:700;color:var(--hero-text-primary);margin:0 0 10px;">📥 Solicitudes esperando IT</h3>
+        <h3 style="font-size:14px;font-weight:700;color:var(--hero-text-primary);margin:0 0 10px;display:flex;align-items:center;gap:8px;"><iconify-icon icon="tabler:inbox"></iconify-icon> Solicitudes esperando IT</h3>
         <div id="md-sols" style="display:flex;flex-direction:column;gap:8px;"></div>
       </div>
 
       <!-- Licencias por vencer -->
       <div>
-        <h3 style="font-size:14px;font-weight:700;color:var(--hero-text-primary);margin:0 0 10px;">🔑 Licencias próximas a vencer (30 días)</h3>
+        <h3 style="font-size:14px;font-weight:700;color:var(--hero-text-primary);margin:0 0 10px;display:flex;align-items:center;gap:8px;"><iconify-icon icon="tabler:license"></iconify-icon> Licencias próximas a vencer (30 días)</h3>
         <div id="md-lics" style="display:flex;flex-direction:column;gap:8px;"></div>
       </div>
     </div>
@@ -1563,7 +1563,7 @@ html { scroll-behavior: smooth; }
 
       <div id="sol-list">
         <div class="info-box" style="text-align:center;padding:40px;">
-          <div style="font-size:32px;opacity:0.3;margin-bottom:12px;">📥</div>
+          <div style="font-size:32px;opacity:0.3;margin-bottom:12px;"><iconify-icon icon="tabler:inbox"></iconify-icon></div>
           <div style="font-family:var(--mono);font-size:12px;color:var(--hero-text-muted);">Cargando solicitudes...</div>
         </div>
       </div>
@@ -1576,7 +1576,7 @@ html { scroll-behavior: smooth; }
               <div style="font-size:11px;color:rgba(255,255,255,0.75);letter-spacing:1px;text-transform:uppercase;">Crear usuario desde solicitud</div>
               <div id="sol-modal-nombre" style="font-size:16px;font-weight:700;color:#fff;margin-top:3px;"></div>
             </div>
-            <button onclick="closeSolModal()" aria-label="Cerrar" style="background:rgba(255,255,255,0.2);border:none;color:#fff;width:32px;height:32px;border-radius:8px;cursor:pointer;font-size:16px;">✕</button>
+            <button onclick="closeSolModal()" aria-label="Cerrar" style="background:rgba(255,255,255,0.2);border:none;color:#fff;width:32px;height:32px;border-radius:8px;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;"><iconify-icon icon="tabler:x"></iconify-icon></button>
           </div>
           <div style="padding:24px;">
             <!-- Solicitante info -->
@@ -1609,7 +1609,7 @@ html { scroll-behavior: smooth; }
               <label class="form-label">Contraseña temporal</label>
               <div style="display:flex;gap:8px;">
                 <input class="form-input" id="sm-password" type="text" placeholder="Contraseña temporal" style="flex:1;"/>
-                <button class="btn btn-secondary" onclick="generateSolPassword()" style="flex-shrink:0;">⚡</button>
+                <button class="btn btn-secondary" onclick="generateSolPassword()" style="flex-shrink:0;"><iconify-icon icon="tabler:bolt"></iconify-icon></button>
               </div>
             </div>
             <div class="form-group">
@@ -1621,7 +1621,7 @@ html { scroll-behavior: smooth; }
             </div>
             <div style="display:flex;gap:10px;margin-top:16px;">
               <button class="btn btn-primary" onclick="crearUsuarioDesdeModal()" id="btn-sm-crear" style="flex:1;">
-                ✓ Crear usuario y notificar
+                <iconify-icon icon="tabler:check"></iconify-icon> Crear usuario y notificar
               </button>
               <button class="btn btn-secondary" onclick="closeSolModal()">Cancelar</button>
             </div>
@@ -1642,7 +1642,7 @@ html { scroll-behavior: smooth; }
         <button class="btn btn-secondary" onclick="loadTickets()" id="btn-load-tickets" style="font-size:12px;">↺ Actualizar</button>
         <div style="display:flex;border:1px solid var(--hero-border);border-radius:8px;overflow:hidden;">
           <button id="btn-view-kanban" onclick="setTicketView('kanban')" class="btn" style="border:none;border-radius:0;background:var(--hero-primary);color:#fff;font-size:12px;padding:7px 14px;">⬛ Kanban</button>
-          <button id="btn-view-list"   onclick="setTicketView('list')"   class="btn" style="border:none;border-radius:0;background:transparent;color:var(--hero-text-muted);font-size:12px;padding:7px 14px;">☰ Lista</button>
+          <button id="btn-view-list"   onclick="setTicketView('list')"   class="btn" style="border:none;border-radius:0;background:transparent;color:var(--hero-text-muted);font-size:12px;padding:7px 14px;"><iconify-icon icon="tabler:list"></iconify-icon> Lista</button>
         </div>
         <select id="ticket-filter-prioridad" onchange="filterTickets()" style="background:var(--hero-card-bg);border:1px solid var(--hero-border);color:var(--hero-text-body);padding:7px 12px;border-radius:8px;font-size:12px;font-family:var(--hero-font);">
           <option value="">Todas las prioridades</option>
@@ -1667,21 +1667,21 @@ html { scroll-behavior: smooth; }
       <div id="tickets-kanban" style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;">
         <div class="kanban-col mobile-active" id="col-abierto" data-estado="abierto">
           <div class="kanban-col-header" style="--col-color:#d64545;" onclick="setKanbanTab('abierto')" role="button" tabindex="0">
-            <span class="kanban-col-title">🔴 Abierto</span>
+            <span class="kanban-col-title"><iconify-icon icon="tabler:circle-filled" style="color:var(--hero-danger);"></iconify-icon> Abierto</span>
             <span class="kanban-col-count" id="count-abierto">0</span>
           </div>
           <div class="kanban-cards" id="cards-abierto"></div>
         </div>
         <div class="kanban-col" id="col-en-progreso" data-estado="en-progreso">
           <div class="kanban-col-header" style="--col-color:#e8a317;" onclick="setKanbanTab('en-progreso')" role="button" tabindex="0">
-            <span class="kanban-col-title">🟡 En progreso</span>
+            <span class="kanban-col-title"><iconify-icon icon="tabler:circle-filled" style="color:var(--hero-warning);"></iconify-icon> En progreso</span>
             <span class="kanban-col-count" id="count-en-progreso">0</span>
           </div>
           <div class="kanban-cards" id="cards-en-progreso"></div>
         </div>
         <div class="kanban-col" id="col-resuelto" data-estado="resuelto">
           <div class="kanban-col-header" style="--col-color:#22a06b;" onclick="setKanbanTab('resuelto')" role="button" tabindex="0">
-            <span class="kanban-col-title">✅ Resuelto</span>
+            <span class="kanban-col-title"><iconify-icon icon="tabler:circle-check-filled" style="color:var(--hero-success);"></iconify-icon> Resuelto</span>
             <span class="kanban-col-count" id="count-resuelto">0</span>
           </div>
           <div class="kanban-cards" id="cards-resuelto"></div>
@@ -1700,7 +1700,7 @@ html { scroll-behavior: smooth; }
               <div id="modal-ticket-id" style="font-family:var(--mono);font-size:13px;color:rgba(255,255,255,0.8);"></div>
               <div id="modal-asunto" style="font-size:16px;font-weight:700;color:#fff;margin-top:3px;"></div>
             </div>
-            <button onclick="closeTicketModal()" aria-label="Cerrar" style="background:rgba(255,255,255,0.2);border:none;color:#fff;width:32px;height:32px;border-radius:8px;cursor:pointer;font-size:16px;">✕</button>
+            <button onclick="closeTicketModal()" aria-label="Cerrar" style="background:rgba(255,255,255,0.2);border:none;color:#fff;width:32px;height:32px;border-radius:8px;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;"><iconify-icon icon="tabler:x"></iconify-icon></button>
           </div>
           <div style="padding:24px;">
             <!-- User info + time -->
@@ -1757,11 +1757,11 @@ html { scroll-behavior: smooth; }
             <div style="margin-bottom:10px;">
               <label class="form-label">Respuestas rápidas y plantillas</label>
               <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;">
-                <button onclick="setQuickReply('revisando')" class="btn btn-secondary" style="font-size:11px;padding:5px 10px;">📋 Revisando</button>
-                <button onclick="setQuickReply('info')"      class="btn btn-secondary" style="font-size:11px;padding:5px 10px;">❓ Necesito info</button>
-                <button onclick="setQuickReply('resuelto')"  class="btn btn-secondary" style="font-size:11px;padding:5px 10px;">✅ Resuelto</button>
-                <button onclick="setQuickReply('remoto')"    class="btn btn-secondary" style="font-size:11px;padding:5px 10px;">🖥️ Soporte remoto</button>
-                <button onclick="toggleTicketTemplates()" id="btn-templates" class="btn btn-secondary" style="font-size:11px;padding:5px 10px;">📂 Plantillas casos comunes ▾</button>
+                <button onclick="setQuickReply('revisando')" class="btn btn-secondary" style="font-size:11px;padding:5px 10px;"><iconify-icon icon="tabler:eye-search"></iconify-icon> Revisando</button>
+                <button onclick="setQuickReply('info')"      class="btn btn-secondary" style="font-size:11px;padding:5px 10px;"><iconify-icon icon="tabler:help-circle"></iconify-icon> Necesito info</button>
+                <button onclick="setQuickReply('resuelto')"  class="btn btn-secondary" style="font-size:11px;padding:5px 10px;"><iconify-icon icon="tabler:circle-check"></iconify-icon> Resuelto</button>
+                <button onclick="setQuickReply('remoto')"    class="btn btn-secondary" style="font-size:11px;padding:5px 10px;"><iconify-icon icon="tabler:screen-share"></iconify-icon> Soporte remoto</button>
+                <button onclick="toggleTicketTemplates()" id="btn-templates" class="btn btn-secondary" style="font-size:11px;padding:5px 10px;"><iconify-icon icon="tabler:template"></iconify-icon> Plantillas casos comunes ▾</button>
               </div>
               <div id="ticket-templates-panel" style="display:none;margin-top:8px;background:var(--hero-bg-page);border:1px solid var(--hero-border-card);border-radius:8px;padding:8px;"></div>
               <div id="ticket-checklist" style="display:none;margin-top:8px;background:rgba(6,163,182,0.06);border-left:3px solid var(--hero-primary);border-radius:6px;padding:10px 14px;"></div>
@@ -1776,9 +1776,9 @@ html { scroll-behavior: smooth; }
 
             <div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;">
               <button class="btn btn-primary" id="btn-guardar-ticket" onclick="guardarTicket()" style="flex:1;min-width:180px;">
-                💾 Guardar y notificar usuario
+                <iconify-icon icon="tabler:device-floppy"></iconify-icon> Guardar y notificar usuario
               </button>
-              <button class="btn btn-secondary" onclick="guardarComoKb()" style="font-size:12px;" title="Convierte la respuesta + descripción del ticket en un artículo de la Knowledge Base">📚 Guardar como artículo KB</button>
+              <button class="btn btn-secondary" onclick="guardarComoKb()" style="font-size:12px;" title="Convierte la respuesta + descripción del ticket en un artículo de la Knowledge Base"><iconify-icon icon="tabler:book-2"></iconify-icon> Guardar como artículo KB</button>
               <button class="btn btn-secondary" onclick="closeTicketModal()">Cancelar</button>
             </div>
           </div>
@@ -1819,7 +1819,7 @@ html { scroll-behavior: smooth; }
         </div>
         <div id="audit-body" style="padding:14px 16px;min-height:200px;max-height:600px;overflow-y:auto;">
           <div class="log-empty">
-            <div class="log-empty-icon">🗂️</div>
+            <div class="log-empty-icon"><iconify-icon icon="tabler:files"></iconify-icon></div>
             <div class="log-empty-text">Presiona "Actualizar" para cargar el historial</div>
           </div>
         </div>
@@ -1831,7 +1831,7 @@ html { scroll-behavior: smooth; }
         <div class="section-desc">Registro de todas las acciones ejecutadas en esta sesión.</div>
       </div>
       <div style="display:flex; gap:10px; margin-bottom:16px">
-        <button class="btn btn-secondary" onclick="clearAllLogs()">🗑 Limpiar logs</button>
+        <button class="btn btn-secondary" onclick="clearAllLogs()"><iconify-icon icon="tabler:trash"></iconify-icon> Limpiar logs</button>
       </div>
       <div class="log-console">
         <div class="log-console-header">
@@ -1844,7 +1844,7 @@ html { scroll-behavior: smooth; }
         </div>
         <div class="log-body" id="log-full" style="max-height: 500px">
           <div class="log-empty">
-            <div class="log-empty-icon">📋</div>
+            <div class="log-empty-icon"><iconify-icon icon="tabler:clipboard-list"></iconify-icon></div>
             <div class="log-empty-text">Sin actividad registrada en esta sesión</div>
           </div>
         </div>
@@ -1866,8 +1866,8 @@ html { scroll-behavior: smooth; }
             oninput="filterDevices()" style="flex:1;min-width:180px;max-width:280px;"/>
           <select id="dev-filter-conn" onchange="filterDevices()" style="background:var(--hero-bg-card);border:1px solid var(--hero-border-card);color:var(--hero-text-body);padding:8px 12px;border-radius:8px;font-size:12px;font-family:var(--sans);">
             <option value="">Todas las conexiones</option>
-            <option value="online">🟢 Online</option>
-            <option value="offline">⚫ Offline</option>
+            <option value="online">● Online</option>
+            <option value="offline">○ Offline</option>
           </select>
           <select id="dev-filter-estado" onchange="filterDevices()" style="background:var(--hero-bg-card);border:1px solid var(--hero-border-card);color:var(--hero-text-body);padding:8px 12px;border-radius:8px;font-size:12px;font-family:var(--sans);">
             <option value="">Todos los estados</option>
@@ -1881,13 +1881,13 @@ html { scroll-behavior: smooth; }
             <option value="desktop">Desktop</option>
             <option value="teléfono">Teléfono</option>
           </select>
-          <button class="btn btn-secondary" onclick="loadDevices(true)" title="Refrescar desde Zoho">🔄 Refrescar</button>
+          <button class="btn btn-secondary" onclick="loadDevices(true)" title="Refrescar desde Zoho"><iconify-icon icon="tabler:refresh"></iconify-icon> Refrescar</button>
           <span <span id="devices-last-updated" class="last-updated" style="margin-left:8px;margin-bottom:0;"></span>
         <span id="dev-count" style="font-family:var(--mono);font-size:11px;color:var(--hero-text-muted);margin-left:auto;"></span>
         </div>
         <div id="dev-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px;">
           <div class="info-box" style="text-align:center;padding:40px;grid-column:1/-1;">
-            <div style="font-size:36px;opacity:0.3;margin-bottom:12px;">💻</div>
+            <div style="font-size:36px;opacity:0.3;margin-bottom:12px;"><iconify-icon icon="tabler:device-desktop"></iconify-icon></div>
             <div style="font-family:var(--mono);font-size:12px;color:var(--hero-text-muted);">Cargando dispositivos...</div>
           </div>
         </div>
@@ -1906,7 +1906,7 @@ html { scroll-behavior: smooth; }
           <div class="info-box">
             <div class="info-box-title">Información del equipo</div>
             <div id="dev-detail-info" style="font-size:13px;color:var(--hero-text-body);line-height:2;"></div>
-            <button class="btn btn-secondary" onclick="showEditDevice()" style="margin-top:14px;font-size:12px;">✏️ Editar</button>
+            <button class="btn btn-secondary" onclick="showEditDevice()" style="margin-top:14px;font-size:12px;"><iconify-icon icon="tabler:pencil"></iconify-icon> Editar</button>
           </div>
           <!-- Apps instaladas -->
           <div class="info-box">
@@ -1937,7 +1937,7 @@ html { scroll-behavior: smooth; }
             <textarea class="form-input" id="int-notas" rows="2" placeholder="Detalles, observaciones, próximos pasos..." style="resize:vertical;"></textarea>
           </div>
           <button class="btn btn-primary" onclick="registrarIntervencion()" id="btn-int" style="margin-top:4px;">
-            ✓ Registrar intervención
+            <iconify-icon icon="tabler:check"></iconify-icon> Registrar intervención
           </button>
         </div>
 
@@ -1952,7 +1952,7 @@ html { scroll-behavior: smooth; }
             </div>
           </div>
           <div id="dev-historial" style="padding:14px 16px;min-height:120px;max-height:400px;overflow-y:auto;">
-            <div class="log-empty"><div class="log-empty-icon">📋</div><div class="log-empty-text">Sin intervenciones registradas</div></div>
+            <div class="log-empty"><div class="log-empty-icon"><iconify-icon icon="tabler:clipboard-list"></iconify-icon></div><div class="log-empty-text">Sin intervenciones registradas</div></div>
           </div>
         </div>
       </div>
@@ -1962,7 +1962,7 @@ html { scroll-behavior: smooth; }
         <div style="background:var(--hero-bg-card);border:1px solid rgba(6,163,182,0.3);border-radius:16px;max-width:540px;margin:0 auto;padding:28px;">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
             <div id="dev-modal-title" style="font-size:15px;font-weight:600;color:var(--hero-text-primary);">Editar dispositivo</div>
-            <button onclick="closeDeviceModal()" aria-label="Cerrar" style="background:transparent;border:1px solid var(--hero-border-card);color:var(--hero-text-body);width:32px;height:32px;border-radius:8px;cursor:pointer;font-size:16px;">✕</button>
+            <button onclick="closeDeviceModal()" aria-label="Cerrar" style="background:transparent;border:1px solid var(--hero-border-card);color:var(--hero-text-body);width:32px;height:32px;border-radius:8px;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;"><iconify-icon icon="tabler:x"></iconify-icon></button>
           </div>
           <div style="background:var(--hero-primary-light);border-left:3px solid var(--hero-primary);padding:10px 14px;border-radius:6px;margin-bottom:14px;font-size:12px;color:var(--hero-primary-text);">
             ℹ️ El <strong>nombre</strong> proviene de Zoho Assist y no se edita acá. Cambialo en Zoho y se sincroniza solo.
@@ -2020,7 +2020,7 @@ html { scroll-behavior: smooth; }
             <div style="font-size:11px;color:var(--hero-text-muted);margin-top:4px;">Escribe una aplicación por línea</div>
           </div>
           <div style="display:flex;gap:10px;margin-top:16px;">
-            <button class="btn btn-primary" id="btn-dev-save" onclick="saveDevice()" style="flex:1;">💾 Guardar dispositivo</button>
+            <button class="btn btn-primary" id="btn-dev-save" onclick="saveDevice()" style="flex:1;"><iconify-icon icon="tabler:device-floppy"></iconify-icon> Guardar dispositivo</button>
             <button class="btn btn-secondary" onclick="closeDeviceModal()">Cancelar</button>
           </div>
         </div>
@@ -2037,7 +2037,7 @@ html { scroll-behavior: smooth; }
 
       <!-- Seleccionar usuario -->
       <div class="info-box" style="margin-bottom:16px;">
-        <div class="info-box-title">👤 Usuario a dar de baja</div>
+        <div class="info-box-title"><iconify-icon icon="tabler:user-minus"></iconify-icon> Usuario a dar de baja</div>
         <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-top:10px;">
           <div style="flex:1;min-width:200px;">
             <label class="form-label">Buscar en Google Workspace</label>
@@ -2059,7 +2059,7 @@ html { scroll-behavior: smooth; }
               <div id="ob-user-name" style="font-size:14px;font-weight:600;color:var(--hero-text-primary);"></div>
               <div id="ob-user-email" style="font-size:12px;color:var(--hero-primary);font-family:var(--mono);margin-top:2px;"></div>
             </div>
-            <button onclick="clearOffboardingUser()" style="background:transparent;border:none;color:var(--hero-text-muted);cursor:pointer;font-size:18px;">✕</button>
+            <button onclick="clearOffboardingUser()" style="background:transparent;border:none;color:var(--hero-text-muted);cursor:pointer;font-size:18px;display:inline-flex;align-items:center;"><iconify-icon icon="tabler:x"></iconify-icon></button>
           </div>
         </div>
       </div>
@@ -2067,7 +2067,7 @@ html { scroll-behavior: smooth; }
       <!-- Checklist -->
       <div class="info-box" style="margin-bottom:16px;" id="ob-checklist-box">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
-          <div class="info-box-title" style="margin-bottom:0;">✅ Checklist de offboarding</div>
+          <div class="info-box-title" style="margin-bottom:0;"><iconify-icon icon="tabler:list-check"></iconify-icon> Checklist de offboarding</div>
           <div id="ob-progress-label" style="font-family:var(--mono);font-size:11px;color:var(--hero-text-muted);">0 / 8 completados</div>
         </div>
         <div id="ob-steps" style="display:flex;flex-direction:column;gap:8px;">
@@ -2077,11 +2077,11 @@ html { scroll-behavior: smooth; }
 
       <!-- Notas y confirmar -->
       <div class="info-box">
-        <div class="info-box-title">📋 Notas del proceso</div>
+        <div class="info-box-title"><iconify-icon icon="tabler:notes"></iconify-icon> Notas del proceso</div>
         <textarea class="form-input" id="ob-notas" rows="3" placeholder="Motivo de la baja, observaciones, fecha efectiva..." style="resize:vertical;margin-top:10px;"></textarea>
         <div style="display:flex;gap:10px;margin-top:14px;">
           <button class="btn btn-primary" onclick="executeOffboarding()" id="btn-ob-execute" style="flex:1;">
-            🚪 Ejecutar offboarding
+            <iconify-icon icon="tabler:door-exit"></iconify-icon> Ejecutar offboarding
           </button>
           <button class="btn btn-secondary" onclick="resetOffboarding()">Limpiar</button>
         </div>
@@ -2096,7 +2096,7 @@ html { scroll-behavior: smooth; }
       </div>
 
       <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;align-items:center;">
-        <button class="btn btn-primary" onclick="showKbForm()">➕ Nuevo artículo</button>
+        <button class="btn btn-primary" onclick="showKbForm()"><iconify-icon icon="tabler:plus"></iconify-icon> Nuevo artículo</button>
         <input class="form-input" id="kb-search" type="text" placeholder="Buscar en título, contenido o tags..." oninput="filterKb()" style="flex:1;min-width:200px;max-width:360px;"/>
         <button class="btn btn-secondary" onclick="loadKb()" id="btn-load-kb" style="font-size:12px;padding:7px 12px;">↺ Actualizar</button>
         <span id="kb-count" style="font-family:var(--mono);font-size:11px;color:var(--hero-text-muted);margin-left:auto;"></span>
@@ -2109,7 +2109,7 @@ html { scroll-behavior: smooth; }
         <div style="background:var(--hero-bg-card);border:1px solid rgba(6,163,182,0.3);border-radius:16px;max-width:680px;margin:0 auto;padding:28px;">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
             <div id="kb-modal-title" style="font-size:15px;font-weight:600;color:var(--hero-text-primary);">Nuevo artículo</div>
-            <button onclick="closeKbModal()" aria-label="Cerrar" style="background:transparent;border:1px solid var(--hero-border-card);color:var(--hero-text-body);width:32px;height:32px;border-radius:8px;cursor:pointer;font-size:16px;">✕</button>
+            <button onclick="closeKbModal()" aria-label="Cerrar" style="background:transparent;border:1px solid var(--hero-border-card);color:var(--hero-text-body);width:32px;height:32px;border-radius:8px;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;"><iconify-icon icon="tabler:x"></iconify-icon></button>
           </div>
           <div class="form-group">
             <label class="form-label">Título *</label>
@@ -2125,8 +2125,8 @@ html { scroll-behavior: smooth; }
           </div>
           <div id="kb-f-origen" style="display:none;font-size:11px;color:var(--hero-text-muted);margin-bottom:10px;font-family:var(--mono);"></div>
           <div style="display:flex;gap:10px;margin-top:14px;">
-            <button class="btn btn-primary" id="btn-kb-save" onclick="saveKb()" style="flex:1;">💾 Guardar artículo</button>
-            <button class="btn btn-danger" id="btn-kb-del" onclick="deleteKbCurrent()" style="display:none;">🗑 Eliminar</button>
+            <button class="btn btn-primary" id="btn-kb-save" onclick="saveKb()" style="flex:1;"><iconify-icon icon="tabler:device-floppy"></iconify-icon> Guardar artículo</button>
+            <button class="btn btn-danger" id="btn-kb-del" onclick="deleteKbCurrent()" style="display:none;"><iconify-icon icon="tabler:trash"></iconify-icon> Eliminar</button>
             <button class="btn btn-secondary" onclick="closeKbModal()">Cancelar</button>
           </div>
         </div>
@@ -2141,13 +2141,13 @@ html { scroll-behavior: smooth; }
       </div>
 
       <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;align-items:center;">
-        <button class="btn btn-primary" onclick="showLicenciaForm()">➕ Nueva licencia</button>
+        <button class="btn btn-primary" onclick="showLicenciaForm()"><iconify-icon icon="tabler:plus"></iconify-icon> Nueva licencia</button>
         <span id="lic-count" style="font-family:var(--mono);font-size:11px;color:var(--hero-text-muted);margin-left:auto;"></span>
       </div>
 
       <div id="lic-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px;">
         <div class="info-box" style="text-align:center;padding:40px;grid-column:1/-1;">
-          <div style="font-size:36px;opacity:0.3;margin-bottom:12px;">🔑</div>
+          <div style="font-size:36px;opacity:0.3;margin-bottom:12px;"><iconify-icon icon="tabler:license"></iconify-icon></div>
           <div style="font-family:var(--mono);font-size:12px;color:var(--hero-text-muted);">Cargando licencias...</div>
         </div>
       </div>
@@ -2157,7 +2157,7 @@ html { scroll-behavior: smooth; }
         <div style="background:#ffffff;border:1px solid rgba(6,163,182,0.3);border-radius:16px;max-width:540px;margin:0 auto;padding:28px;box-shadow:0 8px 32px rgba(0,0,0,0.15);">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
             <div id="lic-modal-title" style="font-size:15px;font-weight:600;color:var(--hero-text-primary);">Nueva licencia</div>
-            <button onclick="closeLicenciaModal()" aria-label="Cerrar" style="background:transparent;border:1px solid var(--hero-border);color:var(--hero-text-muted);width:32px;height:32px;border-radius:8px;cursor:pointer;font-size:16px;">✕</button>
+            <button onclick="closeLicenciaModal()" aria-label="Cerrar" style="background:transparent;border:1px solid var(--hero-border);color:var(--hero-text-muted);width:32px;height:32px;border-radius:8px;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;"><iconify-icon icon="tabler:x"></iconify-icon></button>
           </div>
 
           <!-- Sección: Info general -->
@@ -2214,7 +2214,7 @@ html { scroll-behavior: smooth; }
               <label class="form-label">Contraseña</label>
               <div style="position:relative;">
                 <input class="form-input" id="lic-f-cred-password" type="password" placeholder="••••••••" style="padding-right:36px;"/>
-                <button onclick="toggleLicPassword()" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:transparent;border:none;cursor:pointer;font-size:14px;color:var(--hero-text-muted);" id="btn-toggle-lic-pwd">👁</button>
+                <button onclick="toggleLicPassword()" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:transparent;border:none;cursor:pointer;font-size:14px;color:var(--hero-text-muted);display:flex;align-items:center;" id="btn-toggle-lic-pwd"><iconify-icon icon="tabler:eye"></iconify-icon></button>
               </div>
             </div>
           </div>
@@ -2231,11 +2231,11 @@ html { scroll-behavior: smooth; }
           </div>
 
           <div style="background:rgba(232,163,23,0.08);border:1px solid rgba(232,163,23,0.3);border-radius:8px;padding:10px 14px;margin-bottom:16px;font-size:11px;color:var(--hero-text-muted);line-height:1.5;">
-            🔒 Las credenciales y el código se guardan en Cloudflare KV cifrado. Solo tú puedes verlos desde esta consola.
+            <iconify-icon icon="tabler:lock"></iconify-icon> Las credenciales y el código se guardan en Cloudflare KV cifrado. Solo tú puedes verlos desde esta consola.
           </div>
 
           <div style="display:flex;gap:10px;">
-            <button class="btn btn-primary" onclick="saveLicencia()" id="btn-lic-save" style="flex:1;">💾 Guardar</button>
+            <button class="btn btn-primary" onclick="saveLicencia()" id="btn-lic-save" style="flex:1;"><iconify-icon icon="tabler:device-floppy"></iconify-icon> Guardar</button>
             <button class="btn btn-secondary" onclick="closeLicenciaModal()">Cancelar</button>
           </div>
         </div>
@@ -2253,7 +2253,7 @@ html { scroll-behavior: smooth; }
       <div class="info-box" style="margin-bottom:16px">
         <div class="info-box-title">Cloudflare Worker · Conexión con Resend</div>
         <div class="url-notice" style="margin-bottom:14px; margin-top:4px">
-          <div class="url-notice-icon">🔒</div>
+          <div class="url-notice-icon"><iconify-icon icon="tabler:lock"></iconify-icon></div>
           <div class="url-notice-text">
             El API Key de Resend está guardado de forma segura en el Worker de Cloudflare.
             No necesitas configurar nada aquí — solo verifica que la conexión funcione.
@@ -2264,7 +2264,7 @@ html { scroll-behavior: smooth; }
           <input class="form-input" value="https://hero-email-worker.broad-fire-d2d6.workers.dev" readonly style="opacity:0.6;cursor:default;"/>
         </div>
         <div style="margin-top:4px">
-          <button class="btn btn-primary" onclick="testConexion()">🔌 Probar conexión</button>
+          <button class="btn btn-primary" onclick="testConexion()"><iconify-icon icon="tabler:plug-connected"></iconify-icon> Probar conexión</button>
         </div>
       </div>
 
