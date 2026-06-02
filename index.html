@@ -853,9 +853,6 @@ html { scroll-behavior: smooth; }
     <a class="nav-item" onclick="showPage('kb')" href="#">
       <span class="nav-icon">📚</span> Knowledge Base
     </a>
-    <a class="nav-item" onclick="showPage('zoho')" href="#">
-      <span class="nav-icon">🔴</span> Zoho Assist
-    </a>
 
     <div class="nav-section-label">Usuarios</div>
     <a class="nav-item" onclick="showPage('usuarios')" href="#">
@@ -1852,7 +1849,7 @@ html { scroll-behavior: smooth; }
     <div class="page" id="page-dispositivos">
       <div class="section-header">
         <div class="section-title"><span>//</span> Dispositivos</div>
-        <div class="section-desc">Inventario de equipos y registro de intervenciones de soporte técnico.</div>
+        <div class="section-desc">Inventario unificado con Zoho Assist — estado en tiempo real, metadatos IT e historial de intervenciones.</div>
       </div>
 
       <!-- Vista lista / ficha -->
@@ -1860,6 +1857,11 @@ html { scroll-behavior: smooth; }
         <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;align-items:center;">
           <input class="form-input" id="dev-search" type="text" placeholder="Buscar dispositivo o usuario..."
             oninput="filterDevices()" style="flex:1;min-width:180px;max-width:280px;"/>
+          <select id="dev-filter-conn" onchange="filterDevices()" style="background:var(--hero-bg-card);border:1px solid var(--hero-border-card);color:var(--hero-text-body);padding:8px 12px;border-radius:8px;font-size:12px;font-family:var(--sans);">
+            <option value="">Todas las conexiones</option>
+            <option value="online">🟢 Online</option>
+            <option value="offline">⚫ Offline</option>
+          </select>
           <select id="dev-filter-estado" onchange="filterDevices()" style="background:var(--hero-bg-card);border:1px solid var(--hero-border-card);color:var(--hero-text-body);padding:8px 12px;border-radius:8px;font-size:12px;font-family:var(--sans);">
             <option value="">Todos los estados</option>
             <option value="activo">Activo</option>
@@ -1872,7 +1874,7 @@ html { scroll-behavior: smooth; }
             <option value="desktop">Desktop</option>
             <option value="teléfono">Teléfono</option>
           </select>
-          <button class="btn btn-primary" onclick="showDeviceForm()">➕ Nuevo dispositivo</button>
+          <button class="btn btn-secondary" onclick="loadDevices(true)" title="Refrescar desde Zoho">🔄 Refrescar</button>
           <span <span id="devices-last-updated" class="last-updated" style="margin-left:8px;margin-bottom:0;"></span>
         <span id="dev-count" style="font-family:var(--mono);font-size:11px;color:var(--hero-text-muted);margin-left:auto;"></span>
         </div>
@@ -1948,17 +1950,20 @@ html { scroll-behavior: smooth; }
         </div>
       </div>
 
-      <!-- Modal nuevo/editar dispositivo -->
+      <!-- Modal editar dispositivo (nombre + SO sincronizados con Zoho) -->
       <div id="dev-modal" role="dialog" aria-modal="true" aria-labelledby="dev-modal-title" data-close-fn="closeDeviceModal" style="display:none;position:fixed;inset:0;background:rgba(26,39,51,0.5);z-index:100;overflow-y:auto;padding:24px;">
         <div style="background:var(--hero-bg-card);border:1px solid rgba(6,163,182,0.3);border-radius:16px;max-width:540px;margin:0 auto;padding:28px;">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
-            <div id="dev-modal-title" style="font-size:15px;font-weight:600;color:var(--hero-text-primary);">Nuevo dispositivo</div>
+            <div id="dev-modal-title" style="font-size:15px;font-weight:600;color:var(--hero-text-primary);">Editar dispositivo</div>
             <button onclick="closeDeviceModal()" aria-label="Cerrar" style="background:transparent;border:1px solid var(--hero-border-card);color:var(--hero-text-body);width:32px;height:32px;border-radius:8px;cursor:pointer;font-size:16px;">✕</button>
+          </div>
+          <div style="background:var(--hero-primary-light);border-left:3px solid var(--hero-primary);padding:10px 14px;border-radius:6px;margin-bottom:14px;font-size:12px;color:var(--hero-primary-text);">
+            ℹ️ El <strong>nombre</strong> proviene de Zoho Assist y no se edita acá. Cambialo en Zoho y se sincroniza solo.
           </div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
             <div class="form-group">
-              <label class="form-label">Nombre / Hostname *</label>
-              <input class="form-input" id="dev-f-nombre" type="text" placeholder="ej: HERO-LAPTOP-01"/>
+              <label class="form-label">Nombre / Hostname <span style="color:var(--hero-text-muted);font-weight:400;">(Zoho)</span></label>
+              <input class="form-input" id="dev-f-nombre" type="text" readonly style="background:var(--hero-bg-page);opacity:0.7;cursor:not-allowed;"/>
             </div>
             <div class="form-group">
               <label class="form-label">Tipo *</label>
@@ -2011,34 +2016,6 @@ html { scroll-behavior: smooth; }
             <button class="btn btn-primary" id="btn-dev-save" onclick="saveDevice()" style="flex:1;">💾 Guardar dispositivo</button>
             <button class="btn btn-secondary" onclick="closeDeviceModal()">Cancelar</button>
           </div>
-        </div>
-      </div>
-    </div>
-
-
-    <!-- ══ ZOHO ASSIST ═════════════════════════════════════ -->
-    <div class="page" id="page-zoho">
-      <div class="section-header">
-        <div class="section-title"><span>//</span> Zoho <span>Assist</span></div>
-        <div class="section-desc">Dispositivos de Acceso Desatendido — estado en tiempo real e inicio de sesión remota.</div>
-      </div>
-
-      <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;align-items:center;">
-        <input class="form-input" id="zoho-search" type="text" placeholder="Buscar dispositivo..."
-          oninput="filterZohoDevices()" style="flex:1;min-width:180px;max-width:280px;"/>
-        <select id="zoho-filter-status" onchange="filterZohoDevices()" style="background:var(--hero-bg-card);border:1px solid var(--hero-border-card);color:var(--hero-text-body);padding:8px 12px;border-radius:8px;font-size:12px;font-family:var(--sans);">
-          <option value="">Todos</option>
-          <option value="online">Online</option>
-          <option value="offline">Offline</option>
-        </select>
-        <span <span id="zoho-last-updated" class="last-updated" style="margin-left:8px;margin-bottom:0;"></span>
-        <span id="zoho-count" style="font-family:var(--mono);font-size:11px;color:var(--hero-text-muted);margin-left:auto;"></span>
-      </div>
-
-      <div id="zoho-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px;">
-        <div class="info-box" style="text-align:center;padding:40px;grid-column:1/-1;">
-          <div style="font-size:36px;opacity:0.3;margin-bottom:12px;">🔴</div>
-          <div style="font-family:var(--mono);font-size:12px;color:var(--hero-text-muted);">Cargando dispositivos de Zoho Assist...</div>
         </div>
       </div>
     </div>
