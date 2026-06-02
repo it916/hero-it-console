@@ -560,10 +560,27 @@ async function pollForUpdates() {
   } catch(e) { addLog('pollForUpdates: ' + e.message, 'warn'); }
 }
 
+// Polling con Page Visibility: cuando la pestaña no es visible (background tab,
+// minimizada, otro escritorio), pausamos el setInterval para no consumir cuota
+// KV de Cloudflare. Al volver, hacemos un poll inmediato + reanudamos.
+// Intervalo subido a 2 min (cache del backend es 2 min, alineado).
+const POLL_INTERVAL_MS = 2 * 60 * 1000;
 function startPolling() {
   if (notifInterval) return;
   pollForUpdates();
-  notifInterval = setInterval(pollForUpdates, 60000);
+  notifInterval = setInterval(pollForUpdates, POLL_INTERVAL_MS);
+
+  // Pausar cuando la pestaña pierde visibilidad
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      if (notifInterval) { clearInterval(notifInterval); notifInterval = null; }
+    } else {
+      if (!notifInterval) {
+        pollForUpdates();
+        notifInterval = setInterval(pollForUpdates, POLL_INTERVAL_MS);
+      }
+    }
+  });
 }
 
 async function auditLog(tipo, descripcion, detalle = null) {

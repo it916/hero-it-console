@@ -137,13 +137,24 @@ export default {
     }
 
     // ── GET /stats — counts ligeros para el polling del dashboard ─
-    // Usa solo KV.list() + metadata, sin get()s. Reemplaza las 3 llamadas
-    // /ticket + /alta-agente + /device que hacía loadDashboardCounters /
-    // pollForUpdates cada 60s (con N+1 por endpoint). Las entradas pre-deploy
-    // sin metadata aún requieren un get() — el endpoint /admin/backfill-metadata
-    // las migra de una sola pasada (correr una vez después del deploy).
+    // Cache 2 min en KV (1 get vs 3 list). Las mutaciones de ticket/solicitud/
+    // device invalidan 'cache_stats' para que el dashboard refleje cambios YA.
+    // `?fresh=1` fuerza bypass.
+    // El cálculo subyacente usa list() + metadata sin get()s. Las entradas
+    // pre-deploy sin metadata requieren un get() — el endpoint
+    // /admin/backfill-metadata las migra de una sola pasada (correr una vez).
     if (request.method === 'GET' && path === '/stats') {
       try {
+        const noCache = url.searchParams.get('fresh') === '1';
+        if (!noCache) {
+          const cached = await env.HERO_KV.get('cache_stats');
+          if (cached) {
+            try {
+              const data = JSON.parse(cached);
+              return json({ ...data, cached: true }, 200, cors);
+            } catch (_) { /* cache corrupta, refetch */ }
+          }
+        }
         const [tickets, solicitudes, devices] = await Promise.all([
           env.HERO_KV.list({ prefix: 'ticket_' }),
           env.HERO_KV.list({ prefix: 'alta_' }),
@@ -167,11 +178,14 @@ export default {
         };
         const t = await countByEstado(tickets.keys, 'abierto');
         const s = await countByEstado(solicitudes.keys, 'pendiente');
-        return json({
+        const stats = {
           tickets:     { open: t.count, total: tickets.keys.length,     legacy: t.legacy },
           solicitudes: { pending: s.count, total: solicitudes.keys.length, legacy: s.legacy },
           devices:     { total: devices.keys.length },
-        }, 200, cors);
+        };
+        try { await env.HERO_KV.put('cache_stats', JSON.stringify(stats), { expirationTtl: 120 }); }
+        catch (e) { logError('stats_cache_write_failed', e); }
+        return json(stats, 200, cors);
       } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: 'Error interno del servidor' }, 500, cors); }
     }
 
