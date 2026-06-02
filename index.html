@@ -882,6 +882,9 @@ html { scroll-behavior: smooth; }
     <a class="nav-item" onclick="showPage('licencias')" href="#">
       <span class="nav-icon">🔑</span> Licencias
     </a>
+    <a class="nav-item" onclick="showPage('kb')" href="#">
+      <span class="nav-icon">📚</span> Knowledge Base
+    </a>
     <a class="nav-item" onclick="showPage('config')" href="#">
       <span class="nav-icon">⚙️</span> Configuración
     </a>
@@ -1761,10 +1764,11 @@ html { scroll-behavior: smooth; }
                 style="resize:vertical;"></textarea>
             </div>
 
-            <div style="display:flex;gap:10px;margin-top:14px;">
-              <button class="btn btn-primary" id="btn-guardar-ticket" onclick="guardarTicket()" style="flex:1;">
+            <div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;">
+              <button class="btn btn-primary" id="btn-guardar-ticket" onclick="guardarTicket()" style="flex:1;min-width:180px;">
                 💾 Guardar y notificar usuario
               </button>
+              <button class="btn btn-secondary" onclick="guardarComoKb()" style="font-size:12px;" title="Convierte la respuesta + descripción del ticket en un artículo de la Knowledge Base">📚 Guardar como artículo KB</button>
               <button class="btn btn-secondary" onclick="closeTicketModal()">Cancelar</button>
             </div>
           </div>
@@ -2090,6 +2094,51 @@ html { scroll-behavior: smooth; }
             🚪 Ejecutar offboarding
           </button>
           <button class="btn btn-secondary" onclick="resetOffboarding()">Limpiar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ KNOWLEDGE BASE ══════════════════════════════════ -->
+    <div class="page" id="page-kb">
+      <div class="section-header">
+        <div class="section-title"><span>//</span> Knowledge <span>Base</span></div>
+        <div class="section-desc">Soluciones a problemas recurrentes — captura conocimiento para no repetir el mismo diagnóstico.</div>
+      </div>
+
+      <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;align-items:center;">
+        <button class="btn btn-primary" onclick="showKbForm()">➕ Nuevo artículo</button>
+        <input class="form-input" id="kb-search" type="text" placeholder="Buscar en título, contenido o tags..." oninput="filterKb()" style="flex:1;min-width:200px;max-width:360px;"/>
+        <button class="btn btn-secondary" onclick="loadKb()" id="btn-load-kb" style="font-size:12px;padding:7px 12px;">↺ Actualizar</button>
+        <span id="kb-count" style="font-family:var(--mono);font-size:11px;color:var(--hero-text-muted);margin-left:auto;"></span>
+      </div>
+
+      <div id="kb-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px;"></div>
+
+      <!-- Modal KB editor -->
+      <div id="kb-modal" role="dialog" aria-modal="true" aria-labelledby="kb-modal-title" data-close-fn="closeKbModal" style="display:none;position:fixed;inset:0;background:rgba(26,39,51,0.5);z-index:100;overflow-y:auto;padding:24px;">
+        <div style="background:var(--hero-bg-card);border:1px solid rgba(6,163,182,0.3);border-radius:16px;max-width:680px;margin:0 auto;padding:28px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+            <div id="kb-modal-title" style="font-size:15px;font-weight:600;color:var(--hero-text-primary);">Nuevo artículo</div>
+            <button onclick="closeKbModal()" aria-label="Cerrar" style="background:transparent;border:1px solid var(--hero-border-card);color:var(--hero-text-body);width:32px;height:32px;border-radius:8px;cursor:pointer;font-size:16px;">✕</button>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Título *</label>
+            <input class="form-input" id="kb-f-titulo" type="text" placeholder="ej: Cómo resolver Outlook lento por add-ins"/>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Contenido *</label>
+            <textarea class="form-input" id="kb-f-contenido" rows="12" placeholder="Pasos, diagnóstico, solución... Una línea en blanco = párrafo. Markdown no se renderiza." style="resize:vertical;font-family:var(--mono);font-size:13px;"></textarea>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Tags (separados por coma)</label>
+            <input class="form-input" id="kb-f-tags" type="text" placeholder="outlook, lentitud, add-ins"/>
+          </div>
+          <div id="kb-f-origen" style="display:none;font-size:11px;color:var(--hero-text-muted);margin-bottom:10px;font-family:var(--mono);"></div>
+          <div style="display:flex;gap:10px;margin-top:14px;">
+            <button class="btn btn-primary" id="btn-kb-save" onclick="saveKb()" style="flex:1;">💾 Guardar artículo</button>
+            <button class="btn btn-danger" id="btn-kb-del" onclick="deleteKbCurrent()" style="display:none;">🗑 Eliminar</button>
+            <button class="btn btn-secondary" onclick="closeKbModal()">Cancelar</button>
+          </div>
         </div>
       </div>
     </div>

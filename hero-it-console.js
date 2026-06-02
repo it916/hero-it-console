@@ -112,7 +112,8 @@ const pageLabels = {
   'tickets': 'Tickets de Soporte',
   'auditoria': 'Auditoría',
   'crear-usuario': 'Crear Usuario',
-  'onboarding': 'Enviar Onboarding'
+  'onboarding': 'Enviar Onboarding',
+  'kb': 'Knowledge Base'
 };
 
 // ── Sidebar móvil ─────────────────────────────────────────────
@@ -160,6 +161,7 @@ function showPage(id) {
     'zoho':         () => loadZohoDevices(),
     'offboarding':  () => { if (!window._workspaceUsers) loadUsers(); renderOffboardingSteps(); },
     'licencias':    () => loadLicencias(),
+    'kb':           () => loadKb(),
     'logs':         () => renderSessionLogs(),
   };
   if (autoLoad[id]) autoLoad[id]();
@@ -359,6 +361,14 @@ async function runGlobalSearch() {
       const blob = ((e.descripcion||'') + ' ' + (e.detalle||'')).toLowerCase();
       if (blob.includes(q))
         found.push({ type:'📋 Auditoría', title: e.descripcion || '(sin descripción)', sub: (e.tipo || '') + ' · ' + (e.usuario || ''), action: "showPage('auditoria')" });
+    });
+  }
+  // Knowledge base — busca en título, contenido y tags
+  if (typeof allKb !== 'undefined' && Array.isArray(allKb)) {
+    allKb.forEach(a => {
+      const blob = (a.titulo + ' ' + (a.contenido || '') + ' ' + (a.tags || []).join(' ')).toLowerCase();
+      if (blob.includes(q))
+        found.push({ type:'📚 KB', title: a.titulo, sub: (a.tags || []).slice(0, 3).join(', ') || 'sin tags', action: "showPage('kb')" });
     });
   }
   if (!found.length) {
@@ -3154,6 +3164,7 @@ function _shortcutsHelp() {
       +     '<kbd>g s</kbd><span>Solicitudes</span>'
       +     '<kbd>g u</kbd><span>Usuarios</span>'
       +     '<kbd>g l</kbd><span>Licencias</span>'
+      +     '<kbd>g k</kbd><span>Knowledge Base</span>'
       +     '<kbd>g a</kbd><span>Auditoría</span>'
       +     '<kbd>g r</kbd><span>Reset contraseña</span>'
       +     '<kbd>Esc</kbd><span>Cerrar modal</span>'
@@ -3194,7 +3205,7 @@ function installKeyboardShortcuts() {
       return;
     }
     if (lastG && Date.now() - lastG < 800) {
-      const map = { d:'dashboard', m:'mi-dia', t:'tickets', s:'solicitudes', u:'usuarios', l:'licencias', a:'auditoria', r:'reset' };
+      const map = { d:'dashboard', m:'mi-dia', t:'tickets', s:'solicitudes', u:'usuarios', l:'licencias', a:'auditoria', r:'reset', k:'kb' };
       if (map[e.key]) {
         e.preventDefault();
         showPage(map[e.key]);
@@ -3342,6 +3353,175 @@ async function executeOffboarding() {
 
   btn.disabled = false;
   btn.innerHTML = '🚪 Ejecutar offboarding';
+}
+
+// ── Módulo Knowledge Base ─────────────────────────────────────
+let allKb = [];
+let editingKbId = null;
+let _kbOrigenTicket = null;
+
+async function loadKb() {
+  renderSkeleton(document.getElementById('kb-grid'), { type: 'card', rows: 3 });
+  try {
+    const r = await authFetch(WORKER_URL + '/kb');
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || 'Error');
+    allKb = d.articulos || [];
+    filterKb();
+  } catch (e) {
+    renderError(document.getElementById('kb-grid'), e, loadKb);
+  }
+}
+
+function filterKb() {
+  const q = (document.getElementById('kb-search').value || '').toLowerCase();
+  let list = allKb;
+  if (q) {
+    list = allKb.filter(a => {
+      const blob = (a.titulo + ' ' + (a.contenido || '') + ' ' + (a.tags || []).join(' ')).toLowerCase();
+      return blob.includes(q);
+    });
+  }
+  document.getElementById('kb-count').textContent = list.length + ' artículo' + (list.length !== 1 ? 's' : '');
+  renderKb(list);
+}
+
+function renderKb(items) {
+  const grid = document.getElementById('kb-grid');
+  if (!items.length) {
+    renderEmpty(grid, {
+      icon: '📚',
+      message: allKb.length ? 'Sin resultados con ese filtro.' : 'Aún no hay artículos. Crea el primero o conviértelo desde un ticket resuelto.',
+      ctaText: allKb.length ? '' : '➕ Crear primer artículo',
+      ctaFn: allKb.length ? null : () => showKbForm(),
+    });
+    return;
+  }
+  grid.innerHTML = items.map(a => {
+    const preview = (a.contenido || '').slice(0, 160) + (a.contenido && a.contenido.length > 160 ? '…' : '');
+    const fecha = a.fecha ? new Date(a.fecha).toLocaleDateString('es-MX', { year:'numeric', month:'short', day:'numeric' }) : '';
+    const tagsHtml = (a.tags || []).slice(0, 4).map(t =>
+      '<span style="font-size:10px;padding:2px 8px;border-radius:12px;background:var(--hero-primary-light);color:var(--hero-primary-text);">' + escHtml(t) + '</span>'
+    ).join(' ');
+    return '<div class="action-card" style="cursor:pointer;" onclick="openKbArticle(\'' + escJs(a.id) + '\')">'
+      + '<div style="font-size:14px;font-weight:700;color:var(--hero-text-primary);margin-bottom:6px;">' + escHtml(a.titulo) + '</div>'
+      + (tagsHtml ? '<div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px;">' + tagsHtml + '</div>' : '')
+      + '<div style="font-size:12px;color:var(--hero-text-body);line-height:1.5;margin-bottom:10px;white-space:pre-wrap;">' + escHtml(preview) + '</div>'
+      + '<div style="font-size:10px;color:var(--hero-text-muted);font-family:var(--mono);">' + (fecha ? '📅 ' + fecha : '') + (a.ticketOrigen ? ' · 🎫 ' + escHtml(a.ticketOrigen) : '') + '</div>'
+      + '</div>';
+  }).join('');
+}
+
+function openKbArticle(id) {
+  const a = allKb.find(x => x.id === id);
+  if (!a) return;
+  showKbForm(a);
+}
+
+function showKbForm(articulo) {
+  editingKbId = articulo ? articulo.id : null;
+  document.getElementById('kb-modal-title').textContent = articulo ? 'Editar artículo' : 'Nuevo artículo';
+  document.getElementById('kb-f-titulo').value    = articulo ? articulo.titulo    : '';
+  document.getElementById('kb-f-contenido').value = articulo ? articulo.contenido : '';
+  document.getElementById('kb-f-tags').value      = articulo ? (articulo.tags || []).join(', ') : '';
+  document.getElementById('btn-kb-del').style.display = articulo ? 'inline-block' : 'none';
+  const origenEl = document.getElementById('kb-f-origen');
+  if (articulo && articulo.ticketOrigen) {
+    origenEl.style.display = 'block';
+    origenEl.textContent = 'Generado desde ticket ' + articulo.ticketOrigen;
+  } else if (_kbOrigenTicket) {
+    origenEl.style.display = 'block';
+    origenEl.textContent = 'Se vinculará al ticket ' + _kbOrigenTicket;
+  } else {
+    origenEl.style.display = 'none';
+  }
+  document.getElementById('kb-modal').style.display = 'block';
+}
+
+function closeKbModal() {
+  document.getElementById('kb-modal').style.display = 'none';
+  editingKbId = null;
+  _kbOrigenTicket = null;
+}
+
+async function saveKb() {
+  const titulo    = document.getElementById('kb-f-titulo').value.trim();
+  const contenido = document.getElementById('kb-f-contenido').value.trim();
+  const tags      = document.getElementById('kb-f-tags').value.split(',').map(t => t.trim()).filter(Boolean);
+  if (!titulo) { showToast('Falta el título'); return; }
+  if (!contenido) { showToast('Falta el contenido'); return; }
+  const btn = document.getElementById('btn-kb-save');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Guardando...';
+  try {
+    if (editingKbId) {
+      const r = await authFetch(WORKER_URL + '/kb/update', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: editingKbId, titulo, contenido, tags }),
+      });
+      if (!r.ok) throw new Error((await r.json()).error || 'Error');
+      showToast('Artículo actualizado');
+      auditLog('kb', 'KB actualizado: ' + titulo);
+    } else {
+      const r = await authFetch(WORKER_URL + '/kb', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ titulo, contenido, tags, ticketOrigen: _kbOrigenTicket || null }),
+      });
+      if (!r.ok) throw new Error((await r.json()).error || 'Error');
+      showToast('Artículo creado');
+      auditLog('kb', 'KB creado: ' + titulo, _kbOrigenTicket ? 'desde ' + _kbOrigenTicket : null);
+    }
+    closeKbModal();
+    await loadKb();
+  } catch (e) {
+    showToast('Error: ' + e.message);
+  }
+  btn.disabled = false;
+  btn.innerHTML = '💾 Guardar artículo';
+}
+
+async function deleteKbCurrent() {
+  if (!editingKbId) return;
+  const a = allKb.find(x => x.id === editingKbId);
+  if (!(await heroConfirm({
+    title: '¿Eliminar artículo?',
+    body: 'Vas a eliminar "' + (a ? a.titulo : 'este artículo') + '". Esta acción no se puede deshacer.',
+    confirmText: 'Eliminar', destructive: true,
+  }))) return;
+  try {
+    const r = await authFetch(WORKER_URL + '/kb/delete', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: editingKbId }),
+    });
+    if (!r.ok) throw new Error((await r.json()).error || 'Error');
+    showToast('Artículo eliminado');
+    auditLog('kb', 'KB eliminado: ' + (a ? a.titulo : editingKbId));
+    closeKbModal();
+    await loadKb();
+  } catch (e) { showToast('Error: ' + e.message); }
+}
+
+// Botón "Guardar como artículo KB" del modal de ticket → pre-llena el form
+// con asunto + descripción + respuesta del ticket actual. Util para capturar
+// la solución de un caso recurrente sin re-escribirla.
+function guardarComoKb() {
+  if (!currentTicketId) return;
+  const t = allTickets.find(x => x.id === currentTicketId);
+  if (!t) return;
+  const respuesta = (document.getElementById('modal-respuesta').value || '').trim();
+  const contenidoSugerido =
+      'PROBLEMA\n' + (t.descripcion || '') + '\n\n'
+    + 'CATEGORÍA: ' + (t.categoria || '—') + '\n'
+    + 'PRIORIDAD: ' + (t.prioridad || '—') + '\n\n'
+    + 'SOLUCIÓN\n' + (respuesta || '(escribe la solución aquí)');
+  _kbOrigenTicket = t.ticketId || t.id;
+  // Cerrar modal de ticket primero — heroConfirm/KB modal abre encima
+  closeTicketModal();
+  // Pre-llenar el form de KB con datos del ticket
+  showKbForm();
+  document.getElementById('kb-f-titulo').value = (t.asunto || '').slice(0, 120);
+  document.getElementById('kb-f-contenido').value = contenidoSugerido;
+  document.getElementById('kb-f-tags').value = (t.categoria || '').toLowerCase();
 }
 
 // ── Módulo Licencias & Software ───────────────────────────────

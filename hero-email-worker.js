@@ -173,6 +173,7 @@ export default {
           'device_': summarizeDevice,
           'lic_':    summarizeLicencia,
           'audit_':  summarizeAudit,
+          'kb_':     summarizeKb,
         };
         const stats = {};
         for (const prefix of Object.keys(SUMMARIZERS)) {
@@ -244,6 +245,66 @@ export default {
     if (request.method === 'POST' && path === '/licencia/delete') {
       try {
         const { id } = await request.json();
+        await env.HERO_KV.delete(id);
+        return json({ ok: true }, 200, cors);
+      } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: 'Error interno del servidor' }, 500, cors); }
+    }
+
+    // ── POST /kb — crear artículo de knowledge base ───────────
+    if (request.method === 'POST' && path === '/kb') {
+      return dedupByBody(request, env, async () => {
+      try {
+        const { titulo, contenido, tags, ticketOrigen } = await request.json();
+        if (!titulo || !contenido) return json({ error: 'Faltan campos: titulo, contenido' }, 400, cors);
+        const id = 'kb_' + Date.now();
+        const articulo = {
+          id, titulo, contenido,
+          tags: Array.isArray(tags) ? tags : [],
+          ticketOrigen: ticketOrigen || null,
+          fecha: new Date().toISOString(),
+        };
+        await env.HERO_KV.put(id, JSON.stringify(articulo), { metadata: summarizeKb(articulo) });
+        return json({ ok: true, id }, 200, cors);
+      } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: 'Error interno del servidor' }, 500, cors); }
+      }, 'kb');
+    }
+
+    // ── GET /kb — listar artículos ────────────────────────────
+    if (request.method === 'GET' && path === '/kb') {
+      try {
+        const list = await env.HERO_KV.list({ prefix: 'kb_', ...paginationParams(url) });
+        const items = await Promise.all(list.keys.map(async k => {
+          const v = await env.HERO_KV.get(k.name); return v ? JSON.parse(v) : null;
+        }));
+        return json({
+          articulos: items.filter(Boolean).sort((a,b) => new Date(b.fecha) - new Date(a.fecha)),
+          ...listMeta(list)
+        }, 200, cors);
+      } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: 'Error interno del servidor' }, 500, cors); }
+    }
+
+    // ── POST /kb/update — actualizar artículo ─────────────────
+    if (request.method === 'POST' && path === '/kb/update') {
+      try {
+        const { id, titulo, contenido, tags } = await request.json();
+        if (!id) return json({ error: 'Falta id' }, 400, cors);
+        const v = await env.HERO_KV.get(id);
+        if (!v) return json({ error: 'Artículo no encontrado' }, 404, cors);
+        const a = JSON.parse(v);
+        if (titulo    !== undefined) a.titulo = titulo;
+        if (contenido !== undefined) a.contenido = contenido;
+        if (tags      !== undefined) a.tags = Array.isArray(tags) ? tags : [];
+        a.actualizado = new Date().toISOString();
+        await env.HERO_KV.put(id, JSON.stringify(a), { metadata: summarizeKb(a) });
+        return json({ ok: true }, 200, cors);
+      } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: 'Error interno del servidor' }, 500, cors); }
+    }
+
+    // ── POST /kb/delete ───────────────────────────────────────
+    if (request.method === 'POST' && path === '/kb/delete') {
+      try {
+        const { id } = await request.json();
+        if (!id) return json({ error: 'Falta id' }, 400, cors);
         await env.HERO_KV.delete(id);
         return json({ ok: true }, 200, cors);
       } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: 'Error interno del servidor' }, 500, cors); }
@@ -1279,6 +1340,13 @@ function summarizeAudit(e) {
   return {
     tipo: e.tipo || '',
     fecha: e.fecha || '',
+  };
+}
+function summarizeKb(a) {
+  return {
+    titulo: (a.titulo || '').slice(0, 120),
+    tags: Array.isArray(a.tags) ? a.tags.slice(0, 5) : [],
+    fecha: a.fecha || '',
   };
 }
 
