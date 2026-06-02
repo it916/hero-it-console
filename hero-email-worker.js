@@ -85,8 +85,18 @@ export default {
     }
 
     // ── GET /zoho/devices — listar dispositivos Zoho Assist ───
+    // Cache de 60s en KV: Zoho tiene rate limits más estrictos que Google.
+    // El cliente puede forzar refresh con ?fresh=1.
     if (request.method === 'GET' && path === '/zoho/devices') {
       try {
+        const noCache = url.searchParams.get('fresh') === '1';
+        if (!noCache) {
+          const cached = await env.HERO_KV.get('cache_zoho_devices');
+          if (cached) {
+            try { return json({ devices: JSON.parse(cached), cached: true }, 200, cors); }
+            catch (_) { /* cache corrupta, refetch */ }
+          }
+        }
         const token = await getZohoToken(env);
         const resp = await fetch('https://assist.zoho.com/api/v2/devices', {
           headers: {
@@ -109,6 +119,8 @@ export default {
           group:  c.group_name || '',
           ip:     c.device_info?.public_ip_address || c.device_info?.private_ip_address || '',
         }));
+        try { await env.HERO_KV.put('cache_zoho_devices', JSON.stringify(devices), { expirationTtl: 60 }); }
+        catch (e) { logError('zoho_devices_cache_write_failed', e); }
         return json({ devices }, 200, cors);
       } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: 'Error interno del servidor' }, 500, cors); }
     }
@@ -311,8 +323,19 @@ export default {
     }
 
     // ── GET /users ────────────────────────────────────────────
+    // Cache de 60s en KV: el dashboard recarga cada 60s + cada vista que pida
+    // usuarios golpeaba Admin API. Reduce quota y latencia (200-500ms ahorrados
+    // en cache hit). El cliente puede forzar refresh con ?fresh=1.
     if (request.method === 'GET' && path === '/users') {
       try {
+        const noCache = url.searchParams.get('fresh') === '1';
+        if (!noCache) {
+          const cached = await env.HERO_KV.get('cache_users');
+          if (cached) {
+            try { return json({ users: JSON.parse(cached), cached: true }, 200, cors); }
+            catch (_) { /* cache corrupta, refetch */ }
+          }
+        }
         const token = await getGoogleToken(env);
         const resp = await fetch(
           'https://admin.googleapis.com/admin/directory/v1/users?domain=heroinsuranceusa.com&maxResults=200&orderBy=email',
@@ -330,6 +353,8 @@ export default {
           mfaEnrolled: !!u.isEnrolledIn2Sv,
           mfaEnforced: !!u.isEnforcedIn2Sv,
         }));
+        try { await env.HERO_KV.put('cache_users', JSON.stringify(users), { expirationTtl: 60 }); }
+        catch (e) { logError('users_cache_write_failed', e); }
         return json({ users }, 200, cors);
       } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: 'Error interno del servidor' }, 500, cors); }
     }
@@ -352,6 +377,9 @@ export default {
         });
         const data = await resp.json();
         if (!resp.ok) return json({ error: data.error?.message || 'Error al crear usuario' }, resp.status, cors);
+
+        // Invalidar cache de /users — el nuevo usuario debe aparecer ya.
+        try { await env.HERO_KV.delete('cache_users'); } catch (_) {}
 
         // Notificación al solicitante si viene de una alta
         if (solicitanteEmail) {
@@ -954,11 +982,18 @@ export default {
         });
         const data = await resp.json();
         if (!resp.ok) return json({ error: data.error?.message || 'Error' }, resp.status, cors);
+
+        // Invalidar cache de /users — el estado cambió (suspendido/activo/password).
+        try { await env.HERO_KV.delete('cache_users'); } catch (_) {}
+
         return json({ ok: true }, 200, cors);
       } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: 'Error interno del servidor' }, 500, cors); }
     }
 
     // ── POST /audit — guardar entrada ─────────────────────────
+    // TTL 180 días: auditoría es el namespace de mayor crecimiento (cada acción
+    // del Console escribe una entrada). Sin TTL, list() se vuelve cada vez más
+    // caro. Entradas viejas pre-TTL no se purgan automáticamente.
     if (request.method === 'POST' && path === '/audit') {
       try {
         const { tipo, descripcion, detalle, usuario } = await request.json();
@@ -970,28 +1005,52 @@ export default {
           usuario: usuario || 'Fernando Romero',
           fecha: new Date().toISOString(),
         };
-        await env.HERO_KV.put(id, JSON.stringify(entrada), { metadata: summarizeAudit(entrada) });
+        await env.HERO_KV.put(id, JSON.stringify(entrada), {
+          metadata: summarizeAudit(entrada),
+          expirationTtl: 180 * 86400,
+        });
         return json({ ok: true, id }, 200, cors);
       } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: 'Error interno del servidor' }, 500, cors); }
     }
 
     // ── GET /audit — listar entradas ──────────────────────────
+    // Optimización: pre-filtra por metadata.tipo ANTES de hacer get() en cada
+    // entrada (antes hacíamos N get()s y luego filtrábamos en memoria). El ID
+    // `audit_<timestamp>_<rand>` está naturalmente ordenable: ordenamos los
+    // keys por name DESC para tener los más recientes primero y limitamos el
+    // fetch al tamaño que vamos a devolver.
     if (request.method === 'GET' && path === '/audit') {
       try {
-        const q = url.searchParams.get('q') || '';
+        const q = (url.searchParams.get('q') || '').toLowerCase();
         const tipo = url.searchParams.get('tipo') || '';
-        const limit = parseInt(url.searchParams.get('limit') || '200');
+        const limit = parseInt(url.searchParams.get('limit') || '200', 10);
         const list = await env.HERO_KV.list({ prefix: 'audit_', ...paginationParams(url) });
-        const items = await Promise.all(list.keys.map(async k => {
+
+        // Más nuevos primero (audit_<timestamp>_<rand> → orden lex DESC == fecha DESC)
+        let keys = list.keys.slice().sort((a, b) => b.name.localeCompare(a.name));
+
+        // Pre-filtro por metadata.tipo: las entradas legacy sin metadata pasan
+        // (se filtran después con get()) para no perder históricos.
+        if (tipo) {
+          keys = keys.filter(k => {
+            if (k.metadata && k.metadata.tipo !== undefined) return k.metadata.tipo === tipo;
+            return true;
+          });
+        }
+
+        // Si hay búsqueda libre `q`, traemos hasta 3x el limit para que el
+        // filtro en memoria tenga material; si no, traemos solo el limit.
+        const fetchCount = Math.min(keys.length, q ? limit * 3 : limit);
+        const items = await Promise.all(keys.slice(0, fetchCount).map(async k => {
           const v = await env.HERO_KV.get(k.name); return v ? JSON.parse(v) : null;
         }));
-        let entradas = items.filter(Boolean)
-          .sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
-        if (tipo) entradas = entradas.filter(e => e.tipo === tipo);
+
+        let entradas = items.filter(Boolean);
+        if (tipo) entradas = entradas.filter(e => e.tipo === tipo); // redundante para legacy
         if (q)    entradas = entradas.filter(e =>
-          e.descripcion.toLowerCase().includes(q.toLowerCase()) ||
-          (e.detalle || '').toLowerCase().includes(q.toLowerCase()) ||
-          (e.usuario || '').toLowerCase().includes(q.toLowerCase())
+          (e.descripcion || '').toLowerCase().includes(q) ||
+          (e.detalle     || '').toLowerCase().includes(q) ||
+          (e.usuario     || '').toLowerCase().includes(q)
         );
         return json({ entradas: entradas.slice(0, limit), total: entradas.length, ...listMeta(list) }, 200, cors);
       } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: 'Error interno del servidor' }, 500, cors); }
@@ -1102,7 +1161,9 @@ export default {
     // ruta no reconocida disparaba un envío). Restringimos `to` y `from` al
     // dominio corporativo para que un bug en el frontend no pueda
     // accidentalmente mandar a destinos externos desde la dirección de IT.
+    // dedupByBody evita doble envío en doble-click del botón "Enviar Onboarding".
     if (request.method === 'POST' && path === '/email') {
+      return dedupByBody(request, env, async () => {
       try {
         const { to, subject, html, text, from } = await request.json();
         if (!to || !subject || !html) return json({ error: 'Faltan campos: to, subject, html' }, 400, cors);
@@ -1124,6 +1185,7 @@ export default {
         const result = await resendResp.json();
         return json(result, resendResp.status, cors);
       } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: 'Error interno del servidor' }, 500, cors); }
+      }, 'email');
     }
 
     return json({ error: 'Ruta no encontrada' }, 404, cors);
