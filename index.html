@@ -9,8 +9,12 @@
 <!-- Preconnect a CDNs críticos: ahorra ~100-300 ms en la primera carga -->
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<link rel="preconnect" href="https://code.iconify.design" crossorigin>
+<link rel="preconnect" href="https://api.iconify.design" crossorigin>
 <link rel="preconnect" href="https://i.ibb.co" crossorigin>
 <link rel="preconnect" href="https://hero-email-worker.broad-fire-d2d6.workers.dev" crossorigin>
+<!-- Iconify (web component) — usado con tabler:* para los iconos del sidebar -->
+<script src="https://code.iconify.design/iconify-icon/2.1.0/iconify-icon.min.js"></script>
 <!-- ldrs (web component loaders) — registrados antes de que el JS los use -->
 <script type="module">
   import { ring, waveform, lineSpinner } from 'https://cdn.jsdelivr.net/npm/ldrs/+esm';
@@ -244,7 +248,8 @@ nav { padding: 12px; flex: 1; }
   background: var(--hero-primary);
   border-radius: 0 3px 3px 0;
 }
-.nav-icon { font-size: 14px; width: 20px; text-align: center; flex-shrink: 0; }
+.nav-icon { font-size: 14px; width: 20px; display:flex; align-items:center; justify-content:center; flex-shrink: 0; color: currentColor; }
+.nav-icon iconify-icon { font-size: 18px; }
 
 .sidebar-footer {
   padding: 12px 20px;
@@ -839,59 +844,59 @@ html { scroll-behavior: smooth; }
   <nav>
     <div class="nav-section-label">Principal</div>
     <a class="nav-item active" onclick="showPage('dashboard')" href="#">
-      <span class="nav-icon">⬡</span> Dashboard
+      <span class="nav-icon"><iconify-icon icon="tabler:layout-dashboard"></iconify-icon></span> Dashboard
     </a>
     <a class="nav-item" onclick="showPage('mi-dia')" href="#">
-      <span class="nav-icon">🌅</span> Mi día
+      <span class="nav-icon"><iconify-icon icon="tabler:sunrise"></iconify-icon></span> Mi día
     </a>
     <a class="nav-item" onclick="showPage('solicitudes')" href="#">
-      <span class="nav-icon">📥</span> Solicitudes
+      <span class="nav-icon"><iconify-icon icon="tabler:inbox"></iconify-icon></span> Solicitudes
     </a>
 
     <div class="nav-section-label">Soporte</div>
     <a class="nav-item" onclick="showPage('tickets')" href="#">
-      <span class="nav-icon">🎫</span> Tickets de Soporte
+      <span class="nav-icon"><iconify-icon icon="tabler:ticket"></iconify-icon></span> Tickets de Soporte
     </a>
     <a class="nav-item" onclick="showPage('kb')" href="#">
-      <span class="nav-icon">📚</span> Knowledge Base
+      <span class="nav-icon"><iconify-icon icon="tabler:book-2"></iconify-icon></span> Knowledge Base
     </a>
 
     <div class="nav-section-label">Usuarios</div>
     <a class="nav-item" onclick="showPage('usuarios')" href="#">
-      <span class="nav-icon">👥</span> Usuarios Workspace
+      <span class="nav-icon"><iconify-icon icon="tabler:users"></iconify-icon></span> Usuarios Workspace
     </a>
     <a class="nav-item" onclick="showPage('crear-usuario')" href="#">
-      <span class="nav-icon">➕</span> Crear Usuario
+      <span class="nav-icon"><iconify-icon icon="tabler:user-plus"></iconify-icon></span> Crear Usuario
     </a>
     <a class="nav-item" onclick="showPage('onboarding')" href="#">
-      <span class="nav-icon">✉️</span> Enviar Onboarding
+      <span class="nav-icon"><iconify-icon icon="tabler:mail-forward"></iconify-icon></span> Enviar Onboarding
     </a>
     <a class="nav-item" onclick="showPage('reset')" href="#">
-      <span class="nav-icon">🔑</span> Reset de Contraseña
+      <span class="nav-icon"><iconify-icon icon="tabler:key"></iconify-icon></span> Reset de Contraseña
     </a>
     <a class="nav-item" onclick="showPage('offboarding')" href="#">
-      <span class="nav-icon">🚪</span> Offboarding
+      <span class="nav-icon"><iconify-icon icon="tabler:user-minus"></iconify-icon></span> Offboarding
     </a>
 
     <div class="nav-section-label">Inventario</div>
     <a class="nav-item" onclick="showPage('dispositivos')" href="#">
-      <span class="nav-icon">💻</span> Dispositivos
+      <span class="nav-icon"><iconify-icon icon="tabler:device-desktop"></iconify-icon></span> Dispositivos
     </a>
     <a class="nav-item" onclick="showPage('licencias')" href="#">
-      <span class="nav-icon">📜</span> Licencias
+      <span class="nav-icon"><iconify-icon icon="tabler:license"></iconify-icon></span> Licencias
     </a>
 
     <div class="nav-section-label">Registros</div>
     <a class="nav-item" onclick="showPage('auditoria')" href="#">
-      <span class="nav-icon">🗂️</span> Auditoría
+      <span class="nav-icon"><iconify-icon icon="tabler:history"></iconify-icon></span> Auditoría
     </a>
     <a class="nav-item" onclick="showPage('logs')" href="#">
-      <span class="nav-icon">📋</span> Historial de Logs
+      <span class="nav-icon"><iconify-icon icon="tabler:terminal-2"></iconify-icon></span> Historial de Logs
     </a>
 
     <div class="nav-section-label">Sistema</div>
     <a class="nav-item" onclick="showPage('config')" href="#">
-      <span class="nav-icon">⚙️</span> Configuración
+      <span class="nav-icon"><iconify-icon icon="tabler:settings"></iconify-icon></span> Configuración
     </a>
   </nav>
 
