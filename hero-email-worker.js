@@ -251,6 +251,7 @@ export default {
           fecha: new Date().toISOString(),
         };
         await env.HERO_KV.put(licId, JSON.stringify(lic), { metadata: summarizeLicencia(lic) });
+        await invalidateCaches(env, 'cache_lic_list');
         return json({ ok: true, id: licId }, 200, cors);
       } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: 'Error interno del servidor' }, 500, cors); }
     }
@@ -258,14 +259,18 @@ export default {
     // ── GET /licencia — listar ─────────────────────────────────
     if (request.method === 'GET' && path === '/licencia') {
       try {
-        const list = await env.HERO_KV.list({ prefix: 'lic_', ...paginationParams(url) });
-        const items = await Promise.all(list.keys.map(async k => {
-          const v = await env.HERO_KV.get(k.name); return v ? JSON.parse(v) : null;
-        }));
-        return json({
-          licencias: items.filter(Boolean).sort((a,b) => a.nombre.localeCompare(b.nombre)),
-          ...listMeta(list)
-        }, 200, cors);
+        const hasCursor = url.searchParams.get('cursor') != null;
+        const data = await withListCache(env, 'cache_lic_list', 60, hasCursor, async () => {
+          const list = await env.HERO_KV.list({ prefix: 'lic_', ...paginationParams(url) });
+          const items = await Promise.all(list.keys.map(async k => {
+            const v = await env.HERO_KV.get(k.name); return v ? JSON.parse(v) : null;
+          }));
+          return {
+            licencias: items.filter(Boolean).sort((a, b) => a.nombre.localeCompare(b.nombre)),
+            ...listMeta(list)
+          };
+        });
+        return json(data, 200, cors);
       } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: 'Error interno del servidor' }, 500, cors); }
     }
 
@@ -274,6 +279,7 @@ export default {
       try {
         const { id } = await request.json();
         await env.HERO_KV.delete(id);
+        await invalidateCaches(env, 'cache_lic_list');
         return json({ ok: true }, 200, cors);
       } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: 'Error interno del servidor' }, 500, cors); }
     }
@@ -292,6 +298,7 @@ export default {
           fecha: new Date().toISOString(),
         };
         await env.HERO_KV.put(id, JSON.stringify(articulo), { metadata: summarizeKb(articulo) });
+        await invalidateCaches(env, 'cache_kb_list');
         return json({ ok: true, id }, 200, cors);
       } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: 'Error interno del servidor' }, 500, cors); }
       }, 'kb');
@@ -300,14 +307,18 @@ export default {
     // ── GET /kb — listar artículos ────────────────────────────
     if (request.method === 'GET' && path === '/kb') {
       try {
-        const list = await env.HERO_KV.list({ prefix: 'kb_', ...paginationParams(url) });
-        const items = await Promise.all(list.keys.map(async k => {
-          const v = await env.HERO_KV.get(k.name); return v ? JSON.parse(v) : null;
-        }));
-        return json({
-          articulos: items.filter(Boolean).sort((a,b) => new Date(b.fecha) - new Date(a.fecha)),
-          ...listMeta(list)
-        }, 200, cors);
+        const hasCursor = url.searchParams.get('cursor') != null;
+        const data = await withListCache(env, 'cache_kb_list', 60, hasCursor, async () => {
+          const list = await env.HERO_KV.list({ prefix: 'kb_', ...paginationParams(url) });
+          const items = await Promise.all(list.keys.map(async k => {
+            const v = await env.HERO_KV.get(k.name); return v ? JSON.parse(v) : null;
+          }));
+          return {
+            articulos: items.filter(Boolean).sort((a, b) => new Date(b.fecha) - new Date(a.fecha)),
+            ...listMeta(list)
+          };
+        });
+        return json(data, 200, cors);
       } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: 'Error interno del servidor' }, 500, cors); }
     }
 
@@ -324,6 +335,7 @@ export default {
         if (tags      !== undefined) a.tags = Array.isArray(tags) ? tags : [];
         a.actualizado = new Date().toISOString();
         await env.HERO_KV.put(id, JSON.stringify(a), { metadata: summarizeKb(a) });
+        await invalidateCaches(env, 'cache_kb_list');
         return json({ ok: true }, 200, cors);
       } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: 'Error interno del servidor' }, 500, cors); }
     }
@@ -334,6 +346,7 @@ export default {
         const { id } = await request.json();
         if (!id) return json({ error: 'Falta id' }, 400, cors);
         await env.HERO_KV.delete(id);
+        await invalidateCaches(env, 'cache_kb_list');
         return json({ ok: true }, 200, cors);
       } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: 'Error interno del servidor' }, 500, cors); }
     }
@@ -566,6 +579,7 @@ export default {
         sol.autorizadaEmail = by;
         sol.autorizadaFecha = new Date().toISOString();
         await env.HERO_KV.put(id, JSON.stringify(sol), { metadata: summarizeSolicitud(sol) });
+        await invalidateCaches(env, 'cache_solicitudes_list', 'cache_stats');
 
         // Notifica a IT que la solicitud fue autorizada (no a los otros autorizadores
         // para no spamearlos — la Console refleja el estado).
@@ -703,6 +717,7 @@ export default {
         }
 
         await env.HERO_KV.put(solicitud.id, JSON.stringify(solicitud), { metadata: summarizeSolicitud(solicitud) });
+        await invalidateCaches(env, 'cache_solicitudes_list', 'cache_stats');
 
         // Cada autorizador recibe un correo personalizado con su propio link firmado (HMAC).
         // Cuando el primero hace click, la solicitud queda como autorizada; los demás
@@ -786,14 +801,18 @@ export default {
     // ── GET /alta-agente ──────────────────────────────────────
     if (request.method === 'GET' && path === '/alta-agente') {
       try {
-        const list = await env.HERO_KV.list({ prefix: 'alta_', ...paginationParams(url) });
-        const items = await Promise.all(list.keys.map(async k => {
-          const v = await env.HERO_KV.get(k.name); return v ? JSON.parse(v) : null;
-        }));
-        return json({
-          solicitudes: items.filter(Boolean).sort((a,b) => new Date(b.fecha) - new Date(a.fecha)),
-          ...listMeta(list)
-        }, 200, cors);
+        const hasCursor = url.searchParams.get('cursor') != null;
+        const data = await withListCache(env, 'cache_solicitudes_list', 60, hasCursor, async () => {
+          const list = await env.HERO_KV.list({ prefix: 'alta_', ...paginationParams(url) });
+          const items = await Promise.all(list.keys.map(async k => {
+            const v = await env.HERO_KV.get(k.name); return v ? JSON.parse(v) : null;
+          }));
+          return {
+            solicitudes: items.filter(Boolean).sort((a, b) => new Date(b.fecha) - new Date(a.fecha)),
+            ...listMeta(list)
+          };
+        });
+        return json(data, 200, cors);
       } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: 'Error interno del servidor' }, 500, cors); }
     }
 
@@ -806,6 +825,7 @@ export default {
         const item = JSON.parse(val);
         item.estado = estado || 'procesada';
         await env.HERO_KV.put(id, JSON.stringify(item), { metadata: summarizeSolicitud(item) });
+        await invalidateCaches(env, 'cache_solicitudes_list', 'cache_stats');
         return json({ ok: true }, 200, cors);
       } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: 'Error interno del servidor' }, 500, cors); }
     }
@@ -833,6 +853,7 @@ export default {
           fecha: new Date().toISOString(), respuesta: null, fechaRespuesta: null,
         };
         await env.HERO_KV.put(id, JSON.stringify(ticket), { metadata: summarizeTicket(ticket) });
+        await invalidateCaches(env, 'cache_tickets_list', 'cache_stats');
 
         // Colores por prioridad
         const colores = { Baja:'#22d87a', Media:'#f0b429', Alta:'#f97316', Urgente:'#f56565' };
@@ -894,14 +915,18 @@ export default {
     // ── GET /ticket — listar tickets ──────────────────────────
     if (request.method === 'GET' && path === '/ticket') {
       try {
-        const list = await env.HERO_KV.list({ prefix: 'ticket_', ...paginationParams(url) });
-        const items = await Promise.all(list.keys.map(async k => {
-          const v = await env.HERO_KV.get(k.name); return v ? JSON.parse(v) : null;
-        }));
-        return json({
-          tickets: items.filter(Boolean).sort((a,b) => new Date(b.fecha) - new Date(a.fecha)),
-          ...listMeta(list)
-        }, 200, cors);
+        const hasCursor = url.searchParams.get('cursor') != null;
+        const data = await withListCache(env, 'cache_tickets_list', 60, hasCursor, async () => {
+          const list = await env.HERO_KV.list({ prefix: 'ticket_', ...paginationParams(url) });
+          const items = await Promise.all(list.keys.map(async k => {
+            const v = await env.HERO_KV.get(k.name); return v ? JSON.parse(v) : null;
+          }));
+          return {
+            tickets: items.filter(Boolean).sort((a, b) => new Date(b.fecha) - new Date(a.fecha)),
+            ...listMeta(list)
+          };
+        });
+        return json(data, 200, cors);
       } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: 'Error interno del servidor' }, 500, cors); }
     }
 
@@ -970,6 +995,7 @@ export default {
           }, { event: 'ticket_reply', ticketId: ticket.ticketId });
         }
         await env.HERO_KV.put(id, JSON.stringify(ticket), { metadata: summarizeTicket(ticket) });
+        await invalidateCaches(env, 'cache_tickets_list', 'cache_stats');
         return json({ ok: true }, 200, cors);
       } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: 'Error interno del servidor' }, 500, cors); }
     }
@@ -1094,6 +1120,7 @@ export default {
           intervenciones: [],
         };
         await env.HERO_KV.put(id, JSON.stringify(device), { metadata: summarizeDevice(device) });
+        await invalidateCaches(env, 'cache_stats');
         return json({ ok: true, id }, 200, cors);
       } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: 'Error interno del servidor' }, 500, cors); }
     }
@@ -1132,6 +1159,7 @@ export default {
         }
 
         const merged = [];
+        let kvMutated = false;
         for (const z of zohoDevices) {
           let kv = (z.id && kvByZohoId[z.id]) || kvByName[normName(z.name)];
           if (!kv) {
@@ -1147,10 +1175,12 @@ export default {
               intervenciones: [],
             };
             await env.HERO_KV.put(newId, JSON.stringify(kv), { metadata: summarizeDevice(kv) });
+            kvMutated = true;
           } else if (!kv.zohoId && z.id) {
             // Auto-link existing por nombre — persistir el zohoId
             kv.zohoId = z.id;
             await env.HERO_KV.put(kv.id, JSON.stringify(kv), { metadata: summarizeDevice(kv) });
+            kvMutated = true;
           }
           merged.push({
             ...kv,
@@ -1170,6 +1200,7 @@ export default {
           return (a.nombre || '').localeCompare(b.nombre || '');
         });
 
+        if (kvMutated) await invalidateCaches(env, 'cache_stats');
         return json({ devices: merged }, 200, cors);
       } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: 'Error interno del servidor' }, 500, cors); }
     }
@@ -1418,6 +1449,30 @@ function paginationParams(url) {
 }
 function listMeta(list) {
   return { cursor: list.list_complete ? null : list.cursor, complete: list.list_complete };
+}
+
+// ── Cache helpers para list endpoints ─────────────────────────
+// Solo cacheamos la primera página (sin cursor): si el cliente está paginando,
+// va directo a KV. Las mutaciones llaman a invalidateCaches() con las keys
+// afectadas para que el siguiente GET refleje el cambio sin esperar TTL.
+async function withListCache(env, cacheKey, ttl, hasCursor, computeFn) {
+  if (!hasCursor) {
+    try {
+      const cached = await env.HERO_KV.get(cacheKey);
+      if (cached) {
+        try { return JSON.parse(cached); } catch (_) { /* cache corrupta, refetch */ }
+      }
+    } catch (_) {}
+  }
+  const data = await computeFn();
+  if (!hasCursor) {
+    try { await env.HERO_KV.put(cacheKey, JSON.stringify(data), { expirationTtl: ttl }); }
+    catch (e) { logError('cache_write_failed', e, { cacheKey }); }
+  }
+  return data;
+}
+async function invalidateCaches(env, ...keys) {
+  return Promise.all(keys.map(k => env.HERO_KV.delete(k).catch(() => {})));
 }
 
 // ── Anti-abuso para endpoints públicos ────────────────────────
