@@ -222,7 +222,7 @@ function handleAuthExpired() {
 // ── Panel de estado del ecosistema ───────────────────────────
 async function checkSystemStatus() {
   const btn = document.getElementById('btn-check-status');
-  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>'; }
+  if (btn) { btn.disabled = true; btn.innerHTML = '<l-ring size="14" stroke="2" speed="0.7" color="#06a3b6"></l-ring>'; }
 
   const setStatus = (svc, state, detail) => {
     const dot = document.getElementById('dot-' + svc);
@@ -309,7 +309,7 @@ async function runGlobalSearch() {
   const q = document.getElementById('global-search-input').value.trim().toLowerCase();
   const results = document.getElementById('global-search-results');
   if (q.length < 2) { results.innerHTML = ''; return; }
-  results.innerHTML = '<div style="text-align:center;padding:20px;"><span class="spinner"></span></div>';
+  results.innerHTML = '<div style="text-align:center;padding:20px;"><l-line-spinner size="24" stroke="2" speed="1" color="#06a3b6"></l-line-spinner></div>';
   const found = [];
   try {
     const r = await authFetch(WORKER_URL + '/ticket');
@@ -937,7 +937,7 @@ async function executeReset() {
 
   const btn = document.getElementById('btn-exec-reset');
   btn.disabled = true;
-  btn.innerHTML = '<span class="spinner"></span> Reseteando...';
+  btn.innerHTML = '<l-ring size="14" stroke="2" speed="0.7" color="#06a3b6"></l-ring> Reseteando...';
   addLog('Reseteando contraseña de ' + rstSelectedUser.email + '...', 'warn', 'log-rst');
 
   try {
@@ -1324,7 +1324,7 @@ const AUDIT_TIPO_ICON = {
 async function loadAudit() {
   const btn = document.getElementById('btn-load-audit');
   btn.disabled = true;
-  btn.innerHTML = '<span class="spinner"></span>';
+  btn.innerHTML = '<l-ring size="14" stroke="2" speed="0.7" color="#06a3b6"></l-ring>';
   renderSkeleton(document.getElementById('audit-body'), { rows: 6 });
   try {
     const tipo = document.getElementById('audit-filter-tipo').value;
@@ -1730,7 +1730,7 @@ async function loadTickets() {
   }
 
   const btn = document.getElementById('btn-load-tickets');
-  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>'; }
+  if (btn) { btn.disabled = true; btn.innerHTML = '<l-ring size="14" stroke="2" speed="0.7" color="#06a3b6"></l-ring>'; }
   try {
     const resp = await authFetch(WORKER_URL + '/ticket');
     const data = await resp.json();
@@ -1878,7 +1878,7 @@ async function guardarTicket() {
   if (!currentTicketId) return;
   const btn = document.getElementById('btn-guardar-ticket');
   btn.disabled = true;
-  btn.innerHTML = '<span class="spinner"></span> Guardando...';
+  btn.innerHTML = '<l-ring size="14" stroke="2" speed="0.7" color="#06a3b6"></l-ring> Guardando...';
   try {
     const estado    = document.getElementById('modal-estado').value;
     const prioridad = document.getElementById('modal-prioridad').value;
@@ -1928,7 +1928,7 @@ async function loadSolicitudes() {
   }
   renderSkeleton(document.getElementById('sol-list'), { type: 'card', rows: 3 });
   const btn = document.getElementById('btn-load-sol');
-  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>'; }
+  if (btn) { btn.disabled = true; btn.innerHTML = '<l-ring size="14" stroke="2" speed="0.7" color="#06a3b6"></l-ring>'; }
   try {
     const resp = await authFetch(WORKER_URL + '/alta-agente');
     const data = await resp.json();
@@ -2236,7 +2236,7 @@ async function crearUsuarioDesdeModal() {
   const email = emailUser + '@heroinsuranceusa.com';
   const btn   = document.getElementById('btn-sm-crear');
   btn.disabled = true;
-  btn.innerHTML = '<span class="spinner"></span> Creando...';
+  btn.innerHTML = '<l-ring size="14" stroke="2" speed="0.7" color="#06a3b6"></l-ring> Creando...';
 
   try {
     // Create user in Workspace
@@ -2315,7 +2315,7 @@ async function crearUsuario() {
   const emailCorp = emailUser + atSign + 'heroinsuranceusa.com';
   const btn = document.getElementById('btn-crear-usuario');
   btn.disabled = true;
-  btn.innerHTML = '<span class="spinner"></span> Creando...';
+  btn.innerHTML = '<l-ring size="14" stroke="2" speed="0.7" color="#06a3b6"></l-ring> Creando...';
   addLog('Creando usuario ' + emailCorp + ' en Workspace...', 'info', 'log-new');
 
   try {
@@ -2392,7 +2392,7 @@ async function sendOnboardingNuevo(tipo) {
   const btnId = tipo === 'empleado' ? 'btn-ob-emp' : 'btn-ob-agt';
   const btn = document.getElementById(btnId);
   btn.disabled = true;
-  btn.innerHTML = '<span class="spinner"></span> Enviando...';
+  btn.innerHTML = '<l-ring size="14" stroke="2" speed="0.7" color="#06a3b6"></l-ring> Enviando...';
 
   addLog('Enviando onboarding ' + tipo + ' a ' + nuevoUsuario.emailPersonal, 'info', 'log-new');
 
@@ -2497,7 +2497,7 @@ async function enviarOnboarding() {
   const emailCorp = user + atSign + 'heroinsuranceusa.com';
   const btn = document.getElementById('btn-onb-enviar');
   btn.disabled = true;
-  btn.innerHTML = '<span class="spinner"></span> Enviando...';
+  btn.innerHTML = '<l-ring size="14" stroke="2" speed="0.7" color="#06a3b6"></l-ring> Enviando...';
   addLog('Enviando onboarding ' + tipo + ' a ' + personal + '...', 'info', 'log-onb');
 
   try {
@@ -2529,7 +2529,7 @@ let allUsers = [];
 async function loadUsers() {
   const btn = document.getElementById('btn-load-users');
   btn.disabled = true;
-  btn.innerHTML = '<span class="spinner"></span> Cargando...';
+  btn.innerHTML = '<l-ring size="14" stroke="2" speed="0.7" color="#06a3b6"></l-ring> Cargando...';
   document.getElementById('usr-count').textContent = '';
   addLog('Consultando usuarios de Google Workspace...', 'info');
 
@@ -2844,7 +2844,7 @@ async function registrarIntervencion() {
 
   const btn = document.getElementById('btn-int');
   btn.disabled = true;
-  btn.innerHTML = '<span class="spinner"></span> Guardando...';
+  btn.innerHTML = '<l-ring size="14" stroke="2" speed="0.7" color="#06a3b6"></l-ring> Guardando...';
 
   try {
     const resp = await authFetch(WORKER_URL + '/device/intervencion', {
@@ -2920,7 +2920,7 @@ async function saveDevice() {
 
   const btn = document.getElementById('btn-dev-save');
   btn.disabled = true;
-  btn.innerHTML = '<span class="spinner"></span> Guardando...';
+  btn.innerHTML = '<l-ring size="14" stroke="2" speed="0.7" color="#06a3b6"></l-ring> Guardando...';
 
   try {
     const endpoint = editingDeviceId ? '/device/update' : '/device';
@@ -2990,7 +2990,7 @@ let allZohoDevices = [];
 
 async function loadZohoDevices() {
   const grid = document.getElementById('zoho-grid');
-  grid.innerHTML = '<div class="info-box" style="text-align:center;padding:40px;grid-column:1/-1;"><span class="spinner"></span></div>';
+  grid.innerHTML = '<div class="info-box" style="text-align:center;padding:40px;grid-column:1/-1;"><l-waveform size="32" stroke="3" speed="1" color="#06a3b6"></l-waveform></div>';
   try {
     const resp = await authFetch(WORKER_URL + '/zoho/devices');
     const data = await resp.json();
@@ -3329,7 +3329,7 @@ async function executeOffboarding() {
   }))) return;
 
   btn.disabled = true;
-  btn.innerHTML = '<span class="spinner"></span> Ejecutando...';
+  btn.innerHTML = '<l-ring size="14" stroke="2" speed="0.7" color="#06a3b6"></l-ring> Ejecutando...';
 
   // Step 1: Auto-suspend Workspace account
   try {
@@ -3452,7 +3452,7 @@ async function saveKb() {
   if (!contenido) { showToast('Falta el contenido'); return; }
   const btn = document.getElementById('btn-kb-save');
   btn.disabled = true;
-  btn.innerHTML = '<span class="spinner"></span> Guardando...';
+  btn.innerHTML = '<l-ring size="14" stroke="2" speed="0.7" color="#06a3b6"></l-ring> Guardando...';
   try {
     if (editingKbId) {
       const r = await authFetch(WORKER_URL + '/kb/update', {
@@ -3708,7 +3708,7 @@ async function saveLicencia() {
   const nombre = document.getElementById('lic-f-nombre').value.trim();
   if (!nombre) { showToast('El nombre es obligatorio'); return; }
   const btn = document.getElementById('btn-lic-save');
-  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>';
+  btn.disabled = true; btn.innerHTML = '<l-ring size="14" stroke="2" speed="0.7" color="#06a3b6"></l-ring>';
   try {
     const r = await authFetch(WORKER_URL + '/licencia', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },

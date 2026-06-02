@@ -4,6 +4,18 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>Hero IT Console</title>
+<!-- Preconnect a CDNs críticos: ahorra ~100-300 ms en la primera carga -->
+<link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<link rel="preconnect" href="https://i.ibb.co" crossorigin>
+<link rel="preconnect" href="https://hero-email-worker.broad-fire-d2d6.workers.dev" crossorigin>
+<!-- ldrs (web component loaders) — registrados antes de que el JS los use -->
+<script type="module">
+  import { ring, waveform, lineSpinner } from 'https://cdn.jsdelivr.net/npm/ldrs/+esm';
+  ring.register();
+  waveform.register();
+  lineSpinner.register();
+</script>
 <style>
 /* ── Hero Insurance Brand System — Light Theme ──────────── */
 @import url('https://fonts.googleapis.com/css2?family=Trebuchet+MS&display=swap');
@@ -446,14 +458,7 @@ nav { padding: 12px; flex: 1; }
 }
 
 /* ── Spinner ─────────────────────────────────────────────── */
-.spinner {
-  display: inline-block; width: 12px; height: 12px;
-  border: 2px solid rgba(6,163,182,0.2);
-  border-top-color: var(--hero-primary);
-  border-radius: 50%;
-  animation: spin 0.6s linear infinite;
-}
-@keyframes spin { to { transform: rotate(360deg); } }
+/* .spinner reemplazado por <l-ring>/<l-waveform>/<l-line-spinner> de ldrs */
 
 /* ── Toast ───────────────────────────────────────────────── */
 #toast {
@@ -837,16 +842,16 @@ html { scroll-behavior: smooth; }
     <a class="nav-item" onclick="showPage('mi-dia')" href="#">
       <span class="nav-icon">🌅</span> Mi día
     </a>
-
-    <div class="nav-section-label">Gestión IT</div>
     <a class="nav-item" onclick="showPage('solicitudes')" href="#">
       <span class="nav-icon">📥</span> Solicitudes
     </a>
+
+    <div class="nav-section-label">Soporte</div>
     <a class="nav-item" onclick="showPage('tickets')" href="#">
       <span class="nav-icon">🎫</span> Tickets de Soporte
     </a>
-    <a class="nav-item" onclick="showPage('dispositivos')" href="#">
-      <span class="nav-icon">💻</span> Dispositivos
+    <a class="nav-item" onclick="showPage('kb')" href="#">
+      <span class="nav-icon">📚</span> Knowledge Base
     </a>
     <a class="nav-item" onclick="showPage('zoho')" href="#">
       <span class="nav-icon">🔴</span> Zoho Assist
@@ -865,7 +870,17 @@ html { scroll-behavior: smooth; }
     <a class="nav-item" onclick="showPage('reset')" href="#">
       <span class="nav-icon">🔑</span> Reset de Contraseña
     </a>
+    <a class="nav-item" onclick="showPage('offboarding')" href="#">
+      <span class="nav-icon">🚪</span> Offboarding
+    </a>
 
+    <div class="nav-section-label">Inventario</div>
+    <a class="nav-item" onclick="showPage('dispositivos')" href="#">
+      <span class="nav-icon">💻</span> Dispositivos
+    </a>
+    <a class="nav-item" onclick="showPage('licencias')" href="#">
+      <span class="nav-icon">📜</span> Licencias
+    </a>
 
     <div class="nav-section-label">Registros</div>
     <a class="nav-item" onclick="showPage('auditoria')" href="#">
@@ -876,15 +891,6 @@ html { scroll-behavior: smooth; }
     </a>
 
     <div class="nav-section-label">Sistema</div>
-    <a class="nav-item" onclick="showPage('offboarding')" href="#">
-      <span class="nav-icon">🚪</span> Offboarding
-    </a>
-    <a class="nav-item" onclick="showPage('licencias')" href="#">
-      <span class="nav-icon">🔑</span> Licencias
-    </a>
-    <a class="nav-item" onclick="showPage('kb')" href="#">
-      <span class="nav-icon">📚</span> Knowledge Base
-    </a>
     <a class="nav-item" onclick="showPage('config')" href="#">
       <span class="nav-icon">⚙️</span> Configuración
     </a>
