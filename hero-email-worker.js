@@ -99,10 +99,39 @@ export default {
     }
 
     // ── GET /zoho/session/:id — iniciar sesión remota ─────────
+    // Llama a la API oficial de Zoho Assist v2 para abrir una sesión de
+    // acceso desatendido. Devuelve `technician_uri`: la URL que el técnico
+    // abre para conectarse al equipo (NO depende de un portal hardcodeado).
+    // Ref: https://www.zoho.com/assist/api/unattendedsession.html
     if (request.method === 'GET' && path.startsWith('/zoho/session/')) {
       try {
         const computerId = path.replace('/zoho/session/', '');
-        const sessionUrl = 'https://assist.zoho.com/portal/it265/app/home#/unattended/devices?computer_id=' + computerId;
+        if (!computerId) return json({ error: 'Falta computerId' }, 400, cors);
+        const token = await getZohoToken(env);
+        const apiUrl = 'https://assist.zoho.com/api/v2/unattended/'
+                     + encodeURIComponent(computerId)
+                     + '/connect?department_id=' + encodeURIComponent(env.ZOHO_DEPARTMENT_ID);
+        const resp = await fetch(apiUrl, {
+          method: 'POST',
+          headers: {
+            'Authorization': 'Zoho-oauthtoken ' + token,
+            'Content-Type': 'application/json',
+            'x-com-zoho-assist-department-id': env.ZOHO_DEPARTMENT_ID
+          }
+        });
+        const text = await resp.text();
+        let data;
+        try { data = JSON.parse(text); }
+        catch (e) { return json({ error: 'Respuesta no JSON de Zoho: ' + text.substring(0, 200) }, 500, cors); }
+        if (!resp.ok) {
+          logError('zoho_session_failed', new Error('status ' + resp.status), { computerId, body: text.substring(0, 300) });
+          return json({ error: data.message || data.error || 'Error al iniciar sesión Zoho' }, resp.status, cors);
+        }
+        const sessionUrl = data.representation?.technician_uri || '';
+        if (!sessionUrl) {
+          logError('zoho_session_no_uri', new Error('no technician_uri'), { computerId, data: JSON.stringify(data).substring(0, 300) });
+          return json({ error: 'Zoho no devolvió URL de técnico (verificá que el dispositivo siga registrado)' }, 502, cors);
+        }
         return json({ sessionUrl }, 200, cors);
       } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: 'Error interno del servidor' }, 500, cors); }
     }

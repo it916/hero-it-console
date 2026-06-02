@@ -3022,13 +3022,38 @@ function exportDeviceReport() {
 }
 
 // ── Sesión remota Zoho ────────────────────────────────────────
-// Llamada desde Dispositivos (la vista vieja de Zoho Assist se fusionó).
+// Llama al Worker → API oficial de Zoho v2 → devuelve technician_uri.
+// Abre la pestaña inmediatamente al click (evita bloqueo de popup) y la
+// redirige cuando llega la URL real desde el backend.
 async function startZohoSession(computerId, name) {
-  addLog('Abriendo Zoho Assist para ' + name + '...', 'info');
-  const url = 'https://assist.zoho.com/portal/it265/app/home#/unattended/devices?computer_id=' + computerId;
-  window.open(url, '_blank');
-  auditLog('zoho', 'Sesion remota iniciada: ' + name, computerId);
-  showToast('Abriendo Zoho Assist → ' + name);
+  const popup = window.open('about:blank', '_blank');
+  if (popup) {
+    try {
+      popup.document.write(
+        '<title>Iniciando sesión Zoho...</title>'
+        + '<div style="font-family:Trebuchet MS,Arial,sans-serif;text-align:center;padding:60px 20px;color:#444;">'
+        +   '<div style="font-size:18px;font-weight:600;color:#06a3b6;margin-bottom:10px;">Iniciando sesión Zoho Assist</div>'
+        +   '<div style="font-size:13px;color:#777;">Conectando con <strong>' + name.replace(/[<>]/g,'') + '</strong>...</div>'
+        + '</div>'
+      );
+    } catch(_) {}
+  }
+  addLog('Iniciando sesión Zoho para ' + name + '...', 'info');
+  showToast('Conectando con ' + name + '...');
+  try {
+    const resp = await authFetch(WORKER_URL + '/zoho/session/' + encodeURIComponent(computerId));
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || 'Error al iniciar sesión');
+    if (!data.sessionUrl) throw new Error('Zoho no devolvió URL de sesión');
+    if (popup) popup.location.href = data.sessionUrl;
+    else window.open(data.sessionUrl, '_blank');
+    auditLog('zoho', 'Sesion remota iniciada: ' + name, computerId);
+    addLog('Sesión Zoho lista', 'info');
+  } catch(err) {
+    if (popup) try { popup.close(); } catch(_) {}
+    showToast('Error Zoho: ' + err.message);
+    addLog('Error sesión Zoho: ' + err.message, 'error');
+  }
 }
 // ── Render session logs on demand ───────────────────────────
 function renderSessionLogs() {
