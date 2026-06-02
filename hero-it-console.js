@@ -506,7 +506,7 @@ function sendPushNotification(title, body, onClick) {
 }
 
 function updateTabBadge(total) {
-  document.title = total > 0 ? '(' + total + ') Hero IT Console' : 'Hero IT Console';
+  document.title = total > 0 ? '(' + total + ') IT CONSOLE - HERO' : 'IT CONSOLE - HERO';
 }
 
 async function pollForUpdates() {
