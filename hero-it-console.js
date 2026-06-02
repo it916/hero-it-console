@@ -1397,20 +1397,50 @@ function csvCell(v) {
   return '"' + (needsEscape ? "'" : '') + s.replace(/"/g, '""') + '"';
 }
 
+// Convierte una fila (array) en línea CSV escapando cada celda con csvCell.
+function csvRow(arr) { return arr.map(csvCell).join(',') + '\n'; }
+
+// Descarga un CSV con BOM UTF-8 (necesario para que Excel Windows interprete
+// bien los caracteres acentuados como á, ñ, ó). Sheets también lo acepta sin
+// problema. Devuelve la URL revocable para que el caller pueda cleanup.
+function downloadCsv(csv, filename) {
+  const BOM = String.fromCharCode(0xFEFF);
+  const blob = new Blob([BOM + csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
 function exportAuditCSV() {
   if (!allAuditEntradas.length) { showToast('Carga el historial primero'); return; }
-  const header = 'Fecha ET,Tipo,Descripcion,Detalle,Usuario';
-  const rows = allAuditEntradas.map(e => {
-    const fecha = new Date(e.fecha).toLocaleString('es-MX', { timeZone:'America/New_York' });
-    return [fecha, e.tipo, e.descripcion, e.detalle || '', e.usuario || ''].map(csvCell).join(',');
+
+  // Aplicar los filtros visibles (tipo + búsqueda) al export para que coincida
+  // con lo que el usuario ve en pantalla.
+  const tipo = (document.getElementById('audit-filter-tipo') || {}).value || '';
+  const q    = ((document.getElementById('audit-search') || {}).value || '').toLowerCase();
+  let entradas = allAuditEntradas;
+  if (tipo) entradas = entradas.filter(e => e.tipo === tipo);
+  if (q)    entradas = entradas.filter(e =>
+    (e.descripcion || '').toLowerCase().includes(q) ||
+    (e.detalle     || '').toLowerCase().includes(q) ||
+    (e.usuario     || '').toLowerCase().includes(q)
+  );
+
+  let csv = csvRow(['Fecha ET', 'Tipo', 'Descripcion', 'Detalle', 'Usuario']);
+  entradas.forEach(e => {
+    const fecha = new Date(e.fecha).toLocaleString('es-MX', { timeZone: 'America/New_York' });
+    csv += csvRow([fecha, e.tipo, e.descripcion, e.detalle || '', e.usuario || '']);
   });
-  const csv = [header, ...rows].join('\n');
-  const blob = new Blob([csv], { type:'text/csv;charset=utf-8;' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = 'hero-auditoria-' + new Date().toISOString().slice(0,10) + '.csv';
-  a.click();
-  showToast('CSV exportado');
+  csv += csvRow(['Total', entradas.length]);
+
+  const suffix = tipo ? '-' + tipo : '';
+  downloadCsv(csv, 'hero-auditoria-' + new Date().toISOString().slice(0, 10) + suffix + '.csv');
+  showToast('CSV exportado (' + entradas.length + ' entradas)');
 }
 
 // ── Módulo "Mi día" — cola priorizada ─────────────────────────
@@ -3011,31 +3041,78 @@ async function saveDevice() {
 function exportDeviceReport() {
   if (!currentDevice) return;
   const d = currentDevice;
-  const fecha = new Date(d.fecha).toLocaleDateString('es-MX', { timeZone:'America/New_York' });
+  const fmtDate = ts => ts ? new Date(ts).toLocaleDateString('es-MX', { timeZone: 'America/New_York', year:'numeric', month:'short', day:'numeric' }) : '';
+  const fmtDateTime = ts => ts ? new Date(ts).toLocaleString('es-MX', { timeZone: 'America/New_York' }) : '';
 
-  let csv = 'REPORTE DE DISPOSITIVO\n';
-  csv += '"Campo","Valor"\n';
-  csv += '"Nombre","' + d.nombre + '"\n';
-  csv += '"Tipo","' + d.tipo + '"\n';
-  csv += '"Usuario asignado","' + (d.usuario || '') + '"\n';
-  csv += '"Sistema operativo","' + (d.so || '') + '"\n';
-  csv += '"GCPW","' + (d.gcpw ? 'Activado' : 'No activado') + '"\n';
-  csv += '"Estado","' + d.estado + '"\n';
-  csv += '"Fecha de registro","' + fecha + '"\n';
-  csv += '"Aplicaciones instaladas","' + (d.apps || []).join(', ') + '"\n\n';
+  // Sección 1: Info del equipo
+  let csv = csvRow(['REPORTE DE DISPOSITIVO']);
+  csv += csvRow(['Generado', fmtDateTime(Date.now()) + ' ET']);
+  csv += csvRow([]);
+  csv += csvRow(['Campo', 'Valor']);
+  csv += csvRow(['ID',                  d.id || '']);
+  csv += csvRow(['Nombre / Hostname',   d.nombre || '']);
+  csv += csvRow(['Tipo',                d.tipo || '']);
+  csv += csvRow(['Usuario asignado',    d.usuario || '']);
+  csv += csvRow(['SO (registrado)',     d.so || '']);
+  csv += csvRow(['GCPW',                d.gcpw ? 'Activado' : 'No activado']);
+  csv += csvRow(['Estado IT',           d.estado || '']);
+  csv += csvRow(['Fecha de registro',   fmtDate(d.fecha)]);
 
-  csv += 'HISTORIAL DE INTERVENCIONES\n';
-  csv += '"Fecha","Tipo","Descripcion","Notas"\n';
-  (d.intervenciones || []).forEach(i => {
-    const f = new Date(i.fecha).toLocaleString('es-MX', { timeZone:'America/New_York' });
-    csv += [f, i.tipo, i.descripcion, i.notas || ''].map(csvCell).join(',') + '\n';
-  });
+  // Lifecycle (si hay datos)
+  if (d.fechaCompra || d.vidaUtilAnios != null || d.costoOriginal != null) {
+    csv += csvRow([]);
+    csv += csvRow(['LIFECYCLE / RENOVACIÓN']);
+    csv += csvRow(['Fecha de compra',     fmtDate(d.fechaCompra)]);
+    csv += csvRow(['Vida útil (años)',    d.vidaUtilAnios != null ? d.vidaUtilAnios : '']);
+    csv += csvRow(['Costo original (USD)', d.costoOriginal != null ? Number(d.costoOriginal).toFixed(2) : '']);
+    // Renovación calculada
+    if (d.fechaCompra && d.vidaUtilAnios) {
+      const renovar = new Date(d.fechaCompra);
+      renovar.setFullYear(renovar.getFullYear() + Number(d.vidaUtilAnios));
+      const days = Math.ceil((renovar.getTime() - Date.now()) / 86400000);
+      csv += csvRow(['Fecha de renovación', fmtDate(renovar.toISOString())]);
+      csv += csvRow(['Días restantes',      days]);
+    }
+  }
 
-  const blob = new Blob([csv], { type:'text/csv;charset=utf-8;' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = 'reporte-' + d.nombre.replace(/\s/g,'-') + '-' + new Date().toISOString().slice(0,10) + '.csv';
-  a.click();
+  // Zoho live data (si está vinculado)
+  if (d.zohoId) {
+    csv += csvRow([]);
+    csv += csvRow(['ESTADO ZOHO ASSIST (live)']);
+    csv += csvRow(['Zoho ID',         d.zohoId]);
+    csv += csvRow(['Conexión',        (d.zohoStatus || 'offline').toUpperCase()]);
+    csv += csvRow(['SO detectado',    d.zohoLiveOs || '']);
+    csv += csvRow(['IP',              d.zohoIp || '']);
+    csv += csvRow(['Grupo Zoho',      d.zohoGroup || '']);
+  }
+
+  // Apps instaladas
+  csv += csvRow([]);
+  csv += csvRow(['APLICACIONES INSTALADAS']);
+  const apps = d.apps || [];
+  if (apps.length) {
+    apps.forEach(a => { csv += csvRow([a]); });
+    csv += csvRow(['Total', apps.length]);
+  } else {
+    csv += csvRow(['(sin aplicaciones registradas)']);
+  }
+
+  // Intervenciones
+  csv += csvRow([]);
+  csv += csvRow(['HISTORIAL DE INTERVENCIONES']);
+  const ints = d.intervenciones || [];
+  if (ints.length) {
+    csv += csvRow(['Fecha ET', 'Tipo', 'Descripción', 'Notas']);
+    ints.forEach(i => {
+      csv += csvRow([fmtDateTime(i.fecha), i.tipo, i.descripcion, i.notas || '']);
+    });
+    csv += csvRow(['Total intervenciones', ints.length]);
+  } else {
+    csv += csvRow(['(sin intervenciones registradas)']);
+  }
+
+  const safeName = (d.nombre || 'dispositivo').replace(/[^a-zA-Z0-9\-]/g, '-').replace(/-+/g, '-');
+  downloadCsv(csv, 'reporte-' + safeName + '-' + new Date().toISOString().slice(0, 10) + '.csv');
   showToast('Reporte exportado');
 }
 
@@ -3794,88 +3871,267 @@ async function loadOfficeStatus() {
 }
 
 // ── Reporte mensual IT ────────────────────────────────────────
+// Genera un CSV con todas las secciones operativas del mes seleccionado:
+// resumen ejecutivo + tickets + solicitudes + intervenciones + auditoría +
+// licencias activas + KB. Si una sección falla (Worker/red), el resto sigue.
 async function generateMonthlyReport() {
   const monthInput = document.getElementById('report-month').value;
   if (!monthInput) { showToast('Selecciona un mes primero'); return; }
 
   const [year, month] = monthInput.split('-').map(Number);
   const label = new Date(year, month - 1).toLocaleDateString('es-MX', { month: 'long', year: 'numeric' });
+  const fmtDate = ts => ts ? new Date(ts).toLocaleDateString('es-MX', { timeZone: 'America/New_York', year:'numeric', month:'short', day:'numeric' }) : '';
+  const fmtDateTime = ts => ts ? new Date(ts).toLocaleString('es-MX', { timeZone: 'America/New_York' }) : '';
+  const inMonth = ts => {
+    if (!ts) return false;
+    const d = new Date(ts);
+    return d.getFullYear() === year && d.getMonth() + 1 === month;
+  };
 
   showToast('Generando reporte de ' + label + '...');
 
-  let csv = 'REPORTE MENSUAL IT — HERO INSURANCE USA\n';
-  csv += '"Mes","' + label.toUpperCase() + '"\n';
-  csv += '"Generado","' + new Date().toLocaleString('es-MX', { timeZone: 'America/New_York' }) + ' ET"\n\n';
+  // Buffer para resumen ejecutivo: lo armamos al final con counts reales
+  // pero lo concatenamos al inicio del CSV final.
+  const summary = {};
+  let sections = '';
 
+  // ── Tickets ──────────────────────────────────────────────────
   try {
-    // Tickets del mes
     const tResp = await authFetch(WORKER_URL + '/ticket');
     if (tResp.ok) {
       const tData = await tResp.json();
-      const tickets = (tData.tickets || []).filter(t => {
-        const d = new Date(t.fecha);
-        return d.getFullYear() === year && d.getMonth() + 1 === month;
-      });
-      csv += 'TICKETS DE SOPORTE\n';
-      csv += '"ID","Asunto","Usuario","Categoría","Prioridad","Estado","Fecha"\n';
+      const tickets = (tData.tickets || []).filter(t => inMonth(t.fecha));
+      const resueltos = tickets.filter(t => t.estado === 'resuelto').length;
+      summary.tickets = { total: tickets.length, resueltos };
+
+      sections += csvRow(['TICKETS DE SOPORTE']);
+      sections += csvRow(['ID', 'Asunto', 'Usuario', 'Email', 'Categoría', 'Prioridad', 'Estado', 'Fecha creación', 'Fecha respuesta']);
       tickets.forEach(t => {
-        const f = new Date(t.fecha).toLocaleDateString('es-MX', { timeZone: 'America/New_York' });
-        csv += [t.ticketId, t.asunto, t.nombre, t.categoria, t.prioridad, t.estado, f].map(csvCell).join(',') + '\n';
+        sections += csvRow([
+          t.ticketId || t.id || '',
+          t.asunto || '',
+          t.nombre || '',
+          t.email || '',
+          t.categoria || '',
+          t.prioridad || '',
+          t.estado || '',
+          fmtDate(t.fecha),
+          fmtDate(t.fechaRespuesta),
+        ]);
       });
-      csv += '"Total tickets","' + tickets.length + '"\n';
-      csv += '"Resueltos","' + tickets.filter(t => t.estado === 'resuelto').length + '"\n\n';
-    }
-  } catch {}
+      sections += csvRow(['Total tickets', tickets.length]);
+      sections += csvRow(['Resueltos', resueltos]);
 
-  try {
-    // Auditoría del mes
-    const aResp = await authFetch(WORKER_URL + '/audit?limit=500');
-    if (aResp.ok) {
-      const aData = await aResp.json();
-      const entradas = (aData.entradas || []).filter(e => {
-        const d = new Date(e.fecha);
-        return d.getFullYear() === year && d.getMonth() + 1 === month;
-      });
-      csv += 'AUDITORÍA DE ACCIONES\n';
-      csv += '"Fecha","Tipo","Descripción","Detalle"\n';
-      entradas.forEach(e => {
-        const f = new Date(e.fecha).toLocaleString('es-MX', { timeZone: 'America/New_York' });
-        csv += [f, e.tipo, e.descripcion, e.detalle||''].map(csvCell).join(',') + '\n';
-      });
-      csv += '"Total acciones","' + entradas.length + '"\n\n';
-    }
-  } catch {}
+      // Breakdown por categoría
+      const porCat = {};
+      tickets.forEach(t => { porCat[t.categoria || '(sin categoría)'] = (porCat[t.categoria || '(sin categoría)'] || 0) + 1; });
+      Object.keys(porCat).sort().forEach(k => sections += csvRow(['  por categoría · ' + k, porCat[k]]));
 
+      // Breakdown por prioridad
+      const porPri = {};
+      tickets.forEach(t => { porPri[t.prioridad || 'Media'] = (porPri[t.prioridad || 'Media'] || 0) + 1; });
+      ['Urgente', 'Alta', 'Media', 'Baja'].forEach(k => { if (porPri[k]) sections += csvRow(['  por prioridad · ' + k, porPri[k]]); });
+      sections += csvRow([]);
+    }
+  } catch (e) {
+    sections += csvRow(['TICKETS DE SOPORTE — error al cargar']);
+    sections += csvRow([]);
+  }
+
+  // ── Solicitudes (altas/bajas) ────────────────────────────────
   try {
-    // Dispositivos con intervenciones del mes
-    const dResp = await authFetch(WORKER_URL + '/device');
+    const sResp = await authFetch(WORKER_URL + '/alta-agente');
+    if (sResp.ok) {
+      const sData = await sResp.json();
+      const sols = (sData.solicitudes || []).filter(s => inMonth(s.fecha));
+      const altas = sols.filter(s => (s.tipoSolicitud || 'alta') === 'alta').length;
+      const bajas = sols.filter(s => s.tipoSolicitud === 'baja').length;
+      const procesadas = sols.filter(s => s.estado === 'procesada').length;
+      summary.solicitudes = { total: sols.length, altas, bajas, procesadas };
+
+      sections += csvRow(['SOLICITUDES DE CUENTA (ALTAS / BAJAS)']);
+      sections += csvRow(['Tipo', 'Persona', 'Correo', 'Solicitante', 'Estado', 'Fecha solicitud', 'Autorizada por', 'Fecha autorización']);
+      sols.forEach(s => {
+        const tipo = (s.tipoSolicitud === 'baja' ? 'BAJA' : 'ALTA') + ' / ' + (s.tipoPersona === 'empleado' ? 'empleado' : 'agente');
+        const persona = s.tipoSolicitud === 'baja'
+          ? (s.nombre || '')
+          : ((s.nombre || '') + ' ' + (s.apellido || '')).trim();
+        const correo = s.tipoSolicitud === 'baja' ? (s.correoEliminar || '') : (s.correoPersonal || s.correo || '');
+        sections += csvRow([
+          tipo,
+          persona,
+          correo,
+          s.solicitanteNombre || '',
+          s.estado || 'pendiente',
+          fmtDate(s.fecha),
+          s.autorizadaPor || '',
+          fmtDate(s.autorizadaFecha),
+        ]);
+      });
+      sections += csvRow(['Total solicitudes', sols.length]);
+      sections += csvRow(['  Altas', altas]);
+      sections += csvRow(['  Bajas', bajas]);
+      sections += csvRow(['  Procesadas', procesadas]);
+      sections += csvRow([]);
+    }
+  } catch (e) {
+    sections += csvRow(['SOLICITUDES — error al cargar']);
+    sections += csvRow([]);
+  }
+
+  // ── Intervenciones de dispositivos ───────────────────────────
+  try {
+    const dResp = await authFetch(WORKER_URL + '/device?withZoho=1');
     if (dResp.ok) {
       const dData = await dResp.json();
+      const devices = dData.devices || [];
       const intervencionesMes = [];
-      (dData.devices || []).forEach(dev => {
+      devices.forEach(dev => {
         (dev.intervenciones || []).forEach(i => {
-          const d = new Date(i.fecha);
-          if (d.getFullYear() === year && d.getMonth() + 1 === month) {
-            intervencionesMes.push({ dispositivo: dev.nombre, usuario: dev.usuario, ...i });
+          if (inMonth(i.fecha)) {
+            intervencionesMes.push({ dispositivo: dev.nombre, usuario: dev.usuario || '', ...i });
           }
         });
       });
-      csv += 'INTERVENCIONES DE DISPOSITIVOS\n';
-      csv += '"Dispositivo","Usuario","Tipo","Descripción","Fecha"\n';
-      intervencionesMes.forEach(i => {
-        const f = new Date(i.fecha).toLocaleDateString('es-MX', { timeZone: 'America/New_York' });
-        csv += [i.dispositivo, i.usuario||'', i.tipo, i.descripcion, f].map(csvCell).join(',') + '\n';
-      });
-      csv += '"Total intervenciones","' + intervencionesMes.length + '"\n\n';
-    }
-  } catch {}
+      summary.intervenciones = { total: intervencionesMes.length, devicesActivos: devices.filter(d => d.estado === 'activo').length };
 
-  // Download
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = 'reporte-IT-' + monthInput + '.csv';
-  a.click();
-  showToast('Reporte generado');
-  auditLog('reporte', 'Reporte mensual generado: ' + label);
+      sections += csvRow(['INTERVENCIONES DE DISPOSITIVOS']);
+      sections += csvRow(['Dispositivo', 'Usuario', 'Tipo', 'Descripción', 'Notas', 'Fecha']);
+      intervencionesMes.forEach(i => {
+        sections += csvRow([i.dispositivo, i.usuario, i.tipo, i.descripcion, i.notas || '', fmtDateTime(i.fecha)]);
+      });
+      sections += csvRow(['Total intervenciones', intervencionesMes.length]);
+
+      // Por tipo
+      const porTipo = {};
+      intervencionesMes.forEach(i => { porTipo[i.tipo || '(sin tipo)'] = (porTipo[i.tipo || '(sin tipo)'] || 0) + 1; });
+      Object.keys(porTipo).sort().forEach(k => sections += csvRow(['  ' + k, porTipo[k]]));
+      sections += csvRow([]);
+    }
+  } catch (e) {
+    sections += csvRow(['INTERVENCIONES — error al cargar']);
+    sections += csvRow([]);
+  }
+
+  // ── Auditoría ────────────────────────────────────────────────
+  try {
+    const aResp = await authFetch(WORKER_URL + '/audit?limit=1000');
+    if (aResp.ok) {
+      const aData = await aResp.json();
+      const entradas = (aData.entradas || []).filter(e => inMonth(e.fecha));
+      summary.audit = { total: entradas.length };
+
+      sections += csvRow(['AUDITORÍA DE ACCIONES']);
+      sections += csvRow(['Fecha ET', 'Tipo', 'Descripción', 'Detalle', 'Usuario']);
+      entradas.forEach(e => {
+        sections += csvRow([fmtDateTime(e.fecha), e.tipo, e.descripcion, e.detalle || '', e.usuario || '']);
+      });
+      sections += csvRow(['Total acciones', entradas.length]);
+
+      const porTipo = {};
+      entradas.forEach(e => { porTipo[e.tipo || '(sin tipo)'] = (porTipo[e.tipo || '(sin tipo)'] || 0) + 1; });
+      Object.keys(porTipo).sort().forEach(k => sections += csvRow(['  ' + k, porTipo[k]]));
+      sections += csvRow([]);
+    }
+  } catch (e) {
+    sections += csvRow(['AUDITORÍA — error al cargar']);
+    sections += csvRow([]);
+  }
+
+  // ── Licencias activas + próximas a vencer ────────────────────
+  try {
+    const lResp = await authFetch(WORKER_URL + '/licencia');
+    if (lResp.ok) {
+      const lData = await lResp.json();
+      const lics = lData.licencias || [];
+      const proximas = lics.filter(l => {
+        if (!l.vencimiento) return false;
+        const v = new Date(l.vencimiento);
+        // Vence dentro del mes o anteriores
+        const endOfMonth = new Date(year, month, 0);
+        return v <= endOfMonth;
+      });
+      const costoMensual = lics
+        .filter(l => l.estado === 'activa' && Number(l.costo) > 0)
+        .reduce((acc, l) => {
+          const c = Number(l.costo) || 0;
+          if (l.tipoSub === 'anual') return acc + c / 12;
+          if (l.tipoSub === 'único' || l.tipoSub === 'gratis') return acc;
+          return acc + c;
+        }, 0);
+      summary.licencias = { total: lics.length, proximas: proximas.length, costoMensual };
+
+      sections += csvRow(['LICENCIAS Y SOFTWARE']);
+      sections += csvRow(['Nombre', 'Plan', 'Tipo suscripción', 'Costo', 'Usuarios', 'Vencimiento', 'Estado']);
+      lics.forEach(l => {
+        sections += csvRow([
+          l.nombre || '',
+          l.plan || '',
+          l.tipoSub || '',
+          l.costo != null ? '$' + Number(l.costo).toFixed(2) : '',
+          l.usuarios || 0,
+          fmtDate(l.vencimiento),
+          l.estado || '',
+        ]);
+      });
+      sections += csvRow(['Total licencias', lics.length]);
+      sections += csvRow(['Costo mensual estimado (activas)', '$' + costoMensual.toFixed(2)]);
+      if (proximas.length) {
+        sections += csvRow(['Licencias vencidas o por vencer hasta fin del mes', proximas.length]);
+      }
+      sections += csvRow([]);
+    }
+  } catch (e) {
+    sections += csvRow(['LICENCIAS — error al cargar']);
+    sections += csvRow([]);
+  }
+
+  // ── Knowledge Base (artículos creados en el mes) ─────────────
+  try {
+    const kResp = await authFetch(WORKER_URL + '/kb');
+    if (kResp.ok) {
+      const kData = await kResp.json();
+      const articulos = (kData.articulos || []).filter(a => inMonth(a.fecha));
+      summary.kb = { total: articulos.length };
+
+      sections += csvRow(['KNOWLEDGE BASE — artículos creados en el mes']);
+      sections += csvRow(['Título', 'Tags', 'Ticket origen', 'Fecha creación']);
+      articulos.forEach(a => {
+        sections += csvRow([
+          a.titulo || '',
+          (a.tags || []).join(', '),
+          a.ticketOrigen || '',
+          fmtDate(a.fecha),
+        ]);
+      });
+      sections += csvRow(['Total artículos nuevos', articulos.length]);
+      sections += csvRow([]);
+    }
+  } catch (e) {
+    sections += csvRow(['KB — error al cargar']);
+    sections += csvRow([]);
+  }
+
+  // ── Header + resumen ejecutivo ───────────────────────────────
+  let header = csvRow(['REPORTE MENSUAL IT — HERO INSURANCE USA']);
+  header += csvRow(['Mes', label.toUpperCase()]);
+  header += csvRow(['Generado', fmtDateTime(Date.now()) + ' ET']);
+  header += csvRow([]);
+  header += csvRow(['RESUMEN EJECUTIVO']);
+  if (summary.tickets)      header += csvRow(['Tickets de soporte', summary.tickets.total + ' (' + summary.tickets.resueltos + ' resueltos)']);
+  if (summary.solicitudes)  header += csvRow(['Solicitudes', summary.solicitudes.total + ' (' + summary.solicitudes.altas + ' altas, ' + summary.solicitudes.bajas + ' bajas, ' + summary.solicitudes.procesadas + ' procesadas)']);
+  if (summary.intervenciones) header += csvRow(['Intervenciones de dispositivos', summary.intervenciones.total]);
+  if (summary.audit)        header += csvRow(['Acciones auditadas', summary.audit.total]);
+  if (summary.licencias)    header += csvRow(['Licencias registradas', summary.licencias.total + ' · costo mensual ~$' + summary.licencias.costoMensual.toFixed(2)]);
+  if (summary.kb)           header += csvRow(['Artículos KB nuevos', summary.kb.total]);
+  header += csvRow([]);
+
+  const csv = header + sections;
+
+  downloadCsv(csv, 'reporte-IT-' + monthInput + '.csv');
+  showToast('Reporte de ' + label + ' generado');
+  auditLog('reporte', 'Reporte mensual generado: ' + label,
+    'Tickets: ' + (summary.tickets?.total || 0)
+    + ' · Solicitudes: ' + (summary.solicitudes?.total || 0)
+    + ' · Intervenciones: ' + (summary.intervenciones?.total || 0));
 }
