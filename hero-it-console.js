@@ -108,12 +108,19 @@ const pageLabels = {
   'logs': 'Historial de Logs',
   'config': 'Configuración',
   'solicitudes': 'Solicitudes',
-  'tickets': 'Tickets de Soporte',
+  'tickets': 'Soporte · Tickets',
   'auditoria': 'Auditoría',
   'crear-usuario': 'Crear Usuario',
   'onboarding': 'Enviar Onboarding',
-  'kb': 'Knowledge Base'
+  'kb': 'Soporte · Knowledge Base',
+  'dispositivos': 'Soporte · Dispositivos',
+  'licencias': 'Soporte · Licencias'
 };
+
+// Las 4 sub-páginas del módulo Soporte comparten una sola entrada del sidebar
+// (la de Tickets, que es el tab default). Cuando navegamos a cualquiera de ellas
+// queremos que ese nav-item quede resaltado.
+const SOPORTE_TABS = ['tickets', 'kb', 'dispositivos', 'licencias'];
 
 // ── Sidebar móvil ─────────────────────────────────────────────
 function toggleSidebar() {
@@ -141,8 +148,10 @@ function showPage(id) {
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   const page = document.getElementById('page-' + id);
   if (page) page.classList.add('active');
+  // Para resaltar el sidebar: las 4 sub-páginas de Soporte mapean al item 'tickets'.
+  const sidebarId = SOPORTE_TABS.includes(id) ? 'tickets' : id;
   document.querySelectorAll('.nav-item').forEach(n => {
-    if (n.getAttribute('onclick') && n.getAttribute('onclick').includes("'" + id + "'")) {
+    if (n.getAttribute('onclick') && n.getAttribute('onclick').includes("'" + sidebarId + "'")) {
       n.classList.add('active');
     }
   });
@@ -3245,11 +3254,12 @@ function _shortcutsHelp() {
       +   '<div style="display:grid;grid-template-columns:auto 1fr;gap:10px 16px;font-size:13px;align-items:center;">'
       +     '<kbd>/</kbd><span>Buscador global</span>'
       +     '<kbd>g h</kbd><span>Home</span>'
-      +     '<kbd>g t</kbd><span>Tickets</span>'
       +     '<kbd>g s</kbd><span>Solicitudes</span>'
       +     '<kbd>g u</kbd><span>Usuarios</span>'
-      +     '<kbd>g l</kbd><span>Licencias</span>'
-      +     '<kbd>g k</kbd><span>Knowledge Base</span>'
+      +     '<kbd>g t</kbd><span>Soporte · Tickets</span>'
+      +     '<kbd>g k</kbd><span>Soporte · Knowledge Base</span>'
+      +     '<kbd>g d</kbd><span>Soporte · Dispositivos</span>'
+      +     '<kbd>g l</kbd><span>Soporte · Licencias</span>'
       +     '<kbd>g a</kbd><span>Auditoría</span>'
       +     '<kbd>g r</kbd><span>Reset contraseña</span>'
       +     '<kbd>Esc</kbd><span>Cerrar modal</span>'
@@ -3290,9 +3300,9 @@ function installKeyboardShortcuts() {
       return;
     }
     if (lastG && Date.now() - lastG < 800) {
-      // 'd' y 'm' siguen aceptándose por memoria muscular pero ahora ambos
-      // van a 'dashboard' (Home unificado).
-      const map = { h:'dashboard', d:'dashboard', m:'dashboard', t:'tickets', s:'solicitudes', u:'usuarios', l:'licencias', a:'auditoria', r:'reset', k:'kb' };
+      // g m mantiene Home por memoria muscular (era 'Mi día'). g d ahora es
+      // Dispositivos (sub-tab de Soporte). Home usa g h.
+      const map = { h:'dashboard', m:'dashboard', t:'tickets', s:'solicitudes', u:'usuarios', l:'licencias', a:'auditoria', r:'reset', k:'kb', d:'dispositivos' };
       if (map[e.key]) {
         e.preventDefault();
         showPage(map[e.key]);

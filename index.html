@@ -311,6 +311,40 @@ nav { padding: 12px; flex: 1; }
 .section-title span { color: var(--hero-primary); }
 .section-desc { margin-top: 4px; font-size: 13px; color: var(--hero-text-muted); }
 
+/* Strip de tabs del módulo Soporte (Tickets / KB / Dispositivos / Licencias). */
+.soporte-tabs {
+  display: flex;
+  gap: 4px;
+  margin: 12px 0 6px;
+  flex-wrap: wrap;
+  border-bottom: 1px solid var(--hero-border);
+}
+.soporte-tab {
+  background: transparent;
+  border: 1px solid transparent;
+  border-bottom: none;
+  color: var(--hero-text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  font-family: var(--hero-font);
+  padding: 8px 16px;
+  border-radius: 8px 8px 0 0;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: -1px;
+  transition: background 0.15s, color 0.15s;
+}
+.soporte-tab:hover { background: var(--hero-primary-light); color: var(--hero-text-body); }
+.soporte-tab.active {
+  background: var(--hero-card-bg);
+  color: var(--hero-primary);
+  border-color: var(--hero-border);
+  border-bottom-color: var(--hero-card-bg);
+}
+.soporte-tab iconify-icon { font-size: 14px; }
+
 /* ── Cards grid ──────────────────────────────────────────── */
 .cards-grid {
   display: grid;
@@ -850,12 +884,8 @@ html { scroll-behavior: smooth; }
       <span class="nav-icon"><iconify-icon icon="tabler:inbox"></iconify-icon></span> Solicitudes
     </a>
 
-    <div class="nav-section-label">Soporte</div>
     <a class="nav-item" onclick="showPage('tickets')" href="#">
-      <span class="nav-icon"><iconify-icon icon="tabler:ticket"></iconify-icon></span> Tickets de Soporte
-    </a>
-    <a class="nav-item" onclick="showPage('kb')" href="#">
-      <span class="nav-icon"><iconify-icon icon="tabler:book-2"></iconify-icon></span> Knowledge Base
+      <span class="nav-icon"><iconify-icon icon="tabler:lifebuoy"></iconify-icon></span> Soporte
     </a>
 
     <div class="nav-section-label">Usuarios</div>
@@ -873,14 +903,6 @@ html { scroll-behavior: smooth; }
     </a>
     <a class="nav-item" onclick="showPage('offboarding')" href="#">
       <span class="nav-icon"><iconify-icon icon="tabler:user-minus"></iconify-icon></span> Offboarding
-    </a>
-
-    <div class="nav-section-label">Inventario</div>
-    <a class="nav-item" onclick="showPage('dispositivos')" href="#">
-      <span class="nav-icon"><iconify-icon icon="tabler:device-desktop"></iconify-icon></span> Dispositivos
-    </a>
-    <a class="nav-item" onclick="showPage('licencias')" href="#">
-      <span class="nav-icon"><iconify-icon icon="tabler:license"></iconify-icon></span> Licencias
     </a>
 
     <div class="nav-section-label">Registros</div>
@@ -1560,8 +1582,14 @@ html { scroll-behavior: smooth; }
     <!-- ══ TICKETS DE SOPORTE ══════════════════════════════ -->
     <div class="page" id="page-tickets">
       <div class="section-header">
-        <div class="section-title"><span>//</span> Tickets de <span>Soporte</span></div>
-        <div class="section-desc">Gestiona solicitudes de soporte — vista Kanban o lista, con notificaciones automáticas al usuario.</div>
+        <div class="section-title"><span>//</span> Soporte</div>
+        <div class="soporte-tabs">
+          <button onclick="showPage('tickets')" class="soporte-tab active"><iconify-icon icon="tabler:ticket"></iconify-icon> Tickets</button>
+          <button onclick="showPage('kb')" class="soporte-tab"><iconify-icon icon="tabler:book-2"></iconify-icon> Knowledge Base</button>
+          <button onclick="showPage('dispositivos')" class="soporte-tab"><iconify-icon icon="tabler:device-desktop"></iconify-icon> Dispositivos</button>
+          <button onclick="showPage('licencias')" class="soporte-tab"><iconify-icon icon="tabler:license"></iconify-icon> Licencias</button>
+        </div>
+        <div class="section-desc">Tickets de soporte técnico — vista Kanban o lista, con notificaciones automáticas al usuario.</div>
       </div>
 
       <!-- Toolbar -->
@@ -1782,7 +1810,13 @@ html { scroll-behavior: smooth; }
     <!-- ══ DISPOSITIVOS ════════════════════════════════════ -->
     <div class="page" id="page-dispositivos">
       <div class="section-header">
-        <div class="section-title"><span>//</span> Dispositivos</div>
+        <div class="section-title"><span>//</span> Soporte</div>
+        <div class="soporte-tabs">
+          <button onclick="showPage('tickets')" class="soporte-tab"><iconify-icon icon="tabler:ticket"></iconify-icon> Tickets</button>
+          <button onclick="showPage('kb')" class="soporte-tab"><iconify-icon icon="tabler:book-2"></iconify-icon> Knowledge Base</button>
+          <button onclick="showPage('dispositivos')" class="soporte-tab active"><iconify-icon icon="tabler:device-desktop"></iconify-icon> Dispositivos</button>
+          <button onclick="showPage('licencias')" class="soporte-tab"><iconify-icon icon="tabler:license"></iconify-icon> Licencias</button>
+        </div>
         <div class="section-desc">Inventario unificado con Zoho Assist — estado en tiempo real, metadatos IT e historial de intervenciones.</div>
       </div>
 
@@ -2018,7 +2052,13 @@ html { scroll-behavior: smooth; }
     <!-- ══ KNOWLEDGE BASE ══════════════════════════════════ -->
     <div class="page" id="page-kb">
       <div class="section-header">
-        <div class="section-title"><span>//</span> Knowledge <span>Base</span></div>
+        <div class="section-title"><span>//</span> Soporte</div>
+        <div class="soporte-tabs">
+          <button onclick="showPage('tickets')" class="soporte-tab"><iconify-icon icon="tabler:ticket"></iconify-icon> Tickets</button>
+          <button onclick="showPage('kb')" class="soporte-tab active"><iconify-icon icon="tabler:book-2"></iconify-icon> Knowledge Base</button>
+          <button onclick="showPage('dispositivos')" class="soporte-tab"><iconify-icon icon="tabler:device-desktop"></iconify-icon> Dispositivos</button>
+          <button onclick="showPage('licencias')" class="soporte-tab"><iconify-icon icon="tabler:license"></iconify-icon> Licencias</button>
+        </div>
         <div class="section-desc">Soluciones a problemas recurrentes — captura conocimiento para no repetir el mismo diagnóstico.</div>
       </div>
 
@@ -2063,7 +2103,13 @@ html { scroll-behavior: smooth; }
     <!-- ══ LICENCIAS & SOFTWARE ════════════════════════════ -->
     <div class="page" id="page-licencias">
       <div class="section-header">
-        <div class="section-title"><span>//</span> Licencias & <span>Software</span></div>
+        <div class="section-title"><span>//</span> Soporte</div>
+        <div class="soporte-tabs">
+          <button onclick="showPage('tickets')" class="soporte-tab"><iconify-icon icon="tabler:ticket"></iconify-icon> Tickets</button>
+          <button onclick="showPage('kb')" class="soporte-tab"><iconify-icon icon="tabler:book-2"></iconify-icon> Knowledge Base</button>
+          <button onclick="showPage('dispositivos')" class="soporte-tab"><iconify-icon icon="tabler:device-desktop"></iconify-icon> Dispositivos</button>
+          <button onclick="showPage('licencias')" class="soporte-tab active"><iconify-icon icon="tabler:license"></iconify-icon> Licencias</button>
+        </div>
         <div class="section-desc">Registro de licencias activas, fechas de vencimiento y costos.</div>
       </div>
 
