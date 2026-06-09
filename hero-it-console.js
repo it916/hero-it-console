@@ -794,9 +794,9 @@ function renderEmpty(el, opts) {
   const ctaFn   = opts.ctaFn || null;
   el.innerHTML =
       '<div class="info-box" style="text-align:center;padding:40px;grid-column:1/-1;">'
-    +   '<div style="font-size:36px;opacity:0.35;margin-bottom:14px;">' + escHtml(icon) + '</div>'
+    +   '<div style="font-size:36px;opacity:0.35;margin-bottom:14px;">' + icon + '</div>'
     +   '<div style="font-size:13px;color:var(--hero-text-muted);margin-bottom:' + (ctaText ? '16px' : '0') + ';">' + escHtml(message) + '</div>'
-    +   (ctaText ? '<button class="btn btn-secondary" data-empty-cta style="font-size:12px;">' + escHtml(ctaText) + '</button>' : '')
+    +   (ctaText ? '<button class="btn btn-secondary" data-empty-cta style="font-size:12px;">' + ctaText + '</button>' : '')
     + '</div>';
   if (ctaFn) {
     const btn = el.querySelector('[data-empty-cta]');
