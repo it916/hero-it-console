@@ -2219,49 +2219,83 @@ html { scroll-behavior: smooth; }
     <div class="page" id="page-config">
       <div class="section-header">
         <div class="section-title"><span>//</span> Configuración</div>
-        <div class="section-desc">Variables del sistema y URLs de conexión con Apps Script.</div>
+        <div class="section-desc">Autorizadores, plantillas de email y preferencias del Console.</div>
       </div>
 
-
-      <div class="info-box" style="margin-bottom:16px">
-        <div class="info-box-title">Cloudflare Worker · Conexión con Resend</div>
-        <div class="url-notice" style="margin-bottom:14px; margin-top:4px">
-          <div class="url-notice-icon"><iconify-icon icon="tabler:lock"></iconify-icon></div>
-          <div class="url-notice-text">
-            El API Key de Resend está guardado de forma segura en el Worker de Cloudflare.
-            No necesitas configurar nada aquí — solo verifica que la conexión funcione.
+      <!-- ─── Autorizadores ─────────────────────────────────── -->
+      <div class="info-box" style="margin-bottom:16px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+          <div class="info-box-title" style="margin-bottom:0;"><iconify-icon icon="tabler:user-check"></iconify-icon> Autorizadores de altas / bajas</div>
+          <span id="cfg-auth-status" style="font-family:var(--mono);font-size:10px;color:var(--hero-text-muted);"></span>
+        </div>
+        <p style="font-size:12px;color:var(--hero-text-muted);margin:0 0 14px;line-height:1.6;">
+          Correos autorizados para aprobar solicitudes de alta/baja. Cuando contratos envía una solicitud,
+          el sistema envía un email firmado a cada uno; basta con que <strong>uno</strong> haga click para autorizar.
+        </p>
+        <div id="cfg-authorizers-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px;"></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin-bottom:10px;">
+          <div style="flex:1;min-width:160px;">
+            <label class="form-label" style="font-size:11px;">Email corporativo</label>
+            <input class="form-input" id="cfg-auth-new-email" type="email" placeholder="usuario@heroinsuranceusa.com" style="font-size:13px;"/>
           </div>
+          <div style="flex:1;min-width:160px;">
+            <label class="form-label" style="font-size:11px;">Nombre</label>
+            <input class="form-input" id="cfg-auth-new-nombre" type="text" placeholder="Nombre completo" style="font-size:13px;"/>
+          </div>
+          <button class="btn btn-secondary" onclick="cfgAddAuthorizer()" style="font-size:12px;"><iconify-icon icon="tabler:plus"></iconify-icon> Agregar</button>
         </div>
-        <div class="form-group">
-          <label class="form-label">Worker URL</label>
-          <input class="form-input" value="https://hero-email-worker.broad-fire-d2d6.workers.dev" readonly style="opacity:0.6;cursor:default;"/>
-        </div>
-        <div style="margin-top:4px">
-          <button class="btn btn-primary" onclick="testConexion()"><iconify-icon icon="tabler:plug-connected"></iconify-icon> Probar conexión</button>
+        <div style="display:flex;gap:8px;justify-content:flex-end;">
+          <button class="btn btn-secondary" onclick="cfgLoadAuthorizers()" style="font-size:12px;">↺ Recargar</button>
+          <button class="btn btn-primary" onclick="cfgSaveAuthorizers()" id="btn-cfg-save-auth" style="font-size:12px;"><iconify-icon icon="tabler:device-floppy"></iconify-icon> Guardar cambios</button>
         </div>
       </div>
 
+      <!-- ─── Preferencias del Console ──────────────────────── -->
+      <div class="info-box" style="margin-bottom:16px;">
+        <div class="info-box-title" style="margin-bottom:8px;"><iconify-icon icon="tabler:settings"></iconify-icon> Preferencias del Console</div>
+        <p style="font-size:12px;color:var(--hero-text-muted);margin:0 0 14px;line-height:1.6;">
+          Configuración local de tu navegador. No afecta a otros usuarios.
+        </p>
+        <div style="display:grid;gap:14px;">
+          <div>
+            <label class="form-label">Tema</label>
+            <select class="form-input" id="cfg-pref-theme" onchange="cfgSavePrefs()">
+              <option value="light">Claro</option>
+              <option value="dark">Oscuro</option>
+            </select>
+          </div>
+          <div>
+            <label class="form-label">Intervalo de polling (actualización en background)</label>
+            <select class="form-input" id="cfg-pref-poll" onchange="cfgSavePrefs()">
+              <option value="60">60 segundos</option>
+              <option value="120" selected>2 minutos (recomendado)</option>
+              <option value="300">5 minutos</option>
+              <option value="0">Desactivado</option>
+            </select>
+            <p style="font-size:11px;color:var(--hero-text-muted);margin:6px 0 0;">Frecuencia con que el Console consulta /stats para detectar tickets/solicitudes nuevos.</p>
+          </div>
+          <label style="display:flex;align-items:center;gap:10px;cursor:pointer;">
+            <input type="checkbox" id="cfg-pref-push" onchange="cfgSavePrefs()" style="width:16px;height:16px;cursor:pointer;"/>
+            <span style="font-size:13px;">Mostrar notificaciones del navegador</span>
+          </label>
+          <p style="font-size:11px;color:var(--hero-text-muted);margin:-6px 0 0 26px;">Aparecen mientras la pestaña esté abierta. El permiso del navegador debe estar concedido.</p>
+        </div>
+      </div>
+
+      <!-- ─── Plantillas de email ───────────────────────────── -->
       <div class="info-box">
-        <div class="info-box-title">Estado actual del sistema</div>
-        <div class="config-row">
-          <span class="config-key">Servicio de email</span>
-          <span class="config-val">Resend API</span>
-        </div>
-        <div class="config-row">
-          <span class="config-key">Remitente</span>
-          <span class="config-val"><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="7c15083c14190e1315120f090e1d121f19090f1d521f1311">[email&#160;protected]</a></span>
-        </div>
-        <div class="config-row">
-          <span class="config-key">Scripts integrados</span>
-          <span class="config-val">3 activos</span>
-        </div>
-        <div class="config-row">
-          <span class="config-key">Worker</span>
-          <span class="config-val" style="color:var(--hero-success)">Configurado</span>
-        </div>
-        <div class="config-row">
-          <span class="config-key">Último test de conexión</span>
-          <span class="config-val" id="cfg-last-test">—</span>
+        <div class="info-box-title" style="margin-bottom:8px;"><iconify-icon icon="tabler:mail-cog"></iconify-icon> Plantillas de email</div>
+        <p style="font-size:12px;color:var(--hero-text-muted);margin:0 0 14px;line-height:1.6;">
+          Los emails de onboarding, reset y notificación están definidos en código (en
+          <code style="font-family:var(--mono);background:var(--hero-bg);padding:1px 6px;border-radius:4px;">buildEmailEmpleado()</code>,
+          <code style="font-family:var(--mono);background:var(--hero-bg);padding:1px 6px;border-radius:4px;">buildEmailAgente()</code> y
+          <code style="font-family:var(--mono);background:var(--hero-bg);padding:1px 6px;border-radius:4px;">buildEmailReset()</code>).
+          Para cambios menores (textos, colores, links) hacé una edición directa al archivo y pushea.
+          El editor visual de plantillas con preview es un siguiente paso si encontrás que estás
+          tocando los emails seguido.
+        </p>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button class="btn btn-secondary" onclick="window.open('https://github.com/it916/hero-it-console/blob/main/hero-it-console.js#L900','_blank')" style="font-size:12px;"><iconify-icon icon="tabler:brand-github"></iconify-icon> Ver código de las plantillas</button>
         </div>
       </div>
     </div>

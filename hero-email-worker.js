@@ -351,6 +351,36 @@ export default {
       } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: 'Error interno del servidor' }, 500, cors); }
     }
 
+    // ── GET /config/authorizers ───────────────────────────────
+    // Lista de autorizadores que pueden aprobar altas/bajas. La fuente de verdad
+    // es KV 'config_authorizers'; si está vacía, retornamos el fallback hardcoded
+    // para que el sistema siga funcionando sin haber sido configurado.
+    if (request.method === 'GET' && path === '/config/authorizers') {
+      try {
+        const list = await getAuthorizerList(env);
+        return json({ authorizers: list, isDefault: list === AUTHORIZER_LIST_DEFAULT }, 200, cors);
+      } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: 'Error interno del servidor' }, 500, cors); }
+    }
+
+    // ── POST /config/authorizers ──────────────────────────────
+    // Reemplaza la lista completa. Se valida que cada entry tenga email y nombre.
+    // Lista vacía => borrar la key y volver al fallback hardcoded.
+    if (request.method === 'POST' && path === '/config/authorizers') {
+      try {
+        const { authorizers } = await request.json();
+        if (!Array.isArray(authorizers)) return json({ error: 'authorizers debe ser un array' }, 400, cors);
+        const clean = authorizers
+          .map(a => ({ email: String(a.email || '').trim().toLowerCase(), nombre: String(a.nombre || '').trim() }))
+          .filter(a => a.email && a.nombre && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(a.email));
+        if (clean.length === 0) {
+          await env.HERO_KV.delete('config_authorizers');
+          return json({ ok: true, count: 0, usingDefault: true }, 200, cors);
+        }
+        await env.HERO_KV.put('config_authorizers', JSON.stringify(clean));
+        return json({ ok: true, count: clean.length, authorizers: clean }, 200, cors);
+      } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: 'Error interno del servidor' }, 500, cors); }
+    }
+
     // ── GET /users ────────────────────────────────────────────
     // Cache de 60s en KV: el dashboard recarga cada 60s + cada vista que pida
     // usuarios golpeaba Admin API. Reduce quota y latencia (200-500ms ahorrados
@@ -497,7 +527,7 @@ export default {
           }), 410, cors);
         }
 
-        const authorizerObj = AUTHORIZER_BY_EMAIL(by);
+        const authorizerObj = await findAuthorizerByEmail(env, by);
         if (!authorizerObj) {
           return htmlResponse(buildAuthorizePage({
             titulo: 'No autorizado', icono: '🔒', color: heroRed,
@@ -722,7 +752,7 @@ export default {
         // Cada autorizador recibe un correo personalizado con su propio link firmado (HMAC).
         // Cuando el primero hace click, la solicitud queda como autorizada; los demás
         // ven una página "ya autorizada por X" al clickar.
-        const AUTHORIZERS = AUTHORIZER_LIST;
+        const AUTHORIZERS = await getAuthorizerList(env);
         const isAlta     = tipoSolicitud === 'alta';
         const badgeText  = isAlta ? 'ALTA' : 'BAJA';
         const headerGrad = isAlta
@@ -1711,16 +1741,31 @@ function htmlResponse(html, status = 200, cors = {}) {
   });
 }
 
-// Lista única de autorizadores — usada por el POST (envío de emails) y por
+// Lista de autorizadores — usada por el POST (envío de emails) y por
 // el GET /solicitud-cuenta/autorizar (para resolver email → nombre).
-const AUTHORIZER_LIST = [
+// Fuente de verdad: KV key 'config_authorizers' (editable desde Console).
+// Fallback: la lista hardcoded. Si KV está vacío/corrupto, sigue funcionando.
+const AUTHORIZER_LIST_DEFAULT = [
   { email: 'jgutierrez@heroinsuranceusa.com',  nombre: 'Jesús Gutiérrez' },
   { email: 'contracting@heroinsuranceusa.com', nombre: 'Anny Medina' },
   { email: 'hr@heroinsuranceusa.com',          nombre: 'Aurys Rodríguez' },
 ];
-function AUTHORIZER_BY_EMAIL(email) {
+async function getAuthorizerList(env) {
+  try {
+    const stored = await env.HERO_KV.get('config_authorizers');
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed.filter(a => a && a.email && a.nombre);
+      }
+    }
+  } catch (_) { /* fallback al hardcoded */ }
+  return AUTHORIZER_LIST_DEFAULT;
+}
+async function findAuthorizerByEmail(env, email) {
+  const list = await getAuthorizerList(env);
   const e = (email || '').toLowerCase();
-  return AUTHORIZER_LIST.find(a => a.email.toLowerCase() === e) || null;
+  return list.find(a => a.email.toLowerCase() === e) || null;
 }
 
 function buildAuthorizePage({ titulo, mensaje, detalle, color, icono }) {

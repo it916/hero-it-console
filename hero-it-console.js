@@ -87,6 +87,9 @@ function toggleTheme() {
   localStorage.setItem('hero_theme', newTheme);
   const btn = document.getElementById('btn-theme');
   if (btn) btn.innerHTML = '<iconify-icon icon="tabler:' + (newTheme === 'dark' ? 'moon' : 'sun') + '"></iconify-icon>';
+  // Sincronizar el select en Configuración si está montado.
+  const pref = document.getElementById('cfg-pref-theme');
+  if (pref) pref.value = newTheme;
 }
 
 function applyStoredTheme() {
@@ -174,6 +177,7 @@ function showPage(id) {
     'licencias':    () => loadLicencias(),
     'kb':           () => loadKb(),
     'logs':         () => renderSessionLogs(),
+    'config':       () => loadConfig(),
   };
   if (autoLoad[id]) autoLoad[id]();
 
@@ -501,6 +505,8 @@ document.addEventListener('click', function(e) {
 
 function sendPushNotification(title, body, onClick) {
   if (Notification.permission !== 'granted') return;
+  // Respeta el toggle "Mostrar notificaciones del navegador" de Preferencias.
+  if (localStorage.getItem('hero_push_enabled') === 'false') return;
   const n = new Notification(title, { body, icon: 'https://i.ibb.co/PvS31B1z/shield-low.png' });
   if (onClick) n.onclick = function() { window.focus(); onClick(); };
 }
@@ -554,12 +560,20 @@ async function pollForUpdates() {
 // Polling con Page Visibility: cuando la pestaña no es visible (background tab,
 // minimizada, otro escritorio), pausamos el setInterval para no consumir cuota
 // KV de Cloudflare. Al volver, hacemos un poll inmediato + reanudamos.
-// Intervalo subido a 2 min (cache del backend es 2 min, alineado).
-const POLL_INTERVAL_MS = 2 * 60 * 1000;
+// Intervalo default 2 min (cache del backend es 2 min, alineado). Configurable
+// por usuario en Configuración → Preferencias (hero_poll_interval en segundos,
+// 0 = desactivado).
+function _getPollIntervalMs() {
+  const stored = parseInt(localStorage.getItem('hero_poll_interval') || '120', 10);
+  if (isNaN(stored) || stored < 0) return 120 * 1000;
+  return stored * 1000;
+}
 function startPolling() {
   if (notifInterval) return;
+  const ms = _getPollIntervalMs();
+  if (ms === 0) return;
   pollForUpdates();
-  notifInterval = setInterval(pollForUpdates, POLL_INTERVAL_MS);
+  notifInterval = setInterval(pollForUpdates, ms);
 
   // Pausar cuando la pestaña pierde visibilidad
   document.addEventListener('visibilitychange', () => {
@@ -567,11 +581,20 @@ function startPolling() {
       if (notifInterval) { clearInterval(notifInterval); notifInterval = null; }
     } else {
       if (!notifInterval) {
-        pollForUpdates();
-        notifInterval = setInterval(pollForUpdates, POLL_INTERVAL_MS);
+        const ms = _getPollIntervalMs();
+        if (ms > 0) {
+          pollForUpdates();
+          notifInterval = setInterval(pollForUpdates, ms);
+        }
       }
     }
   });
+}
+
+// Reinicia el polling cuando el usuario cambia el intervalo en Preferencias.
+function restartPolling() {
+  if (notifInterval) { clearInterval(notifInterval); notifInterval = null; }
+  startPolling();
 }
 
 async function auditLog(tipo, descripcion, detalle = null) {
@@ -984,37 +1007,115 @@ async function executeReset() {
 }
 
 
-// ── Config ────────────────────────────────────────────────────
-async function testConexion() {
-  addLog('Enviando email de prueba via Worker...', 'info');
+// ── Configuración ─────────────────────────────────────────────
+// 3 secciones: Autorizadores (KV), Preferencias (localStorage), Plantillas
+// (placeholder con link al código). Cada sección tiene su propio load/save.
+
+// Lista en memoria mientras se edita; cfgSaveAuthorizers la pushea al Worker.
+let cfgAuthorizers = [];
+
+async function loadConfig() {
+  cfgLoadAuthorizers();
+  cfgLoadPrefs();
+}
+
+async function cfgLoadAuthorizers() {
+  const listEl = document.getElementById('cfg-authorizers-list');
+  if (!listEl) return;
+  renderSkeleton(listEl, { type: 'list', rows: 3 });
   try {
-    const resp = await authFetch(WORKER_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        from: 'onboarding' + atSign + 'resend.dev',
-        to: 'it' + atSign + 'heroinsuranceusa.com',
-        subject: 'Hero IT Console - Conexion verificada',
-        html: '<p><strong>Conexion con Resend verificada correctamente.</strong> El sistema esta listo para enviar emails.</p>',
-        text: 'Conexion con Resend verificada. El sistema esta listo.'
-      })
-    });
-    const result = await resp.json();
-    const ts = new Date().toLocaleTimeString('es-MX');
-    document.getElementById('cfg-last-test').textContent = ts;
-    if (resp.ok) {
-      addLog('Conexion exitosa - revisa tu correo it' + atSign + 'heroinsuranceusa.com', 'success');
-      showToast('Conexion exitosa - revisa tu correo');
-      document.getElementById('global-status').textContent = 'RESEND OK';
-      document.getElementById('global-status').style.color = 'var(--hero-success)';
-    } else {
-      addLog('Error ' + resp.status + ': ' + (result.message || result.error || JSON.stringify(result)), 'error');
-      showToast('Error: ' + (result.message || result.error || resp.status));
-    }
+    const r = await authFetch(WORKER_URL + '/config/authorizers');
+    if (!r.ok) throw new Error('Worker ' + r.status);
+    const d = await r.json();
+    cfgAuthorizers = d.authorizers || [];
+    const status = document.getElementById('cfg-auth-status');
+    if (status) status.textContent = d.isDefault ? 'usando lista por defecto' : cfgAuthorizers.length + ' configurado' + (cfgAuthorizers.length !== 1 ? 's' : '');
+    _renderAuthorizers();
   } catch (e) {
-    addLog('Error de red: ' + e.message, 'error');
-    showToast('Error de conexion');
+    listEl.innerHTML = '<div style="font-size:12px;color:var(--hero-danger);padding:8px;">Error: ' + escHtml(e.message) + '</div>';
   }
+}
+
+function _renderAuthorizers() {
+  const listEl = document.getElementById('cfg-authorizers-list');
+  if (!listEl) return;
+  if (!cfgAuthorizers.length) {
+    listEl.innerHTML = '<div style="font-size:12px;color:var(--hero-text-muted);padding:8px;text-align:center;">Sin autorizadores configurados. Agregá al menos uno o se vuelve al fallback hardcoded.</div>';
+    return;
+  }
+  listEl.innerHTML = cfgAuthorizers.map((a, i) =>
+    '<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--hero-bg);border:1px solid var(--hero-border);border-radius:8px;">'
+    + '<div style="flex:1;min-width:0;">'
+    +   '<div style="font-size:13px;font-weight:600;color:var(--hero-text-primary);">' + escHtml(a.nombre) + '</div>'
+    +   '<div style="font-size:11px;font-family:var(--mono);color:var(--hero-primary);">' + escHtml(a.email) + '</div>'
+    + '</div>'
+    + '<button onclick="cfgRemoveAuthorizer(' + i + ')" style="background:transparent;border:1px solid var(--hero-border);color:var(--hero-danger);padding:4px 10px;border-radius:6px;font-size:11px;cursor:pointer;display:inline-flex;align-items:center;gap:4px;"><iconify-icon icon="tabler:trash"></iconify-icon> Quitar</button>'
+    + '</div>'
+  ).join('');
+}
+
+function cfgAddAuthorizer() {
+  const email  = document.getElementById('cfg-auth-new-email').value.trim().toLowerCase();
+  const nombre = document.getElementById('cfg-auth-new-nombre').value.trim();
+  if (!email || !nombre) { showToast('Email y nombre son requeridos'); return; }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { showToast('Email inválido'); return; }
+  if (cfgAuthorizers.some(a => a.email === email)) { showToast('Ese email ya está en la lista'); return; }
+  cfgAuthorizers.push({ email, nombre });
+  document.getElementById('cfg-auth-new-email').value = '';
+  document.getElementById('cfg-auth-new-nombre').value = '';
+  _renderAuthorizers();
+}
+
+function cfgRemoveAuthorizer(idx) {
+  cfgAuthorizers.splice(idx, 1);
+  _renderAuthorizers();
+}
+
+async function cfgSaveAuthorizers() {
+  const btn = document.getElementById('btn-cfg-save-auth');
+  if (btn) { btn.disabled = true; btn.innerHTML = '<l-ring size="14" stroke="2" speed="0.7" color="#06a3b6"></l-ring> Guardando...'; }
+  try {
+    const r = await authFetch(WORKER_URL + '/config/authorizers', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ authorizers: cfgAuthorizers }),
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || 'Error');
+    showToast(d.usingDefault ? 'Lista vacía — usando fallback' : 'Guardados ' + d.count + ' autorizadores');
+    auditLog('config', 'Autorizadores actualizados', d.count + ' entries');
+    cfgLoadAuthorizers();
+  } catch (e) {
+    showToast('Error: ' + e.message);
+  }
+  if (btn) { btn.disabled = false; btn.innerHTML = '<iconify-icon icon="tabler:device-floppy"></iconify-icon> Guardar cambios'; }
+}
+
+// Preferencias locales en localStorage. Aplicadas inmediatamente al guardar.
+function cfgLoadPrefs() {
+  const themeEl = document.getElementById('cfg-pref-theme');
+  const pollEl  = document.getElementById('cfg-pref-poll');
+  const pushEl  = document.getElementById('cfg-pref-push');
+  if (themeEl) themeEl.value = localStorage.getItem('hero_theme') || 'light';
+  if (pollEl)  pollEl.value  = localStorage.getItem('hero_poll_interval') || '120';
+  if (pushEl)  pushEl.checked = localStorage.getItem('hero_push_enabled') !== 'false';
+}
+
+function cfgSavePrefs() {
+  const themeEl = document.getElementById('cfg-pref-theme');
+  const pollEl  = document.getElementById('cfg-pref-poll');
+  const pushEl  = document.getElementById('cfg-pref-push');
+  if (themeEl) {
+    localStorage.setItem('hero_theme', themeEl.value);
+    document.documentElement.setAttribute('data-theme', themeEl.value);
+    const btn = document.getElementById('btn-theme');
+    if (btn) btn.innerHTML = '<iconify-icon icon="tabler:' + (themeEl.value === 'dark' ? 'moon' : 'sun') + '"></iconify-icon>';
+  }
+  if (pollEl) {
+    localStorage.setItem('hero_poll_interval', pollEl.value);
+    restartPolling();
+  }
+  if (pushEl) localStorage.setItem('hero_push_enabled', pushEl.checked ? 'true' : 'false');
+  showToast('Preferencias guardadas');
 }
 
 // ── Email templates ───────────────────────────────────────────
