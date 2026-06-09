@@ -888,21 +888,8 @@ html { scroll-behavior: smooth; }
       <span class="nav-icon"><iconify-icon icon="tabler:lifebuoy"></iconify-icon></span> Soporte
     </a>
 
-    <div class="nav-section-label">Usuarios</div>
     <a class="nav-item" onclick="showPage('usuarios')" href="#">
-      <span class="nav-icon"><iconify-icon icon="tabler:users"></iconify-icon></span> Usuarios Workspace
-    </a>
-    <a class="nav-item" onclick="showPage('crear-usuario')" href="#">
-      <span class="nav-icon"><iconify-icon icon="tabler:user-plus"></iconify-icon></span> Crear Usuario
-    </a>
-    <a class="nav-item" onclick="showPage('onboarding')" href="#">
-      <span class="nav-icon"><iconify-icon icon="tabler:mail-forward"></iconify-icon></span> Enviar Onboarding
-    </a>
-    <a class="nav-item" onclick="showPage('reset')" href="#">
-      <span class="nav-icon"><iconify-icon icon="tabler:key"></iconify-icon></span> Reset de Contraseña
-    </a>
-    <a class="nav-item" onclick="showPage('offboarding')" href="#">
-      <span class="nav-icon"><iconify-icon icon="tabler:user-minus"></iconify-icon></span> Offboarding
+      <span class="nav-icon"><iconify-icon icon="tabler:users"></iconify-icon></span> Usuarios
     </a>
 
     <div class="nav-section-label">Registros</div>
@@ -1176,11 +1163,12 @@ html { scroll-behavior: smooth; }
     <!-- ══ USUARIOS WORKSPACE ══════════════════════════════ -->
     <div class="page" id="page-usuarios">
       <div class="section-header">
-        <div class="section-title"><span>//</span> Usuarios <span>Workspace</span></div>
-        <div class="section-desc">Lista de todos los usuarios activos en Google Workspace — Hero Insurance USA.</div>
+        <div class="section-title"><span>//</span> Usuarios</div>
+        <div class="section-desc">Gestión completa del ciclo de vida — Workspace, reset, onboarding, offboarding.</div>
       </div>
 
       <div style="display:flex; gap:10px; margin-bottom:16px; flex-wrap:wrap; align-items:center;">
+        <button class="btn btn-primary" onclick="showPage('crear-usuario')"><iconify-icon icon="tabler:user-plus"></iconify-icon> Nuevo usuario</button>
         <input class="form-input" id="usr-search" type="text" placeholder="Buscar por nombre o email..."
           oninput="filterUsers()" style="flex:1; min-width:200px; max-width:360px;"/>
         <select class="form-input" id="usr-filter-ou" onchange="filterUsers()" style="min-width:200px;">
@@ -1191,7 +1179,7 @@ html { scroll-behavior: smooth; }
           <option value="no">Sin 2FA</option>
           <option value="si">Con 2FA</option>
         </select>
-        <button class="btn btn-primary" onclick="loadUsers()" id="btn-load-users">
+        <button class="btn btn-secondary" onclick="loadUsers()" id="btn-load-users" style="font-size:12px;">
           ↺ Cargar usuarios
         </button>
         <span id="usr-count" style="font-family:var(--mono); font-size:11px; color:var(--hero-text-muted);"></span>
@@ -1246,11 +1234,23 @@ html { scroll-behavior: smooth; }
             <button class="btn btn-primary" onclick="userAction('reset')" style="width:100%;margin-top:10px;font-size:13px;"><iconify-icon icon="tabler:key"></iconify-icon> Aplicar reset</button>
           </div>
           <div class="info-box" style="margin-bottom:12px;">
-            <div class="info-box-title">⏸ Suspender / Restaurar cuenta</div>
+            <div class="info-box-title"><iconify-icon icon="tabler:player-pause"></iconify-icon> Suspender / Restaurar cuenta</div>
             <div style="display:flex;gap:8px;margin-top:10px;">
-              <button class="btn btn-secondary" onclick="userAction('suspend')" style="flex:1;font-size:13px;">⏸ Suspender</button>
-              <button class="btn btn-primary" onclick="userAction('restore')" style="flex:1;font-size:13px;">▶ Restaurar</button>
+              <button class="btn btn-secondary" onclick="userAction('suspend')" style="flex:1;font-size:13px;"><iconify-icon icon="tabler:player-pause"></iconify-icon> Suspender</button>
+              <button class="btn btn-primary" onclick="userAction('restore')" style="flex:1;font-size:13px;"><iconify-icon icon="tabler:player-play"></iconify-icon> Restaurar</button>
             </div>
+          </div>
+          <div class="info-box" style="margin-bottom:12px;">
+            <div class="info-box-title"><iconify-icon icon="tabler:mail-forward"></iconify-icon> Enviar / Offboarding</div>
+            <div style="display:flex;gap:8px;margin-top:10px;">
+              <button class="btn btn-secondary" onclick="goToFlowFor('onboarding')" style="flex:1;font-size:13px;"><iconify-icon icon="tabler:mail-forward"></iconify-icon> Onboarding</button>
+              <button class="btn btn-secondary" onclick="goToFlowFor('offboarding')" style="flex:1;font-size:13px;"><iconify-icon icon="tabler:user-minus"></iconify-icon> Offboarding</button>
+            </div>
+          </div>
+          <div class="info-box" style="margin-bottom:0;border-color:rgba(214,69,69,0.3);">
+            <div class="info-box-title" style="color:var(--hero-danger);"><iconify-icon icon="tabler:alert-triangle"></iconify-icon> Eliminar cuenta</div>
+            <p style="font-size:11px;color:var(--hero-text-muted);margin:6px 0 10px;line-height:1.5;">Borra la cuenta de Workspace de forma permanente. Esta acción no se puede deshacer.</p>
+            <button class="btn" onclick="userAction('delete')" style="width:100%;background:rgba(214,69,69,0.1);border:1px solid var(--hero-danger);color:var(--hero-danger);font-size:13px;"><iconify-icon icon="tabler:trash"></iconify-icon> Eliminar de Workspace</button>
           </div>
         </div>
       </div>

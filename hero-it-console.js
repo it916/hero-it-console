@@ -168,7 +168,9 @@ function showPage(id) {
     'solicitudes':  () => loadSolicitudes(),
     'auditoria':    () => loadAudit(),
     'dispositivos': () => loadDevices(),
-    'offboarding':  () => { if (!window._workspaceUsers) loadUsers(); renderOffboardingSteps(); },
+    'offboarding':  () => { if (!window._workspaceUsers) loadUsers(); renderOffboardingSteps(); _consumePreselectedUser('offboarding'); },
+    'onboarding':   () => _consumePreselectedUser('onboarding'),
+    'reset':        () => _consumePreselectedUser('reset'),
     'licencias':    () => loadLicencias(),
     'kb':           () => loadKb(),
     'logs':         () => renderSessionLogs(),
@@ -1262,16 +1264,56 @@ function generateUserPassword() {
   showToast('Contraseña generada y copiada al portapapeles');
 }
 
+// Navega a una página técnica (onboarding, offboarding, reset) con el usuario
+// del modal de Usuarios preseleccionado. Cada página lo consume en su autoLoad.
+function goToFlowFor(flow) {
+  if (!currentUserEmail) return;
+  const email  = currentUserEmail;
+  const nombre = document.getElementById('um-nombre').textContent;
+  window._preselectedUser = { email, nombre };
+  closeUserModal();
+  showPage(flow);
+}
+
+function _consumePreselectedUser(target) {
+  const u = window._preselectedUser;
+  if (!u) return;
+  window._preselectedUser = null;
+  if (target === 'offboarding') {
+    if (typeof selectOffboardingUser === 'function') selectOffboardingUser(u.email, u.nombre);
+  } else if (target === 'reset') {
+    if (typeof selectResetUser === 'function') selectResetUser(u.email, u.nombre, 'activo');
+  } else if (target === 'onboarding') {
+    const nameInput  = document.getElementById('onb-nombre');
+    const emailInput = document.getElementById('onb-email-user');
+    if (nameInput)  nameInput.value  = u.nombre || '';
+    if (emailInput) emailInput.value = (u.email || '').split('@')[0];
+    if (typeof onbPreview === 'function') onbPreview();
+  }
+}
+
 async function userAction(action) {
   if (!currentUserEmail) return;
   const email  = currentUserEmail;
   const nombre = document.getElementById('um-nombre').textContent;
 
-  const labels = { reset: 'resetear contraseña', suspend: 'suspender', restore: 'restaurar' };
+  const labels = { reset: 'resetear contraseña', suspend: 'suspender', restore: 'restaurar', delete: 'eliminar' };
   const newPassword = action === 'reset' ? document.getElementById('um-new-password').value.trim() : null;
 
   if (action === 'reset' && !newPassword) {
     showToast('Ingresa o genera una contraseña temporal primero'); return;
+  }
+
+  // Borrar cuenta es irreversible — confirmación fuerte que obliga a tipear el email.
+  if (action === 'delete') {
+    const ok = await heroConfirm({
+      title: '¿Eliminar la cuenta de Workspace?',
+      body: 'Vas a eliminar de forma permanente la cuenta de ' + nombre + ' (' + email + '). Esta acción no se puede deshacer.',
+      confirmText: 'Eliminar definitivamente',
+      destructive: true,
+      mustType: email,
+    });
+    if (!ok) return;
   }
 
   addLog('Ejecutando ' + labels[action] + ' para ' + email + '...', 'info');
@@ -1289,6 +1331,7 @@ async function userAction(action) {
       reset:   'Contraseña reseteada para ' + nombre,
       suspend: 'Cuenta suspendida: ' + nombre,
       restore: 'Cuenta restaurada: ' + nombre,
+      delete:  'Cuenta eliminada: ' + nombre,
     };
     addLog(msgs[action], 'success');
     auditLog('usuario', msgs[action], email);
