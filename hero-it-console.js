@@ -3564,7 +3564,16 @@ async function saveKb() {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: editingKbId, titulo, contenido, tags }),
       });
-      if (!r.ok) throw new Error((await r.json()).error || 'Error');
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || 'Error');
+      // Actualizamos en memoria con el artículo que devolvió el server.
+      // Evita el re-fetch que pegaba contra cache_kb_list (KV list es
+      // eventually consistent: el PUT recién hecho puede no aparecer
+      // todavía y la lista vacía/parcial quedaba cacheada 60s).
+      if (d.articulo) {
+        const idx = allKb.findIndex(x => x.id === editingKbId);
+        if (idx >= 0) allKb[idx] = d.articulo;
+      }
       showToast('Artículo actualizado');
       auditLog('kb', 'KB actualizado: ' + titulo);
     } else {
@@ -3572,12 +3581,14 @@ async function saveKb() {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ titulo, contenido, tags, ticketOrigen: _kbOrigenTicket || null }),
       });
-      if (!r.ok) throw new Error((await r.json()).error || 'Error');
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || 'Error');
+      if (d.articulo) allKb.unshift(d.articulo);
       showToast('Artículo creado');
       auditLog('kb', 'KB creado: ' + titulo, _kbOrigenTicket ? 'desde ' + _kbOrigenTicket : null);
     }
     closeKbModal();
-    await loadKb();
+    filterKb();
   } catch (e) {
     showToast('Error: ' + e.message);
   }
@@ -3601,8 +3612,10 @@ async function deleteKbCurrent() {
     if (!r.ok) throw new Error((await r.json()).error || 'Error');
     showToast('Artículo eliminado');
     auditLog('kb', 'KB eliminado: ' + (a ? a.titulo : editingKbId));
+    const removedId = editingKbId;
     closeKbModal();
-    await loadKb();
+    allKb = allKb.filter(x => x.id !== removedId);
+    filterKb();
   } catch (e) { showToast('Error: ' + e.message); }
 }
 

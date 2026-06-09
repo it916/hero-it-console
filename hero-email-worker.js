@@ -299,7 +299,7 @@ export default {
         };
         await env.HERO_KV.put(id, JSON.stringify(articulo), { metadata: summarizeKb(articulo) });
         await invalidateCaches(env, 'cache_kb_list');
-        return json({ ok: true, id }, 200, cors);
+        return json({ ok: true, id, articulo }, 200, cors);
       } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: 'Error interno del servidor' }, 500, cors); }
       }, 'kb');
     }
@@ -336,7 +336,7 @@ export default {
         a.actualizado = new Date().toISOString();
         await env.HERO_KV.put(id, JSON.stringify(a), { metadata: summarizeKb(a) });
         await invalidateCaches(env, 'cache_kb_list');
-        return json({ ok: true }, 200, cors);
+        return json({ ok: true, articulo: a }, 200, cors);
       } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: 'Error interno del servidor' }, 500, cors); }
     }
 
