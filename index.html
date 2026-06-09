@@ -844,10 +844,7 @@ html { scroll-behavior: smooth; }
   <nav>
     <div class="nav-section-label">Principal</div>
     <a class="nav-item active" onclick="showPage('dashboard')" href="#">
-      <span class="nav-icon"><iconify-icon icon="tabler:layout-dashboard"></iconify-icon></span> Dashboard
-    </a>
-    <a class="nav-item" onclick="showPage('mi-dia')" href="#">
-      <span class="nav-icon"><iconify-icon icon="tabler:sunrise"></iconify-icon></span> Mi día
+      <span class="nav-icon"><iconify-icon icon="tabler:home"></iconify-icon></span> Home
     </a>
     <a class="nav-item" onclick="showPage('solicitudes')" href="#">
       <span class="nav-icon"><iconify-icon icon="tabler:inbox"></iconify-icon></span> Solicitudes
@@ -945,31 +942,50 @@ html { scroll-behavior: smooth; }
     <!-- ══ DASHBOARD ══════════════════════════════════════ -->
     <div class="page active" id="page-dashboard">
       <div class="section-header">
-        <div class="section-title"><span>//</span> Dashboard</div>
-        <div class="section-desc">Acceso rápido a todas las herramientas de IT.</div>
+        <div class="section-title"><span>//</span> Home</div>
+        <div class="section-desc" id="home-saludo">Cola priorizada — qué necesita tu atención ahora.</div>
       </div>
 
-      <!-- Stats row -->
+      <!-- Stats row: lo que requiere acción HOY + actividad de sesión -->
       <div class="stats-row">
+        <div class="stat-chip" style="cursor:pointer;" onclick="showPage('tickets')">
+          <div class="stat-value" id="home-stat-tickets" style="color:var(--hero-danger);">—</div>
+          <div class="stat-label">Tickets urgentes</div>
+        </div>
+        <div class="stat-chip" style="cursor:pointer;" onclick="showPage('solicitudes')">
+          <div class="stat-value" id="home-stat-sols" style="color:var(--hero-warning);">—</div>
+          <div class="stat-label">Solicitudes por procesar</div>
+        </div>
+        <div class="stat-chip" style="cursor:pointer;" onclick="showPage('licencias')">
+          <div class="stat-value" id="home-stat-lics" style="color:var(--hero-primary-text);">—</div>
+          <div class="stat-label">Licencias por vencer</div>
+        </div>
         <div class="stat-chip">
-          <div class="stat-value" id="stat-logs" style="color:var(--hero-primary)">0</div>
+          <div class="stat-value" id="stat-logs" style="color:var(--hero-primary);">0</div>
           <div class="stat-label">Acciones en sesión</div>
         </div>
-        <div class="stat-chip">
-          <div class="stat-value" id="stat-tickets-open">—</div>
-          <div class="stat-label">Tickets abiertos</div>
-        </div>
-        <div class="stat-chip">
-          <div class="stat-value" id="stat-solicitudes-pending">—</div>
-          <div class="stat-label">Solicitudes pendientes</div>
-        </div>
-        <div class="stat-chip">
-          <div class="stat-value" id="stat-devices-count">—</div>
-          <div class="stat-label">Dispositivos registrados</div>
-        </div>
       </div>
 
-      <!-- System status panel -->
+      <!-- Cola priorizada -->
+      <div style="margin-bottom:18px;">
+        <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:10px;">
+          <h3 style="font-size:14px;font-weight:700;color:var(--hero-text-primary);margin:0;display:flex;align-items:center;gap:8px;"><iconify-icon icon="tabler:ticket"></iconify-icon> Tickets prioritarios abiertos</h3>
+          <button class="btn btn-secondary" onclick="loadHome()" style="font-size:11px;padding:4px 10px;">↺ Actualizar</button>
+        </div>
+        <div id="md-tickets" style="display:flex;flex-direction:column;gap:8px;"></div>
+      </div>
+
+      <div style="margin-bottom:18px;">
+        <h3 style="font-size:14px;font-weight:700;color:var(--hero-text-primary);margin:0 0 10px;display:flex;align-items:center;gap:8px;"><iconify-icon icon="tabler:inbox"></iconify-icon> Solicitudes esperando IT</h3>
+        <div id="md-sols" style="display:flex;flex-direction:column;gap:8px;"></div>
+      </div>
+
+      <div style="margin-bottom:24px;">
+        <h3 style="font-size:14px;font-weight:700;color:var(--hero-text-primary);margin:0 0 10px;display:flex;align-items:center;gap:8px;"><iconify-icon icon="tabler:license"></iconify-icon> Licencias próximas a vencer (30 días)</h3>
+        <div id="md-lics" style="display:flex;flex-direction:column;gap:8px;"></div>
+      </div>
+
+      <!-- Estado del ecosistema -->
       <div class="info-box" style="margin-bottom:20px;">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
           <div class="info-box-title" style="margin-bottom:0;">Estado del ecosistema</div>
@@ -1007,51 +1023,7 @@ html { scroll-behavior: smooth; }
         </div>
       </div>
 
-      <div class="cards-grid">
-
-        <div class="action-card" style="--card-color: #f56565">
-          <div class="card-header">
-            <div class="card-icon"><iconify-icon icon="tabler:inbox"></iconify-icon></div>
-            <span class="card-badge badge-manual">Gestión</span>
-          </div>
-          <div class="card-title">Solicitudes</div>
-          <div class="card-desc">Revisa y procesa las solicitudes de alta y baja de agentes enviadas por el equipo de contratos.</div>
-          <button class="btn btn-primary" onclick="showPage('solicitudes')">Ver solicitudes →</button>
-        </div>
-
-        <div class="action-card" style="--card-color: #f0b429">
-          <div class="card-header">
-            <div class="card-icon"><iconify-icon icon="tabler:ticket"></iconify-icon></div>
-            <span class="card-badge badge-manual">Soporte</span>
-          </div>
-          <div class="card-title">Tickets de Soporte</div>
-          <div class="card-desc">Gestiona los tickets de soporte técnico del equipo — responde, cambia estado y prioridad.</div>
-          <button class="btn btn-primary" onclick="showPage('tickets')">Ver tickets →</button>
-        </div>
-
-        <div class="action-card" style="--card-color: #19CDEB">
-          <div class="card-header">
-            <div class="card-icon"><iconify-icon icon="tabler:device-desktop"></iconify-icon></div>
-            <span class="card-badge badge-auto">Inventario</span>
-          </div>
-          <div class="card-title">Dispositivos</div>
-          <div class="card-desc">Inventario de equipos con historial de intervenciones, apps instaladas y estado de GCPW.</div>
-          <button class="btn btn-primary" onclick="showPage('dispositivos')">Ver dispositivos →</button>
-        </div>
-
-        <div class="action-card" style="--card-color: #a78bfa">
-          <div class="card-header">
-            <div class="card-icon"><iconify-icon icon="tabler:users"></iconify-icon></div>
-            <span class="card-badge badge-auto">Consulta</span>
-          </div>
-          <div class="card-title">Usuarios Workspace</div>
-          <div class="card-desc">Consulta, gestiona y crea usuarios de Google Workspace en tiempo real.</div>
-          <button class="btn btn-primary" onclick="showPage('usuarios')">Ver usuarios →</button>
-        </div>
-
-      </div>
-
-      <!-- Office Manager + Reporte panel -->
+      <!-- Asistencia + Reporte -->
       <div class="panel-grid" style="margin-bottom:20px;">
         <div class="info-box">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
@@ -1071,12 +1043,12 @@ html { scroll-behavior: smooth; }
             <input class="form-input" type="month" id="report-month" style="background:var(--hero-card-bg);"/>
           </div>
           <button class="btn btn-primary" onclick="generateMonthlyReport()" style="width:100%;margin-top:8px;">
-            ⬇ Generar reporte CSV
+            <iconify-icon icon="tabler:download"></iconify-icon> Generar reporte CSV
           </button>
         </div>
       </div>
 
-      <!-- Recent log mini -->
+      <!-- Log de sesión -->
       <div class="log-console">
         <div class="log-console-header">
           <span class="log-console-title">LOG DE SESIÓN</span>
@@ -1093,7 +1065,7 @@ html { scroll-behavior: smooth; }
           </div>
         </div>
       </div>
-    </div><!-- /dashboard -->
+    </div><!-- /home -->
 
     <!-- ══ RESET PASSWORD ══════════════════════════════════ -->
     <div class="page" id="page-reset">
@@ -1476,51 +1448,6 @@ html { scroll-behavior: smooth; }
             <div class="log-empty-text">Completa el formulario para enviar el correo de onboarding</div>
           </div>
         </div>
-      </div>
-    </div>
-
-    <!-- ══ MI DÍA ══════════════════════════════════════════ -->
-    <div class="page" id="page-mi-dia">
-      <div class="section-header">
-        <div class="section-title"><span>//</span> Mi día</div>
-        <div class="section-desc" id="mi-dia-saludo">Cola priorizada — qué necesita tu atención ahora.</div>
-      </div>
-
-      <!-- Stats row con counts grandes -->
-      <div class="stats-row" style="margin-bottom:18px;">
-        <div class="stat-chip" style="cursor:pointer;" onclick="showPage('tickets')">
-          <div class="stat-value" id="md-stat-tickets" style="color:var(--hero-danger);">—</div>
-          <div class="stat-label">Tickets urgentes</div>
-        </div>
-        <div class="stat-chip" style="cursor:pointer;" onclick="showPage('solicitudes')">
-          <div class="stat-value" id="md-stat-sols" style="color:var(--hero-warning);">—</div>
-          <div class="stat-label">Solicitudes por procesar</div>
-        </div>
-        <div class="stat-chip" style="cursor:pointer;" onclick="showPage('licencias')">
-          <div class="stat-value" id="md-stat-lics" style="color:var(--hero-primary-text);">—</div>
-          <div class="stat-label">Licencias por vencer</div>
-        </div>
-      </div>
-
-      <!-- Tickets urgentes/altos abiertos -->
-      <div style="margin-bottom:18px;">
-        <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:10px;">
-          <h3 style="font-size:14px;font-weight:700;color:var(--hero-text-primary);margin:0;display:flex;align-items:center;gap:8px;"><iconify-icon icon="tabler:ticket"></iconify-icon> Tickets prioritarios abiertos</h3>
-          <button class="btn btn-secondary" onclick="loadMiDia()" style="font-size:11px;padding:4px 10px;">↺ Actualizar</button>
-        </div>
-        <div id="md-tickets" style="display:flex;flex-direction:column;gap:8px;"></div>
-      </div>
-
-      <!-- Solicitudes pendientes/autorizadas -->
-      <div style="margin-bottom:18px;">
-        <h3 style="font-size:14px;font-weight:700;color:var(--hero-text-primary);margin:0 0 10px;display:flex;align-items:center;gap:8px;"><iconify-icon icon="tabler:inbox"></iconify-icon> Solicitudes esperando IT</h3>
-        <div id="md-sols" style="display:flex;flex-direction:column;gap:8px;"></div>
-      </div>
-
-      <!-- Licencias por vencer -->
-      <div>
-        <h3 style="font-size:14px;font-weight:700;color:var(--hero-text-primary);margin:0 0 10px;display:flex;align-items:center;gap:8px;"><iconify-icon icon="tabler:license"></iconify-icon> Licencias próximas a vencer (30 días)</h3>
-        <div id="md-lics" style="display:flex;flex-direction:column;gap:8px;"></div>
       </div>
     </div>
 

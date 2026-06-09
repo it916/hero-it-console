@@ -55,7 +55,7 @@ function showApp(nombre, picture) {
   // Start background services
   requestNotificationPermission();
   startPolling();
-  loadDashboardCounters();
+  loadHome();
   checkSystemStatus();
 }
 
@@ -102,8 +102,7 @@ let sessionActionCount = 0;
 
 // ── Navegación ────────────────────────────────────────────────
 const pageLabels = {
-  'dashboard': 'Dashboard',
-  'mi-dia': 'Mi día',
+  'dashboard': 'Home',
   'reset': 'Reset de Contraseña',
   'usuarios': 'Usuarios Workspace',
   'logs': 'Historial de Logs',
@@ -136,6 +135,8 @@ function closeSidebar() {
 }
 
 function showPage(id) {
+  // Back-compat: 'mi-dia' se fusionó dentro de 'dashboard' (Home).
+  if (id === 'mi-dia') id = 'dashboard';
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   const page = document.getElementById('page-' + id);
@@ -152,7 +153,7 @@ function showPage(id) {
 
   // Auto-cargar datos al navegar
   const autoLoad = {
-    'mi-dia':       () => loadMiDia(),
+    'dashboard':    () => loadHome(),
     'usuarios':     () => loadUsers(),
     'tickets':      () => loadTickets(),
     'solicitudes':  () => loadSolicitudes(),
@@ -271,22 +272,6 @@ async function checkSystemStatus() {
   addLog('Verificación de estado completada', 'info');
 }
 
-async function loadDashboardCounters() {
-  // Una sola llamada a /stats reemplaza 3 listados completos (tickets +
-  // solicitudes + devices). Sin gets adicionales mientras todas las entradas
-  // tengan metadata (ver /admin/backfill-metadata para migrar las viejas).
-  try {
-    const resp = await authFetch(WORKER_URL + '/stats');
-    if (!resp.ok) return;
-    const d = await resp.json();
-    const elT = document.getElementById('stat-tickets-open');
-    if (elT) { elT.textContent = d.tickets.open; elT.style.color = d.tickets.open > 0 ? 'var(--hero-danger)' : 'var(--hero-success)'; }
-    const elS = document.getElementById('stat-solicitudes-pending');
-    if (elS) { elS.textContent = d.solicitudes.pending; elS.style.color = d.solicitudes.pending > 0 ? 'var(--hero-warning)' : 'var(--hero-success)'; }
-    const elD = document.getElementById('stat-devices-count');
-    if (elD) { elD.textContent = d.devices.total; elD.style.color = 'var(--hero-primary)'; }
-  } catch {}
-}
 
 // ── Búsqueda global ───────────────────────────────────────────
 let searchDebounce = null;
@@ -552,11 +537,6 @@ async function pollForUpdates() {
     localStorage.setItem(_LS_SOL,     String(pendingSolicitud));
     isFirstPoll = false;
     updateTabBadge(openTickets + pendingSolicitud);
-
-    const elT = document.getElementById('stat-tickets-open');
-    const elS = document.getElementById('stat-solicitudes-pending');
-    if (elT) { elT.textContent = openTickets;      elT.style.color = openTickets > 0      ? 'var(--hero-danger)'  : 'var(--hero-success)'; }
-    if (elS) { elS.textContent = pendingSolicitud; elS.style.color = pendingSolicitud > 0 ? 'var(--hero-warning)' : 'var(--hero-success)'; }
   } catch(e) { addLog('pollForUpdates: ' + e.message, 'warn'); }
 }
 
@@ -1460,18 +1440,18 @@ function exportAuditCSV() {
   showToast('CSV exportado (' + entradas.length + ' entradas)');
 }
 
-// ── Módulo "Mi día" — cola priorizada ─────────────────────────
+// ── Módulo "Home" — cola priorizada + lanzador ────────────────
 // Vista consolidada: tickets prioritarios abiertos + solicitudes que esperan
 // a IT + licencias por vencer. Una sola página para que Fernando entre y sepa
 // qué hacer primero sin navegar 3 secciones distintas.
-async function loadMiDia() {
+async function loadHome() {
   // Saludo dinámico según la hora ET
   const hET = new Date().toLocaleString('en-US', { timeZone: 'America/New_York', hour: 'numeric', hour12: false });
   const h = parseInt(hET, 10);
   const saludo = h < 12 ? 'Buenos días' : h < 19 ? 'Buenas tardes' : 'Buenas noches';
   const auth = (() => { try { return JSON.parse(sessionStorage.getItem('hero_auth') || '{}'); } catch { return {}; } })();
   const nombre = (auth.nombre || '').split(' ')[0] || 'Fernando';
-  const saludoEl = document.getElementById('mi-dia-saludo');
+  const saludoEl = document.getElementById('home-saludo');
   if (saludoEl) saludoEl.textContent = saludo + ', ' + nombre + ' — esto necesita tu atención ahora.';
 
   // Skeletons en las 3 secciones mientras carga
@@ -1490,7 +1470,7 @@ async function loadMiDia() {
     if (s.ok) sols    = (await s.json()).solicitudes || [];
     if (l.ok) lics    = (await l.json()).licencias || [];
   } catch (e) {
-    addLog('Mi día: error cargando datos: ' + e.message, 'warn');
+    addLog('Home: error cargando datos: ' + e.message, 'warn');
   }
 
   // 1. Tickets prioritarios — abiertos con Urgente o Alta, viejos primero
@@ -1515,17 +1495,18 @@ async function loadMiDia() {
     .sort((a, b) => new Date(a.vencimiento) - new Date(b.vencimiento));
 
   // Stats
-  document.getElementById('md-stat-tickets').textContent = ticketsPri.length;
-  document.getElementById('md-stat-sols').textContent    = solsAccion.length;
-  document.getElementById('md-stat-lics').textContent    = licsVencer.length;
+  const setStat = (id, n) => { const el = document.getElementById(id); if (el) el.textContent = n; };
+  setStat('home-stat-tickets', ticketsPri.length);
+  setStat('home-stat-sols',    solsAccion.length);
+  setStat('home-stat-lics',    licsVencer.length);
 
   // Render cada sección (con empty state propio)
-  _renderMiDiaTickets(ticketsPri);
-  _renderMiDiaSols(solsAccion);
-  _renderMiDiaLics(licsVencer);
+  _renderHomeTickets(ticketsPri);
+  _renderHomeSols(solsAccion);
+  _renderHomeLics(licsVencer);
 }
 
-function _renderMiDiaTickets(items) {
+function _renderHomeTickets(items) {
   const el = document.getElementById('md-tickets');
   if (!items.length) {
     renderEmpty(el, { icon: '<iconify-icon icon="tabler:circle-check" style="color:var(--hero-success);"></iconify-icon>', message: 'Sin tickets prioritarios abiertos. Buen trabajo.' });
@@ -1551,7 +1532,7 @@ function _renderMiDiaTickets(items) {
   }).join('');
 }
 
-function _renderMiDiaSols(items) {
+function _renderHomeSols(items) {
   const el = document.getElementById('md-sols');
   if (!items.length) {
     renderEmpty(el, { icon: '<iconify-icon icon="tabler:circle-check" style="color:var(--hero-success);"></iconify-icon>', message: 'No hay solicitudes esperando acción.' });
@@ -1584,7 +1565,7 @@ function _renderMiDiaSols(items) {
   }).join('');
 }
 
-function _renderMiDiaLics(items) {
+function _renderHomeLics(items) {
   const el = document.getElementById('md-lics');
   if (!items.length) {
     renderEmpty(el, { icon: '<iconify-icon icon="tabler:circle-check" style="color:var(--hero-success);"></iconify-icon>', message: 'Ninguna licencia vence en los próximos 30 días.' });
@@ -3263,8 +3244,7 @@ function _shortcutsHelp() {
       +   '<div style="font-size:16px;font-weight:700;color:var(--hero-text-primary);margin-bottom:14px;">⌨️ Atajos de teclado</div>'
       +   '<div style="display:grid;grid-template-columns:auto 1fr;gap:10px 16px;font-size:13px;align-items:center;">'
       +     '<kbd>/</kbd><span>Buscador global</span>'
-      +     '<kbd>g d</kbd><span>Dashboard</span>'
-      +     '<kbd>g m</kbd><span>Mi día</span>'
+      +     '<kbd>g h</kbd><span>Home</span>'
       +     '<kbd>g t</kbd><span>Tickets</span>'
       +     '<kbd>g s</kbd><span>Solicitudes</span>'
       +     '<kbd>g u</kbd><span>Usuarios</span>'
@@ -3310,7 +3290,9 @@ function installKeyboardShortcuts() {
       return;
     }
     if (lastG && Date.now() - lastG < 800) {
-      const map = { d:'dashboard', m:'mi-dia', t:'tickets', s:'solicitudes', u:'usuarios', l:'licencias', a:'auditoria', r:'reset', k:'kb' };
+      // 'd' y 'm' siguen aceptándose por memoria muscular pero ahora ambos
+      // van a 'dashboard' (Home unificado).
+      const map = { h:'dashboard', d:'dashboard', m:'dashboard', t:'tickets', s:'solicitudes', u:'usuarios', l:'licencias', a:'auditoria', r:'reset', k:'kb' };
       if (map[e.key]) {
         e.preventDefault();
         showPage(map[e.key]);
