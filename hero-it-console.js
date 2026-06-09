@@ -1098,6 +1098,56 @@ function cfgLoadPrefs() {
   if (themeEl) themeEl.value = localStorage.getItem('hero_theme') || 'light';
   if (pollEl)  pollEl.value  = localStorage.getItem('hero_poll_interval') || '120';
   if (pushEl)  pushEl.checked = localStorage.getItem('hero_push_enabled') !== 'false';
+  _refreshPushStatus();
+}
+
+function _refreshPushStatus() {
+  const el      = document.getElementById('cfg-push-status');
+  const grantBtn = document.getElementById('btn-cfg-push-grant');
+  if (!el) return;
+  if (!('Notification' in window)) {
+    el.textContent = 'No soportado'; el.style.background = 'rgba(107,122,144,0.15)'; el.style.color = 'var(--hero-text-muted)';
+    if (grantBtn) grantBtn.style.display = 'none';
+    return;
+  }
+  const perm = Notification.permission;
+  const map = {
+    granted: { label: 'Concedido',   bg: 'rgba(34,160,107,0.12)', color: 'var(--hero-success)' },
+    denied:  { label: 'Denegado',    bg: 'rgba(214,69,69,0.12)',  color: 'var(--hero-danger)'  },
+    default: { label: 'Sin decidir', bg: 'rgba(232,163,23,0.12)', color: 'var(--hero-warning)' },
+  };
+  const cfg = map[perm] || map.default;
+  el.textContent = cfg.label; el.style.background = cfg.bg; el.style.color = cfg.color;
+  if (grantBtn) grantBtn.style.display = (perm === 'default') ? 'inline-flex' : 'none';
+}
+
+async function cfgRequestPushPermission() {
+  if (!('Notification' in window)) { showToast('Tu navegador no soporta notificaciones'); return; }
+  try {
+    const result = await Notification.requestPermission();
+    showToast(result === 'granted' ? 'Permiso concedido' : (result === 'denied' ? 'Permiso denegado' : 'Sin decisión'));
+    _refreshPushStatus();
+  } catch (e) {
+    showToast('Error: ' + e.message);
+  }
+}
+
+function cfgTestPush() {
+  if (!('Notification' in window)) { showToast('Tu navegador no soporta notificaciones'); return; }
+  if (Notification.permission !== 'granted') {
+    showToast('Primero concedé el permiso del navegador'); return;
+  }
+  // Bypassa el toggle hero_push_enabled — es una prueba explícita del usuario.
+  try {
+    const n = new Notification('Hero IT Console — prueba', {
+      body: 'Si ves este mensaje, las notificaciones del navegador están funcionando correctamente.',
+      icon: 'https://i.ibb.co/PvS31B1z/shield-low.png',
+    });
+    n.onclick = function() { window.focus(); n.close(); };
+    showToast('Notificación enviada');
+  } catch (e) {
+    showToast('Error: ' + e.message);
+  }
 }
 
 function cfgSavePrefs() {

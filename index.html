@@ -2278,7 +2278,13 @@ html { scroll-behavior: smooth; }
             <input type="checkbox" id="cfg-pref-push" onchange="cfgSavePrefs()" style="width:16px;height:16px;cursor:pointer;"/>
             <span style="font-size:13px;">Mostrar notificaciones del navegador</span>
           </label>
-          <p style="font-size:11px;color:var(--hero-text-muted);margin:-6px 0 0 26px;">Aparecen mientras la pestaña esté abierta. El permiso del navegador debe estar concedido.</p>
+          <div style="margin:-2px 0 0 26px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+            <span style="font-size:11px;color:var(--hero-text-muted);">Estado del permiso:</span>
+            <span id="cfg-push-status" style="font-family:var(--mono);font-size:11px;padding:2px 8px;border-radius:12px;">—</span>
+            <button class="btn btn-secondary" onclick="cfgRequestPushPermission()" id="btn-cfg-push-grant" style="font-size:11px;padding:4px 10px;display:none;"><iconify-icon icon="tabler:bell-plus"></iconify-icon> Pedir permiso</button>
+            <button class="btn btn-secondary" onclick="cfgTestPush()" style="font-size:11px;padding:4px 10px;"><iconify-icon icon="tabler:bell-ringing"></iconify-icon> Probar notificación</button>
+          </div>
+          <p style="font-size:11px;color:var(--hero-text-muted);margin:6px 0 0 26px;">Las notificaciones aparecen mientras la pestaña del Console esté abierta. Si está denegado, tenés que habilitarlo desde la configuración del sitio en tu navegador.</p>
         </div>
       </div>
 
