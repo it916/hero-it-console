@@ -284,17 +284,21 @@ export default {
       } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: 'Error interno del servidor' }, 500, cors); }
     }
 
-    // ── POST /kb — crear artículo de knowledge base ───────────
+    // ── POST /kb — crear entrada del Toolbox (mantiene prefijo kb_ por compat) ─
     if (request.method === 'POST' && path === '/kb') {
       return dedupByBody(request, env, async () => {
       try {
-        const { titulo, contenido, tags, ticketOrigen } = await request.json();
+        const { titulo, contenido, tags, ticketOrigen, tipo, lenguaje } = await request.json();
         if (!titulo || !contenido) return json({ error: 'Faltan campos: titulo, contenido' }, 400, cors);
+        const TIPOS_VALIDOS = ['script', 'comando', 'tip', 'proceso'];
+        const tipoFinal = TIPOS_VALIDOS.includes(tipo) ? tipo : 'proceso';
         const id = 'kb_' + Date.now();
         const articulo = {
           id, titulo, contenido,
           tags: Array.isArray(tags) ? tags : [],
           ticketOrigen: ticketOrigen || null,
+          tipo: tipoFinal,
+          lenguaje: tipoFinal === 'script' ? (lenguaje || 'otro') : null,
           fecha: new Date().toISOString(),
         };
         await env.HERO_KV.put(id, JSON.stringify(articulo), { metadata: summarizeKb(articulo) });
@@ -322,17 +326,20 @@ export default {
       } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: 'Error interno del servidor' }, 500, cors); }
     }
 
-    // ── POST /kb/update — actualizar artículo ─────────────────
+    // ── POST /kb/update — actualizar entrada del Toolbox ──────
     if (request.method === 'POST' && path === '/kb/update') {
       try {
-        const { id, titulo, contenido, tags } = await request.json();
+        const { id, titulo, contenido, tags, tipo, lenguaje } = await request.json();
         if (!id) return json({ error: 'Falta id' }, 400, cors);
         const v = await env.HERO_KV.get(id);
-        if (!v) return json({ error: 'Artículo no encontrado' }, 404, cors);
+        if (!v) return json({ error: 'Entrada no encontrada' }, 404, cors);
         const a = JSON.parse(v);
+        const TIPOS_VALIDOS = ['script', 'comando', 'tip', 'proceso'];
         if (titulo    !== undefined) a.titulo = titulo;
         if (contenido !== undefined) a.contenido = contenido;
         if (tags      !== undefined) a.tags = Array.isArray(tags) ? tags : [];
+        if (tipo      !== undefined && TIPOS_VALIDOS.includes(tipo)) a.tipo = tipo;
+        if (lenguaje  !== undefined) a.lenguaje = a.tipo === 'script' ? (lenguaje || 'otro') : null;
         a.actualizado = new Date().toISOString();
         await env.HERO_KV.put(id, JSON.stringify(a), { metadata: summarizeKb(a) });
         await invalidateCaches(env, 'cache_kb_list');

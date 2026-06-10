@@ -115,7 +115,7 @@ const pageLabels = {
   'auditoria': 'Auditoría',
   'crear-usuario': 'Crear Usuario',
   'onboarding': 'Enviar Onboarding',
-  'kb': 'Soporte · Knowledge Base',
+  'toolbox': 'Soporte · Toolbox',
   'dispositivos': 'Soporte · Dispositivos',
   'licencias': 'Soporte · Licencias'
 };
@@ -123,7 +123,7 @@ const pageLabels = {
 // Las 4 sub-páginas del módulo Soporte comparten una sola entrada del sidebar
 // (la de Tickets, que es el tab default). Cuando navegamos a cualquiera de ellas
 // queremos que ese nav-item quede resaltado.
-const SOPORTE_TABS = ['tickets', 'kb', 'dispositivos', 'licencias'];
+const SOPORTE_TABS = ['tickets', 'toolbox', 'dispositivos', 'licencias'];
 
 // ── Sidebar móvil ─────────────────────────────────────────────
 function toggleSidebar() {
@@ -175,7 +175,7 @@ function showPage(id) {
     'onboarding':   () => _consumePreselectedUser('onboarding'),
     'reset':        () => _consumePreselectedUser('reset'),
     'licencias':    () => loadLicencias(),
-    'kb':           () => loadKb(),
+    'toolbox':      () => loadToolbox(),
     'logs':         () => renderSessionLogs(),
     'config':       () => loadConfig(),
   };
@@ -362,12 +362,12 @@ async function runGlobalSearch() {
         found.push({ type:'<iconify-icon icon="tabler:files"></iconify-icon> Auditoría', title: e.descripcion || '(sin descripción)', sub: (e.tipo || '') + ' · ' + (e.usuario || ''), action: "showPage('auditoria')" });
     });
   }
-  // Knowledge base — busca en título, contenido y tags
-  if (typeof allKb !== 'undefined' && Array.isArray(allKb)) {
-    allKb.forEach(a => {
+  // Toolbox — busca en título, contenido y tags
+  if (typeof allToolbox !== 'undefined' && Array.isArray(allToolbox)) {
+    allToolbox.forEach(a => {
       const blob = (a.titulo + ' ' + (a.contenido || '') + ' ' + (a.tags || []).join(' ')).toLowerCase();
       if (blob.includes(q))
-        found.push({ type:'<iconify-icon icon="tabler:book-2"></iconify-icon> KB', title: a.titulo, sub: (a.tags || []).slice(0, 3).join(', ') || 'sin tags', action: "showPage('kb')" });
+        found.push({ type:'<iconify-icon icon="tabler:tools"></iconify-icon> Toolbox', title: a.titulo, sub: (a.tags || []).slice(0, 3).join(', ') || 'sin tags', action: "showPage('toolbox')" });
     });
   }
   if (!found.length) {
@@ -3451,7 +3451,7 @@ function _shortcutsHelp() {
       +     '<kbd>g s</kbd><span>Solicitudes</span>'
       +     '<kbd>g u</kbd><span>Usuarios</span>'
       +     '<kbd>g t</kbd><span>Soporte · Tickets</span>'
-      +     '<kbd>g k</kbd><span>Soporte · Knowledge Base</span>'
+      +     '<kbd>g k</kbd><span>Soporte · Toolbox</span>'
       +     '<kbd>g d</kbd><span>Soporte · Dispositivos</span>'
       +     '<kbd>g l</kbd><span>Soporte · Licencias</span>'
       +     '<kbd>g a</kbd><span>Auditoría</span>'
@@ -3496,7 +3496,7 @@ function installKeyboardShortcuts() {
     if (lastG && Date.now() - lastG < 800) {
       // g m mantiene Home por memoria muscular (era 'Mi día'). g d ahora es
       // Dispositivos (sub-tab de Soporte). Home usa g h.
-      const map = { h:'dashboard', m:'dashboard', t:'tickets', s:'solicitudes', u:'usuarios', l:'licencias', a:'auditoria', r:'reset', k:'kb', d:'dispositivos' };
+      const map = { h:'dashboard', m:'dashboard', t:'tickets', s:'solicitudes', u:'usuarios', l:'licencias', a:'auditoria', r:'reset', k:'toolbox', d:'dispositivos' };
       if (map[e.key]) {
         e.preventDefault();
         showPage(map[e.key]);
@@ -3646,169 +3646,320 @@ async function executeOffboarding() {
   btn.innerHTML = '<iconify-icon icon="tabler:door-exit"></iconify-icon> Ejecutar offboarding';
 }
 
-// ── Módulo Knowledge Base ─────────────────────────────────────
-let allKb = [];
-let editingKbId = null;
-let _kbOrigenTicket = null;
+// ── Módulo Toolbox ────────────────────────────────────────────
+// Caja de herramientas: scripts (con etiqueta de lenguaje), comandos one-liner,
+// tips cortos y procesos paso-a-paso. Usa el mismo endpoint /kb y prefijo KV
+// 'kb_' para no romper las entradas que ya existen (las que vienen sin 'tipo'
+// se renderizan como 'proceso' por backward compat).
+let allToolbox = [];
+let editingToolboxId = null;
+let _toolboxOrigenTicket = null;
+let _toolboxTypeFilter = '';   // '' = todos | 'script' | 'comando' | 'tip' | 'proceso'
+let _toolboxFormType = 'proceso';
 
-async function loadKb() {
-  renderSkeleton(document.getElementById('kb-grid'), { type: 'card', rows: 3 });
+const TOOLBOX_TYPE_META = {
+  script:  { label: 'Script',  icon: 'tabler:terminal-2',   badge: 'tbx-type-script'  },
+  comando: { label: 'Comando', icon: 'tabler:command',      badge: 'tbx-type-comando' },
+  tip:     { label: 'Tip',     icon: 'tabler:bulb',         badge: 'tbx-type-tip'     },
+  proceso: { label: 'Proceso', icon: 'tabler:list-numbers', badge: 'tbx-type-proceso' },
+};
+const TOOLBOX_LANG_LABEL = {
+  powershell: 'PowerShell',
+  bash:       'Bash',
+  cmd:        'CMD',
+  sql:        'SQL',
+  python:     'Python',
+  javascript: 'JavaScript',
+  otro:       'Code',
+};
+
+// Backward compat: entries viejas sin 'tipo' → proceso
+function _tbxType(a) {
+  const t = a.tipo;
+  return TOOLBOX_TYPE_META[t] ? t : 'proceso';
+}
+
+async function loadToolbox() {
+  renderSkeleton(document.getElementById('tbx-grid'), { type: 'card', rows: 3 });
   try {
     const r = await authFetch(WORKER_URL + '/kb');
     const d = await r.json();
     if (!r.ok) throw new Error(d.error || 'Error');
-    allKb = d.articulos || [];
-    filterKb();
+    allToolbox = d.articulos || [];
+    filterToolbox();
   } catch (e) {
-    renderError(document.getElementById('kb-grid'), e, loadKb);
+    renderError(document.getElementById('tbx-grid'), e, loadToolbox);
   }
 }
 
-function filterKb() {
-  const q = (document.getElementById('kb-search').value || '').toLowerCase();
-  let list = allKb;
+function _updateToolboxCounts() {
+  const c = { '': allToolbox.length, script:0, comando:0, tip:0, proceso:0 };
+  allToolbox.forEach(a => { c[_tbxType(a)]++; });
+  const set = (id, n) => { const el = document.getElementById(id); if (el) el.textContent = n; };
+  set('tbx-count-all', c['']);
+  set('tbx-count-script', c.script);
+  set('tbx-count-comando', c.comando);
+  set('tbx-count-tip', c.tip);
+  set('tbx-count-proceso', c.proceso);
+}
+
+function setToolboxType(tipo) {
+  _toolboxTypeFilter = tipo;
+  document.querySelectorAll('#tbx-type-chips .tbx-chip').forEach(b => {
+    b.classList.toggle('active', b.getAttribute('data-type') === tipo);
+  });
+  filterToolbox();
+}
+
+function filterToolbox() {
+  _updateToolboxCounts();
+  const q = (document.getElementById('tbx-search').value || '').toLowerCase();
+  let list = allToolbox;
+  if (_toolboxTypeFilter) {
+    list = list.filter(a => _tbxType(a) === _toolboxTypeFilter);
+  }
   if (q) {
-    list = allKb.filter(a => {
+    list = list.filter(a => {
       const blob = (a.titulo + ' ' + (a.contenido || '') + ' ' + (a.tags || []).join(' ')).toLowerCase();
       return blob.includes(q);
     });
   }
-  document.getElementById('kb-count').textContent = list.length + ' artículo' + (list.length !== 1 ? 's' : '');
-  renderKb(list);
+  document.getElementById('tbx-count').textContent = list.length + ' entrada' + (list.length !== 1 ? 's' : '');
+  renderToolbox(list);
 }
 
-function renderKb(items) {
-  const grid = document.getElementById('kb-grid');
+function renderToolbox(items) {
+  const grid = document.getElementById('tbx-grid');
   if (!items.length) {
     renderEmpty(grid, {
-      icon: '<iconify-icon icon="tabler:book-2"></iconify-icon>',
-      message: allKb.length ? 'Sin resultados con ese filtro.' : 'Aún no hay artículos. Crea el primero o conviértelo desde un ticket resuelto.',
-      ctaText: allKb.length ? '' : '<iconify-icon icon="tabler:plus"></iconify-icon> Crear primer artículo',
-      ctaFn: allKb.length ? null : () => showKbForm(),
+      icon: '<iconify-icon icon="tabler:tools"></iconify-icon>',
+      message: allToolbox.length ? 'Sin resultados con ese filtro.' : 'Aún no hay entradas. Guardá tu primer script, tip o proceso para tenerlo a mano.',
+      ctaText: allToolbox.length ? '' : '<iconify-icon icon="tabler:plus"></iconify-icon> Crear primera entrada',
+      ctaFn: allToolbox.length ? null : () => showToolboxForm(),
     });
     return;
   }
   grid.innerHTML = items.map(a => {
-    const preview = (a.contenido || '').slice(0, 160) + (a.contenido && a.contenido.length > 160 ? '…' : '');
+    const tipo = _tbxType(a);
+    const meta = TOOLBOX_TYPE_META[tipo];
     const fecha = a.fecha ? new Date(a.fecha).toLocaleDateString('es-MX', { year:'numeric', month:'short', day:'numeric' }) : '';
-    const tagsHtml = (a.tags || []).slice(0, 4).map(t =>
-      '<span style="font-size:10px;padding:2px 8px;border-radius:12px;background:var(--hero-primary-light);color:var(--hero-primary-text);">' + escHtml(t) + '</span>'
-    ).join(' ');
-    return '<div class="action-card" style="cursor:pointer;" onclick="openKbArticle(\'' + escJs(a.id) + '\')">'
-      + '<div style="font-size:14px;font-weight:700;color:var(--hero-text-primary);margin-bottom:6px;">' + escHtml(a.titulo) + '</div>'
-      + (tagsHtml ? '<div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px;">' + tagsHtml + '</div>' : '')
-      + '<div style="font-size:12px;color:var(--hero-text-body);line-height:1.5;margin-bottom:10px;white-space:pre-wrap;">' + escHtml(preview) + '</div>'
-      + '<div style="font-size:10px;color:var(--hero-text-muted);font-family:var(--mono);">' + (fecha ? '<iconify-icon icon="tabler:calendar"></iconify-icon> ' + fecha : '') + (a.ticketOrigen ? ' · <iconify-icon icon="tabler:ticket"></iconify-icon> ' + escHtml(a.ticketOrigen) : '') + '</div>'
+    const tagsHtml = (a.tags || []).slice(0, 4).map(t => '<span class="tbx-tag">' + escHtml(t) + '</span>').join(' ');
+    const langHtml = (tipo === 'script' && a.lenguaje)
+      ? '<span class="tbx-lang-badge">' + escHtml(TOOLBOX_LANG_LABEL[a.lenguaje] || a.lenguaje) + '</span>'
+      : '';
+    const contenido = a.contenido || '';
+    // El contenido se inyecta como textContent en el render para evitar XSS
+    // y para que los saltos de línea queden tal cual (white-space:pre-wrap).
+    const useCodeBlock = (tipo === 'script' || tipo === 'comando');
+    const blockClass = useCodeBlock
+      ? (tipo === 'comando' ? 'tbx-code tbx-code-comando' : 'tbx-code')
+      : 'tbx-text';
+    return ''
+      + '<div class="tbx-card" data-tbx-id="' + escHtml(a.id) + '">'
+      +   '<div class="tbx-card-head">'
+      +     '<span class="tbx-type-badge ' + meta.badge + '"><iconify-icon icon="' + meta.icon + '"></iconify-icon> ' + meta.label + '</span>'
+      +     langHtml
+      +     '<div class="tbx-card-title" onclick="openToolboxEntry(\'' + escJs(a.id) + '\')">' + escHtml(a.titulo) + '</div>'
+      +   '</div>'
+      +   (tagsHtml ? '<div style="display:flex;gap:4px;flex-wrap:wrap;">' + tagsHtml + '</div>' : '')
+      +   '<div class="' + blockClass + '" data-tbx-content="' + escHtml(a.id) + '">'
+      +     '<button class="tbx-copy-btn" onclick="copyToolboxEntry(\'' + escJs(a.id) + '\', this)" title="Copiar al portapapeles"><iconify-icon icon="tabler:copy"></iconify-icon> Copiar</button>'
+      +   '</div>'
+      +   '<div class="tbx-card-foot">'
+      +     (fecha ? '<iconify-icon icon="tabler:calendar"></iconify-icon> ' + escHtml(fecha) : '')
+      +     (a.ticketOrigen ? ' · <iconify-icon icon="tabler:ticket"></iconify-icon> ' + escHtml(a.ticketOrigen) : '')
+      +     '<button onclick="openToolboxEntry(\'' + escJs(a.id) + '\')" style="margin-left:auto;background:transparent;border:none;color:var(--hero-text-muted);cursor:pointer;font-size:11px;display:inline-flex;align-items:center;gap:4px;" title="Editar"><iconify-icon icon="tabler:edit"></iconify-icon> Editar</button>'
+      +   '</div>'
       + '</div>';
   }).join('');
+  // Inyectar contenido como texto plano (XSS-safe) preservando saltos de línea
+  items.forEach(a => {
+    const el = grid.querySelector('[data-tbx-content="' + CSS.escape(a.id) + '"]');
+    if (!el) return;
+    const btn = el.querySelector('.tbx-copy-btn');
+    const txt = document.createTextNode(a.contenido || '');
+    el.insertBefore(txt, btn);
+  });
 }
 
-function openKbArticle(id) {
-  const a = allKb.find(x => x.id === id);
+function openToolboxEntry(id) {
+  const a = allToolbox.find(x => x.id === id);
   if (!a) return;
-  showKbForm(a);
+  showToolboxForm(a);
 }
 
-function showKbForm(articulo) {
-  editingKbId = articulo ? articulo.id : null;
-  document.getElementById('kb-modal-title').textContent = articulo ? 'Editar artículo' : 'Nuevo artículo';
-  document.getElementById('kb-f-titulo').value    = articulo ? articulo.titulo    : '';
-  document.getElementById('kb-f-contenido').value = articulo ? articulo.contenido : '';
-  document.getElementById('kb-f-tags').value      = articulo ? (articulo.tags || []).join(', ') : '';
-  document.getElementById('btn-kb-del').style.display = articulo ? 'inline-block' : 'none';
-  const origenEl = document.getElementById('kb-f-origen');
-  if (articulo && articulo.ticketOrigen) {
+// Cambia el tipo seleccionado en el modal y ajusta el form (lenguaje + input vs textarea)
+function setFormType(tipo) {
+  if (!TOOLBOX_TYPE_META[tipo]) tipo = 'proceso';
+  _toolboxFormType = tipo;
+  document.querySelectorAll('#tbx-f-tipo-chips .tbx-type-pick').forEach(b => {
+    b.classList.toggle('active', b.getAttribute('data-type') === tipo);
+  });
+  const langWrap = document.getElementById('tbx-f-lang-wrap');
+  const labelEl  = document.getElementById('tbx-f-contenido-label');
+  const txt      = document.getElementById('tbx-f-contenido');
+  const cmd      = document.getElementById('tbx-f-comando');
+  if (tipo === 'script') {
+    langWrap.style.display = '';
+    labelEl.textContent = 'Script *';
+    cmd.style.display = 'none';
+    txt.style.display = '';
+    txt.placeholder = '# Pegá tu script acá\nGet-Process | Where-Object { $_.CPU -gt 100 }';
+    txt.rows = 14;
+  } else if (tipo === 'comando') {
+    langWrap.style.display = 'none';
+    labelEl.textContent = 'Comando *';
+    txt.style.display = 'none';
+    cmd.style.display = '';
+  } else if (tipo === 'tip') {
+    langWrap.style.display = 'none';
+    labelEl.textContent = 'Tip *';
+    cmd.style.display = 'none';
+    txt.style.display = '';
+    txt.placeholder = 'ej: En Outlook, F9 fuerza envío/recibo de todas las cuentas configuradas.';
+    txt.rows = 5;
+  } else {
+    langWrap.style.display = 'none';
+    labelEl.textContent = 'Pasos / Procedimiento *';
+    cmd.style.display = 'none';
+    txt.style.display = '';
+    txt.placeholder = '1. Hacer X\n2. Verificar Y\n3. Si Y falla, hacer Z';
+    txt.rows = 12;
+  }
+}
+
+function showToolboxForm(entrada) {
+  editingToolboxId = entrada ? entrada.id : null;
+  document.getElementById('tbx-modal-title').textContent = entrada ? 'Editar entrada' : 'Nueva entrada';
+  const tipo = entrada ? _tbxType(entrada) : 'script';
+  setFormType(tipo);
+  document.getElementById('tbx-f-titulo').value = entrada ? entrada.titulo : '';
+  document.getElementById('tbx-f-tags').value   = entrada ? (entrada.tags || []).join(', ') : '';
+  document.getElementById('tbx-f-lang').value   = (entrada && entrada.lenguaje) ? entrada.lenguaje : 'powershell';
+  // Comando va en input de una sola línea; el resto en textarea
+  if (tipo === 'comando') {
+    document.getElementById('tbx-f-comando').value = entrada ? entrada.contenido : '';
+    document.getElementById('tbx-f-contenido').value = '';
+  } else {
+    document.getElementById('tbx-f-contenido').value = entrada ? entrada.contenido : '';
+    document.getElementById('tbx-f-comando').value = '';
+  }
+  document.getElementById('btn-tbx-del').style.display = entrada ? 'inline-block' : 'none';
+  const origenEl = document.getElementById('tbx-f-origen');
+  if (entrada && entrada.ticketOrigen) {
     origenEl.style.display = 'block';
-    origenEl.textContent = 'Generado desde ticket ' + articulo.ticketOrigen;
-  } else if (_kbOrigenTicket) {
+    origenEl.textContent = 'Generada desde ticket ' + entrada.ticketOrigen;
+  } else if (_toolboxOrigenTicket) {
     origenEl.style.display = 'block';
-    origenEl.textContent = 'Se vinculará al ticket ' + _kbOrigenTicket;
+    origenEl.textContent = 'Se vinculará al ticket ' + _toolboxOrigenTicket;
   } else {
     origenEl.style.display = 'none';
   }
-  document.getElementById('kb-modal').style.display = 'block';
+  document.getElementById('tbx-modal').style.display = 'block';
 }
 
-function closeKbModal() {
-  document.getElementById('kb-modal').style.display = 'none';
-  editingKbId = null;
-  _kbOrigenTicket = null;
+function closeToolboxModal() {
+  document.getElementById('tbx-modal').style.display = 'none';
+  editingToolboxId = null;
+  _toolboxOrigenTicket = null;
 }
 
-async function saveKb() {
-  const titulo    = document.getElementById('kb-f-titulo').value.trim();
-  const contenido = document.getElementById('kb-f-contenido').value.trim();
-  const tags      = document.getElementById('kb-f-tags').value.split(',').map(t => t.trim()).filter(Boolean);
+async function saveToolbox() {
+  const tipo      = _toolboxFormType;
+  const titulo    = document.getElementById('tbx-f-titulo').value.trim();
+  const contenido = (tipo === 'comando'
+    ? document.getElementById('tbx-f-comando').value
+    : document.getElementById('tbx-f-contenido').value).trim();
+  const tags      = document.getElementById('tbx-f-tags').value.split(',').map(t => t.trim()).filter(Boolean);
+  const lenguaje  = tipo === 'script' ? document.getElementById('tbx-f-lang').value : null;
   if (!titulo) { showToast('Falta el título'); return; }
   if (!contenido) { showToast('Falta el contenido'); return; }
-  const btn = document.getElementById('btn-kb-save');
+  const btn = document.getElementById('btn-tbx-save');
   btn.disabled = true;
   btn.innerHTML = '<l-ring size="14" stroke="2" speed="0.7" color="#06a3b6"></l-ring> Guardando...';
   try {
-    if (editingKbId) {
+    if (editingToolboxId) {
       const r = await authFetch(WORKER_URL + '/kb/update', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: editingKbId, titulo, contenido, tags }),
+        body: JSON.stringify({ id: editingToolboxId, titulo, contenido, tags, tipo, lenguaje }),
       });
       const d = await r.json();
       if (!r.ok) throw new Error(d.error || 'Error');
-      // Actualizamos en memoria con el artículo que devolvió el server.
+      // Actualizamos en memoria con la entrada que devolvió el server.
       // Evita el re-fetch que pegaba contra cache_kb_list (KV list es
       // eventually consistent: el PUT recién hecho puede no aparecer
       // todavía y la lista vacía/parcial quedaba cacheada 60s).
       if (d.articulo) {
-        const idx = allKb.findIndex(x => x.id === editingKbId);
-        if (idx >= 0) allKb[idx] = d.articulo;
+        const idx = allToolbox.findIndex(x => x.id === editingToolboxId);
+        if (idx >= 0) allToolbox[idx] = d.articulo;
       }
-      showToast('Artículo actualizado');
-      auditLog('kb', 'KB actualizado: ' + titulo);
+      showToast('Entrada actualizada');
+      auditLog('toolbox', 'Toolbox actualizado: ' + titulo);
     } else {
       const r = await authFetch(WORKER_URL + '/kb', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ titulo, contenido, tags, ticketOrigen: _kbOrigenTicket || null }),
+        body: JSON.stringify({ titulo, contenido, tags, tipo, lenguaje, ticketOrigen: _toolboxOrigenTicket || null }),
       });
       const d = await r.json();
       if (!r.ok) throw new Error(d.error || 'Error');
-      if (d.articulo) allKb.unshift(d.articulo);
-      showToast('Artículo creado');
-      auditLog('kb', 'KB creado: ' + titulo, _kbOrigenTicket ? 'desde ' + _kbOrigenTicket : null);
+      if (d.articulo) allToolbox.unshift(d.articulo);
+      showToast('Entrada creada');
+      auditLog('toolbox', 'Toolbox creado: ' + titulo, _toolboxOrigenTicket ? 'desde ' + _toolboxOrigenTicket : null);
     }
-    closeKbModal();
-    filterKb();
+    closeToolboxModal();
+    filterToolbox();
   } catch (e) {
     showToast('Error: ' + e.message);
   }
   btn.disabled = false;
-  btn.innerHTML = '<iconify-icon icon="tabler:device-floppy"></iconify-icon> Guardar artículo';
+  btn.innerHTML = '<iconify-icon icon="tabler:device-floppy"></iconify-icon> Guardar';
 }
 
-async function deleteKbCurrent() {
-  if (!editingKbId) return;
-  const a = allKb.find(x => x.id === editingKbId);
+async function deleteToolboxCurrent() {
+  if (!editingToolboxId) return;
+  const a = allToolbox.find(x => x.id === editingToolboxId);
   if (!(await heroConfirm({
-    title: '¿Eliminar artículo?',
-    body: 'Vas a eliminar "' + (a ? a.titulo : 'este artículo') + '". Esta acción no se puede deshacer.',
+    title: '¿Eliminar entrada?',
+    body: 'Vas a eliminar "' + (a ? a.titulo : 'esta entrada') + '". Esta acción no se puede deshacer.',
     confirmText: 'Eliminar', destructive: true,
   }))) return;
   try {
     const r = await authFetch(WORKER_URL + '/kb/delete', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: editingKbId }),
+      body: JSON.stringify({ id: editingToolboxId }),
     });
     if (!r.ok) throw new Error((await r.json()).error || 'Error');
-    showToast('Artículo eliminado');
-    auditLog('kb', 'KB eliminado: ' + (a ? a.titulo : editingKbId));
-    const removedId = editingKbId;
-    closeKbModal();
-    allKb = allKb.filter(x => x.id !== removedId);
-    filterKb();
+    showToast('Entrada eliminada');
+    auditLog('toolbox', 'Toolbox eliminado: ' + (a ? a.titulo : editingToolboxId));
+    const removedId = editingToolboxId;
+    closeToolboxModal();
+    allToolbox = allToolbox.filter(x => x.id !== removedId);
+    filterToolbox();
   } catch (e) { showToast('Error: ' + e.message); }
 }
 
-// Botón "Guardar como artículo KB" del modal de ticket → pre-llena el form
-// con asunto + descripción + respuesta del ticket actual. Util para capturar
-// la solución de un caso recurrente sin re-escribirla.
-function guardarComoKb() {
+// Copia el contenido al portapapeles con feedback visual en el botón.
+async function copyToolboxEntry(id, btn) {
+  const a = allToolbox.find(x => x.id === id);
+  if (!a) return;
+  try {
+    await navigator.clipboard.writeText(a.contenido || '');
+    const original = btn.innerHTML;
+    btn.classList.add('copied');
+    btn.innerHTML = '<iconify-icon icon="tabler:check"></iconify-icon> Copiado';
+    setTimeout(() => {
+      btn.classList.remove('copied');
+      btn.innerHTML = original;
+    }, 1400);
+  } catch (e) {
+    showToast('No se pudo copiar: ' + e.message);
+  }
+}
+
+// Botón "Guardar en Toolbox" del modal de ticket → pre-llena el form con
+// asunto + descripción + respuesta del ticket actual como 'proceso'. Útil
+// para capturar la solución de un caso recurrente sin re-escribirla.
+function guardarComoToolbox() {
   if (!currentTicketId) return;
   const t = allTickets.find(x => x.id === currentTicketId);
   if (!t) return;
@@ -3818,14 +3969,14 @@ function guardarComoKb() {
     + 'CATEGORÍA: ' + (t.categoria || '—') + '\n'
     + 'PRIORIDAD: ' + (t.prioridad || '—') + '\n\n'
     + 'SOLUCIÓN\n' + (respuesta || '(escribe la solución aquí)');
-  _kbOrigenTicket = t.ticketId || t.id;
-  // Cerrar modal de ticket primero — heroConfirm/KB modal abre encima
+  _toolboxOrigenTicket = t.ticketId || t.id;
   closeTicketModal();
-  // Pre-llenar el form de KB con datos del ticket
-  showKbForm();
-  document.getElementById('kb-f-titulo').value = (t.asunto || '').slice(0, 120);
-  document.getElementById('kb-f-contenido').value = contenidoSugerido;
-  document.getElementById('kb-f-tags').value = (t.categoria || '').toLowerCase();
+  showToolboxForm();
+  // Forzamos tipo 'proceso' tras el showToolboxForm() que abrió en 'script' por defecto
+  setFormType('proceso');
+  document.getElementById('tbx-f-titulo').value = (t.asunto || '').slice(0, 120);
+  document.getElementById('tbx-f-contenido').value = contenidoSugerido;
+  document.getElementById('tbx-f-tags').value = (t.categoria || '').toLowerCase();
 }
 
 // ── Módulo Licencias & Software ───────────────────────────────
@@ -4089,7 +4240,7 @@ async function loadOfficeStatus() {
 // ── Reporte mensual IT ────────────────────────────────────────
 // Genera un CSV con todas las secciones operativas del mes seleccionado:
 // resumen ejecutivo + tickets + solicitudes + intervenciones + auditoría +
-// licencias activas + KB. Si una sección falla (Worker/red), el resto sigue.
+// licencias activas + Toolbox. Si una sección falla (Worker/red), el resto sigue.
 async function generateMonthlyReport() {
   const monthInput = document.getElementById('report-month').value;
   if (!monthInput) { showToast('Selecciona un mes primero'); return; }
@@ -4302,29 +4453,31 @@ async function generateMonthlyReport() {
     sections += csvRow([]);
   }
 
-  // ── Knowledge Base (artículos creados en el mes) ─────────────
+  // ── Toolbox (entradas creadas en el mes) ─────────────────────
   try {
     const kResp = await authFetch(WORKER_URL + '/kb');
     if (kResp.ok) {
       const kData = await kResp.json();
-      const articulos = (kData.articulos || []).filter(a => inMonth(a.fecha));
-      summary.kb = { total: articulos.length };
+      const entradas = (kData.articulos || []).filter(a => inMonth(a.fecha));
+      summary.toolbox = { total: entradas.length };
 
-      sections += csvRow(['KNOWLEDGE BASE — artículos creados en el mes']);
-      sections += csvRow(['Título', 'Tags', 'Ticket origen', 'Fecha creación']);
-      articulos.forEach(a => {
+      sections += csvRow(['TOOLBOX — entradas creadas en el mes']);
+      sections += csvRow(['Título', 'Tipo', 'Lenguaje', 'Tags', 'Ticket origen', 'Fecha creación']);
+      entradas.forEach(a => {
         sections += csvRow([
           a.titulo || '',
+          a.tipo || 'proceso',
+          a.lenguaje || '',
           (a.tags || []).join(', '),
           a.ticketOrigen || '',
           fmtDate(a.fecha),
         ]);
       });
-      sections += csvRow(['Total artículos nuevos', articulos.length]);
+      sections += csvRow(['Total entradas nuevas', entradas.length]);
       sections += csvRow([]);
     }
   } catch (e) {
-    sections += csvRow(['KB — error al cargar']);
+    sections += csvRow(['Toolbox — error al cargar']);
     sections += csvRow([]);
   }
 
@@ -4339,7 +4492,7 @@ async function generateMonthlyReport() {
   if (summary.intervenciones) header += csvRow(['Intervenciones de dispositivos', summary.intervenciones.total]);
   if (summary.audit)        header += csvRow(['Acciones auditadas', summary.audit.total]);
   if (summary.licencias)    header += csvRow(['Licencias registradas', summary.licencias.total + ' · costo mensual ~$' + summary.licencias.costoMensual.toFixed(2)]);
-  if (summary.kb)           header += csvRow(['Artículos KB nuevos', summary.kb.total]);
+  if (summary.toolbox)      header += csvRow(['Entradas Toolbox nuevas', summary.toolbox.total]);
   header += csvRow([]);
 
   const csv = header + sections;

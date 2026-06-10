@@ -311,7 +311,7 @@ nav { padding: 12px; flex: 1; }
 .section-title span { color: var(--hero-primary); }
 .section-desc { margin-top: 4px; font-size: 13px; color: var(--hero-text-muted); }
 
-/* Strip de tabs del módulo Soporte (Tickets / KB / Dispositivos / Licencias). */
+/* Strip de tabs del módulo Soporte (Tickets / Toolbox / Dispositivos / Licencias). */
 .soporte-tabs {
   display: flex;
   gap: 4px;
@@ -713,6 +713,206 @@ nav { padding: 12px; flex: 1; }
   border-color: rgba(6,163,182,0.4);
   color: var(--hero-primary);
   font-weight: 600;
+}
+
+/* ── Toolbox: chips de filtro + selector de tipo + code blocks ─ */
+.tbx-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 20px;
+  border: 1px solid var(--hero-border);
+  background: transparent;
+  color: var(--hero-text-muted);
+  font-size: 12px;
+  font-family: var(--hero-font);
+  cursor: pointer;
+  transition: var(--hero-transition);
+}
+.tbx-chip:hover { background: var(--hero-bg); color: var(--hero-text-primary); }
+.tbx-chip.active {
+  background: var(--hero-primary-light);
+  border-color: rgba(6,163,182,0.4);
+  color: var(--hero-primary);
+  font-weight: 600;
+}
+.tbx-chip iconify-icon { font-size: 14px; }
+.tbx-chip-count {
+  background: var(--hero-bg);
+  color: var(--hero-text-muted);
+  font-family: var(--mono);
+  font-size: 10px;
+  padding: 1px 7px;
+  border-radius: 10px;
+  font-weight: 600;
+}
+.tbx-chip.active .tbx-chip-count {
+  background: #ffffff;
+  color: var(--hero-primary);
+}
+
+/* Selector de tipo dentro del modal */
+.tbx-type-pick {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 8px;
+  border-radius: 10px;
+  border: 1px solid var(--hero-border);
+  background: var(--hero-bg);
+  color: var(--hero-text-muted);
+  font-size: 11px;
+  font-family: var(--hero-font);
+  cursor: pointer;
+  transition: var(--hero-transition);
+}
+.tbx-type-pick iconify-icon { font-size: 22px; }
+.tbx-type-pick:hover { color: var(--hero-text-primary); border-color: rgba(6,163,182,0.3); }
+.tbx-type-pick.active {
+  background: var(--hero-primary-light);
+  border-color: var(--hero-primary);
+  color: var(--hero-primary);
+  font-weight: 600;
+}
+
+/* Tarjeta del toolbox */
+.tbx-card {
+  background: var(--hero-bg-card);
+  border: 1px solid var(--hero-border);
+  border-radius: 12px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  transition: var(--hero-transition);
+}
+.tbx-card:hover {
+  border-color: rgba(6,163,182,0.4);
+  box-shadow: 0 4px 12px rgba(6,163,182,0.08);
+}
+.tbx-card-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.tbx-type-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  font-family: var(--hero-font);
+}
+.tbx-type-badge iconify-icon { font-size: 12px; }
+.tbx-type-script  { background: rgba(6,163,182,0.12);  color: #06a3b6; }
+.tbx-type-comando { background: rgba(139,92,246,0.12); color: #8b5cf6; }
+.tbx-type-tip     { background: rgba(232,163,23,0.15); color: #b67a09; }
+.tbx-type-proceso { background: rgba(34,160,107,0.12); color: #1e8a5a; }
+.tbx-lang-badge {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--hero-text-muted);
+  padding: 2px 8px;
+  border: 1px solid var(--hero-border);
+  border-radius: 6px;
+  background: var(--hero-bg);
+}
+.tbx-card-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--hero-text-primary);
+  cursor: pointer;
+  flex: 1;
+  min-width: 0;
+}
+.tbx-card-title:hover { color: var(--hero-primary); }
+
+/* Code block estilo terminal */
+.tbx-code {
+  position: relative;
+  background: #1a2332;
+  border-radius: 8px;
+  padding: 12px 14px;
+  padding-right: 90px;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: #e2e8f0;
+  line-height: 1.55;
+  max-height: 180px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.tbx-code-comando { padding-right: 90px; max-height: 60px; font-size: 13px; }
+[data-theme="dark"] .tbx-code { background: #0a0f17; border: 1px solid rgba(255,255,255,0.06); }
+
+/* Texto sin code-block (tip/proceso) */
+.tbx-text {
+  background: var(--hero-bg);
+  border: 1px solid var(--hero-border);
+  border-radius: 8px;
+  padding: 10px 14px;
+  padding-right: 90px;
+  position: relative;
+  font-size: 12px;
+  color: var(--hero-text-body);
+  line-height: 1.6;
+  max-height: 180px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* Botón Copiar flotante */
+.tbx-copy-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  font-family: var(--hero-font);
+  background: rgba(6,163,182,0.9);
+  color: #ffffff;
+  border: none;
+  cursor: pointer;
+  transition: var(--hero-transition);
+  z-index: 1;
+}
+.tbx-copy-btn:hover { background: var(--hero-primary); }
+.tbx-copy-btn.copied { background: #1e8a5a; }
+.tbx-copy-btn iconify-icon { font-size: 13px; }
+/* Variante para texto claro */
+.tbx-text .tbx-copy-btn { background: var(--hero-primary); }
+
+.tbx-card-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--hero-text-muted);
+  flex-wrap: wrap;
+}
+.tbx-card-foot iconify-icon { font-size: 11px; }
+.tbx-tag {
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 12px;
+  background: var(--hero-primary-light);
+  color: var(--hero-primary);
+  font-family: var(--hero-font);
 }
 
 html { scroll-behavior: smooth; }
@@ -1585,7 +1785,7 @@ html { scroll-behavior: smooth; }
         <div class="section-title"><span>//</span> Soporte</div>
         <div class="soporte-tabs">
           <button onclick="showPage('tickets')" class="soporte-tab active"><iconify-icon icon="tabler:ticket"></iconify-icon> Tickets</button>
-          <button onclick="showPage('kb')" class="soporte-tab"><iconify-icon icon="tabler:book-2"></iconify-icon> Knowledge Base</button>
+          <button onclick="showPage('toolbox')" class="soporte-tab"><iconify-icon icon="tabler:tools"></iconify-icon> Toolbox</button>
           <button onclick="showPage('dispositivos')" class="soporte-tab"><iconify-icon icon="tabler:device-desktop"></iconify-icon> Dispositivos</button>
           <button onclick="showPage('licencias')" class="soporte-tab"><iconify-icon icon="tabler:license"></iconify-icon> Licencias</button>
         </div>
@@ -1733,7 +1933,7 @@ html { scroll-behavior: smooth; }
               <button class="btn btn-primary" id="btn-guardar-ticket" onclick="guardarTicket()" style="flex:1;min-width:180px;">
                 <iconify-icon icon="tabler:device-floppy"></iconify-icon> Guardar y notificar usuario
               </button>
-              <button class="btn btn-secondary" onclick="guardarComoKb()" style="font-size:12px;" title="Convierte la respuesta + descripción del ticket en un artículo de la Knowledge Base"><iconify-icon icon="tabler:book-2"></iconify-icon> Guardar como artículo KB</button>
+              <button class="btn btn-secondary" onclick="guardarComoToolbox()" style="font-size:12px;" title="Convierte la respuesta + descripción del ticket en un proceso del Toolbox"><iconify-icon icon="tabler:tools"></iconify-icon> Guardar en Toolbox</button>
               <button class="btn btn-secondary" onclick="closeTicketModal()">Cancelar</button>
             </div>
           </div>
@@ -1813,7 +2013,7 @@ html { scroll-behavior: smooth; }
         <div class="section-title"><span>//</span> Soporte</div>
         <div class="soporte-tabs">
           <button onclick="showPage('tickets')" class="soporte-tab"><iconify-icon icon="tabler:ticket"></iconify-icon> Tickets</button>
-          <button onclick="showPage('kb')" class="soporte-tab"><iconify-icon icon="tabler:book-2"></iconify-icon> Knowledge Base</button>
+          <button onclick="showPage('toolbox')" class="soporte-tab"><iconify-icon icon="tabler:tools"></iconify-icon> Toolbox</button>
           <button onclick="showPage('dispositivos')" class="soporte-tab active"><iconify-icon icon="tabler:device-desktop"></iconify-icon> Dispositivos</button>
           <button onclick="showPage('licencias')" class="soporte-tab"><iconify-icon icon="tabler:license"></iconify-icon> Licencias</button>
         </div>
@@ -2049,52 +2249,93 @@ html { scroll-behavior: smooth; }
       </div>
     </div>
 
-    <!-- ══ KNOWLEDGE BASE ══════════════════════════════════ -->
-    <div class="page" id="page-kb">
+    <!-- ══ TOOLBOX ═════════════════════════════════════════ -->
+    <div class="page" id="page-toolbox">
       <div class="section-header">
         <div class="section-title"><span>//</span> Soporte</div>
         <div class="soporte-tabs">
           <button onclick="showPage('tickets')" class="soporte-tab"><iconify-icon icon="tabler:ticket"></iconify-icon> Tickets</button>
-          <button onclick="showPage('kb')" class="soporte-tab active"><iconify-icon icon="tabler:book-2"></iconify-icon> Knowledge Base</button>
+          <button onclick="showPage('toolbox')" class="soporte-tab active"><iconify-icon icon="tabler:tools"></iconify-icon> Toolbox</button>
           <button onclick="showPage('dispositivos')" class="soporte-tab"><iconify-icon icon="tabler:device-desktop"></iconify-icon> Dispositivos</button>
           <button onclick="showPage('licencias')" class="soporte-tab"><iconify-icon icon="tabler:license"></iconify-icon> Licencias</button>
         </div>
-        <div class="section-desc">Soluciones a problemas recurrentes — captura conocimiento para no repetir el mismo diagnóstico.</div>
+        <div class="section-desc">Tus scripts, tips y procesos. Listos para copiar.</div>
       </div>
 
-      <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;align-items:center;">
-        <button class="btn btn-primary" onclick="showKbForm()"><iconify-icon icon="tabler:plus"></iconify-icon> Nuevo artículo</button>
-        <input class="form-input" id="kb-search" type="text" placeholder="Buscar en título, contenido o tags..." oninput="filterKb()" style="flex:1;min-width:200px;max-width:360px;"/>
-        <button class="btn btn-secondary" onclick="loadKb()" id="btn-load-kb" style="font-size:12px;padding:7px 12px;">↺ Actualizar</button>
-        <span id="kb-count" style="font-family:var(--mono);font-size:11px;color:var(--hero-text-muted);margin-left:auto;"></span>
+      <!-- Acciones + búsqueda -->
+      <div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap;align-items:center;">
+        <button class="btn btn-primary" onclick="showToolboxForm()"><iconify-icon icon="tabler:plus"></iconify-icon> Nueva entrada</button>
+        <input class="form-input" id="tbx-search" type="text" placeholder="Buscar en título, contenido o tags..." oninput="filterToolbox()" style="flex:1;min-width:200px;max-width:360px;"/>
+        <button class="btn btn-secondary" onclick="loadToolbox()" id="btn-load-toolbox" style="font-size:12px;padding:7px 12px;">↺ Actualizar</button>
+        <span id="tbx-count" style="font-family:var(--mono);font-size:11px;color:var(--hero-text-muted);margin-left:auto;"></span>
       </div>
 
-      <div id="kb-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px;"></div>
+      <!-- Chips de filtro por tipo -->
+      <div id="tbx-type-chips" style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;">
+        <button class="tbx-chip active" data-type="" onclick="setToolboxType('')"><iconify-icon icon="tabler:apps"></iconify-icon> Todos <span class="tbx-chip-count" id="tbx-count-all">0</span></button>
+        <button class="tbx-chip" data-type="script" onclick="setToolboxType('script')"><iconify-icon icon="tabler:terminal-2"></iconify-icon> Scripts <span class="tbx-chip-count" id="tbx-count-script">0</span></button>
+        <button class="tbx-chip" data-type="comando" onclick="setToolboxType('comando')"><iconify-icon icon="tabler:command"></iconify-icon> Comandos <span class="tbx-chip-count" id="tbx-count-comando">0</span></button>
+        <button class="tbx-chip" data-type="tip" onclick="setToolboxType('tip')"><iconify-icon icon="tabler:bulb"></iconify-icon> Tips <span class="tbx-chip-count" id="tbx-count-tip">0</span></button>
+        <button class="tbx-chip" data-type="proceso" onclick="setToolboxType('proceso')"><iconify-icon icon="tabler:list-numbers"></iconify-icon> Procesos <span class="tbx-chip-count" id="tbx-count-proceso">0</span></button>
+      </div>
 
-      <!-- Modal KB editor -->
-      <div id="kb-modal" role="dialog" aria-modal="true" aria-labelledby="kb-modal-title" data-close-fn="closeKbModal" style="display:none;position:fixed;inset:0;background:rgba(26,39,51,0.5);z-index:100;overflow-y:auto;padding:24px;">
-        <div style="background:var(--hero-bg-card);border:1px solid rgba(6,163,182,0.3);border-radius:16px;max-width:680px;margin:0 auto;padding:28px;">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
-            <div id="kb-modal-title" style="font-size:15px;font-weight:600;color:var(--hero-text-primary);">Nuevo artículo</div>
-            <button onclick="closeKbModal()" aria-label="Cerrar" style="background:transparent;border:1px solid var(--hero-border-card);color:var(--hero-text-body);width:32px;height:32px;border-radius:8px;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;"><iconify-icon icon="tabler:x"></iconify-icon></button>
+      <div id="tbx-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(420px,1fr));gap:14px;"></div>
+
+      <!-- Modal Toolbox editor -->
+      <div id="tbx-modal" role="dialog" aria-modal="true" aria-labelledby="tbx-modal-title" data-close-fn="closeToolboxModal" style="display:none;position:fixed;inset:0;background:rgba(26,39,51,0.5);z-index:100;overflow-y:auto;padding:24px;">
+        <div style="background:#ffffff;border:1px solid rgba(6,163,182,0.3);border-radius:16px;max-width:720px;margin:0 auto;padding:28px;box-shadow:0 8px 32px rgba(0,0,0,0.15);">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;">
+            <div id="tbx-modal-title" style="font-size:15px;font-weight:600;color:var(--hero-text-primary);">Nueva entrada</div>
+            <button onclick="closeToolboxModal()" aria-label="Cerrar" style="background:transparent;border:1px solid var(--hero-border);color:var(--hero-text-muted);width:32px;height:32px;border-radius:8px;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;"><iconify-icon icon="tabler:x"></iconify-icon></button>
           </div>
+
+          <!-- Selector de tipo -->
+          <div style="font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--hero-primary);margin-bottom:8px;">Tipo de entrada *</div>
+          <div id="tbx-f-tipo-chips" style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:18px;">
+            <button type="button" class="tbx-type-pick" data-type="script" onclick="setFormType('script')"><iconify-icon icon="tabler:terminal-2"></iconify-icon><span>Script</span></button>
+            <button type="button" class="tbx-type-pick" data-type="comando" onclick="setFormType('comando')"><iconify-icon icon="tabler:command"></iconify-icon><span>Comando</span></button>
+            <button type="button" class="tbx-type-pick" data-type="tip" onclick="setFormType('tip')"><iconify-icon icon="tabler:bulb"></iconify-icon><span>Tip</span></button>
+            <button type="button" class="tbx-type-pick" data-type="proceso" onclick="setFormType('proceso')"><iconify-icon icon="tabler:list-numbers"></iconify-icon><span>Proceso</span></button>
+          </div>
+
           <div class="form-group">
             <label class="form-label">Título *</label>
-            <input class="form-input" id="kb-f-titulo" type="text" placeholder="ej: Cómo resolver Outlook lento por add-ins"/>
+            <input class="form-input" id="tbx-f-titulo" type="text" placeholder="ej: Reset cache de GPO en endpoint"/>
           </div>
+
+          <!-- Lenguaje (solo scripts) -->
+          <div class="form-group" id="tbx-f-lang-wrap" style="display:none;">
+            <label class="form-label">Lenguaje</label>
+            <select class="form-input" id="tbx-f-lang">
+              <option value="powershell">PowerShell</option>
+              <option value="bash">Bash</option>
+              <option value="cmd">CMD / Batch</option>
+              <option value="sql">SQL</option>
+              <option value="python">Python</option>
+              <option value="javascript">JavaScript</option>
+              <option value="otro">Otro</option>
+            </select>
+          </div>
+
           <div class="form-group">
-            <label class="form-label">Contenido *</label>
-            <textarea class="form-input" id="kb-f-contenido" rows="12" placeholder="Pasos, diagnóstico, solución... Una línea en blanco = párrafo. Markdown no se renderiza." style="resize:vertical;font-family:var(--mono);font-size:13px;"></textarea>
+            <label class="form-label" id="tbx-f-contenido-label">Contenido *</label>
+            <!-- Para comandos: input de una línea -->
+            <input class="form-input" id="tbx-f-comando" type="text" placeholder="ej: gpupdate /force" style="display:none;font-family:var(--mono);font-size:13px;"/>
+            <!-- Para script/tip/proceso: textarea -->
+            <textarea class="form-input" id="tbx-f-contenido" rows="10" placeholder="Pasos, diagnóstico, solución..." style="resize:vertical;font-family:var(--mono);font-size:13px;"></textarea>
           </div>
+
           <div class="form-group">
             <label class="form-label">Tags (separados por coma)</label>
-            <input class="form-input" id="kb-f-tags" type="text" placeholder="outlook, lentitud, add-ins"/>
+            <input class="form-input" id="tbx-f-tags" type="text" placeholder="powershell, gpo, cache"/>
           </div>
-          <div id="kb-f-origen" style="display:none;font-size:11px;color:var(--hero-text-muted);margin-bottom:10px;font-family:var(--mono);"></div>
+
+          <div id="tbx-f-origen" style="display:none;font-size:11px;color:var(--hero-text-muted);margin-bottom:10px;font-family:var(--mono);"></div>
+
           <div style="display:flex;gap:10px;margin-top:14px;">
-            <button class="btn btn-primary" id="btn-kb-save" onclick="saveKb()" style="flex:1;"><iconify-icon icon="tabler:device-floppy"></iconify-icon> Guardar artículo</button>
-            <button class="btn btn-danger" id="btn-kb-del" onclick="deleteKbCurrent()" style="display:none;"><iconify-icon icon="tabler:trash"></iconify-icon> Eliminar</button>
-            <button class="btn btn-secondary" onclick="closeKbModal()">Cancelar</button>
+            <button class="btn btn-primary" id="btn-tbx-save" onclick="saveToolbox()" style="flex:1;"><iconify-icon icon="tabler:device-floppy"></iconify-icon> Guardar</button>
+            <button class="btn btn-danger" id="btn-tbx-del" onclick="deleteToolboxCurrent()" style="display:none;"><iconify-icon icon="tabler:trash"></iconify-icon> Eliminar</button>
+            <button class="btn btn-secondary" onclick="closeToolboxModal()">Cancelar</button>
           </div>
         </div>
       </div>
@@ -2106,7 +2347,7 @@ html { scroll-behavior: smooth; }
         <div class="section-title"><span>//</span> Soporte</div>
         <div class="soporte-tabs">
           <button onclick="showPage('tickets')" class="soporte-tab"><iconify-icon icon="tabler:ticket"></iconify-icon> Tickets</button>
-          <button onclick="showPage('kb')" class="soporte-tab"><iconify-icon icon="tabler:book-2"></iconify-icon> Knowledge Base</button>
+          <button onclick="showPage('toolbox')" class="soporte-tab"><iconify-icon icon="tabler:tools"></iconify-icon> Toolbox</button>
           <button onclick="showPage('dispositivos')" class="soporte-tab"><iconify-icon icon="tabler:device-desktop"></iconify-icon> Dispositivos</button>
           <button onclick="showPage('licencias')" class="soporte-tab active"><iconify-icon icon="tabler:license"></iconify-icon> Licencias</button>
         </div>
