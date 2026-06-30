@@ -16,15 +16,22 @@
 
 // Orígenes legítimos del Console + formularios públicos (todos en
 // it916.github.io: hero-it-console, alta-agentes, soporte.html).
+// Hero Hub (módulo Finanzas) también consume este Worker — endpoint
+// /finanzas/send-report — con su propia auth (Firebase ID token).
 const ALLOWED_ORIGINS = [
   'https://it916.github.io',
-  'https://it.heroinsuranceusa.com', // subdominio futuro
+  'https://it.heroinsuranceusa.com',  // subdominio futuro
+  'https://hub.heroinsuranceusa.com', // Hero Hub (Finanzas)
 ];
 
 export default {
   async fetch(request, env) {
     const requestOrigin = request.headers.get('Origin') || '';
-    const corsOrigin = ALLOWED_ORIGINS.includes(requestOrigin)
+    // Localhost (Live Server / `npx serve`) se permite con cualquier puerto:
+    // útil para probar /finanzas/send-report desde el Hub en desarrollo.
+    // El gate de seguridad real es el Firebase ID token + lista de emails.
+    const isLocalhost = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(requestOrigin);
+    const corsOrigin = (ALLOWED_ORIGINS.includes(requestOrigin) || isLocalhost)
       ? requestOrigin
       : ALLOWED_ORIGINS[0];
     const cors = {
@@ -55,6 +62,76 @@ export default {
         logError('auth_login_failed', err);
         // Mensaje genérico al cliente — los detalles quedan en logError para debug.
         return json({ error: 'No se pudo verificar la sesión' }, 401, cors);
+      }
+    }
+
+    // ── POST /finanzas/send-report — envío de reporte de comisión a broker ──
+    // Consumido por el Hero Hub (módulo Finanzas). No usa el pase HMAC del
+    // Console; trae su propia auth via Firebase ID token verificado contra
+    // las JWKs públicas de Google (función `verifyFirebaseIdToken`). El email
+    // del usuario debe estar en `FINANZAS_EMAILS`. Por eso va ANTES del gate
+    // del Console.
+    if (request.method === 'POST' && path === '/finanzas/send-report') {
+      if (bodyTooLarge(request)) return json({ error: 'Body demasiado grande' }, 413, cors);
+      const ip = clientIp(request);
+      // 30/min por IP: envíos manuales en serie son normales; ráfagas mayores
+      // sugieren bug o abuso. El endpoint además valida el ID token, así que
+      // el rate-limit es defensa en profundidad.
+      if (!(await rateLimit(env, 'finanzas-email', ip, 30, 60))) {
+        return json({ error: 'Demasiados envíos. Espera un minuto.' }, 429, cors);
+      }
+      try {
+        const body = await request.json();
+        const { idToken, ingreso, payout, broker } = body || {};
+        if (!idToken) return json({ error: 'Falta idToken' }, 400, cors);
+        if (!broker || !broker.email) return json({ error: 'Falta broker.email' }, 400, cors);
+        if (!ingreso || !payout) return json({ error: 'Falta ingreso o payout' }, 400, cors);
+
+        let claims;
+        try {
+          claims = await verifyFirebaseIdToken(idToken, env);
+        } catch (err) {
+          logError('finanzas_token_invalid', err);
+          return json({ error: 'Token inválido o expirado' }, 401, cors);
+        }
+        const userEmail = String(claims.email || '').toLowerCase();
+        if (!FINANZAS_EMAILS.has(userEmail)) {
+          return json({ error: 'No autorizado para enviar reportes de Finanzas' }, 403, cors);
+        }
+
+        const subjectMes = ingreso.mes || ingreso.fecha || '';
+        const subject = 'Reporte de comisión — ' + (ingreso.descripcionDeposito || 'Hero Insurance') + (subjectMes ? ' — ' + subjectMes : '');
+        const html = renderFinanzasEmail({ ingreso, payout, broker, sender: claims.name || userEmail });
+        const text = 'Reporte de comisión\n\n'
+          + 'Comisión: ' + (ingreso.descripcionDeposito || '—') + '\n'
+          + 'Fecha: ' + (ingreso.fecha || '—') + '\n'
+          + (ingreso.tipoPago ? 'Tipo: ' + ingreso.tipoPago + '\n' : '')
+          + (ingreso.categoria ? 'Categoría: ' + ingreso.categoria + '\n' : '')
+          + 'Monto total: ' + formatUSD(ingreso.monto) + '\n\n'
+          + 'Tu payout: ' + formatUSD(payout.saldo) + '\n'
+          + (payout.reporteFile ? 'Archivo: ' + payout.reporteFile + '\n' : '')
+          + '\nEnviado por ' + (claims.name || userEmail) + ' · Hero Insurance USA';
+
+        const resendResp = await sendResend(env, {
+          from: 'Hero Finanzas <financesupport@heroinsuranceusa.com>',
+          to: [broker.email],
+          reply_to: 'financesupport@heroinsuranceusa.com',
+          subject,
+          html,
+          text,
+        }, { event: 'finanzas_report', to: broker.email, by: userEmail });
+
+        if (!resendResp) return json({ error: 'No se pudo contactar a Resend' }, 502, cors);
+        if (!resendResp.ok) {
+          let msg = 'Resend rechazó el envío (' + resendResp.status + ')';
+          try { const d = await resendResp.clone().json(); msg = d.message || d.error || msg; } catch (_) {}
+          return json({ error: msg }, resendResp.status, cors);
+        }
+        const result = await resendResp.json().catch(() => ({}));
+        return json({ ok: true, id: result.id || null }, 200, cors);
+      } catch (err) {
+        logError('handler_failed', err, { path, method: request.method });
+        return json({ error: 'Error interno del servidor' }, 500, cors);
       }
     }
 
@@ -1942,4 +2019,138 @@ async function getGoogleToken(env) {
   }
   await setCachedToken(env, 'cache_google_token', tokenData.access_token, tokenData.expires_in);
   return tokenData.access_token;
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  Finanzas (Hero Hub) — auth con Firebase ID token + email template
+// ═══════════════════════════════════════════════════════════════
+
+// Emails autorizados a disparar /finanzas/send-report. Coincide con el rol
+// `finanzas` del Hub + admin. Si cambian los miembros del equipo de Finanzas
+// hay que actualizar acá y redeployar el Worker.
+const FINANZAS_EMAILS = new Set([
+  'it@heroinsuranceusa.com',
+  'financesupport@heroinsuranceusa.com',
+  'finance@heroinsuranceusa.com',
+  'samortiz@heroinsuranceusa.com',
+  'brokersupport@heroinsuranceusa.com',
+]);
+
+// Verifica un Firebase ID token (JWT RS256) contra las JWKs públicas de Google.
+// Devuelve los claims o lanza. Cachea las JWKs en KV con TTL 1h — Google rota
+// las keys ~cada día, y un kid no cacheado fuerza refetch.
+async function verifyFirebaseIdToken(idToken, env) {
+  if (!idToken || typeof idToken !== 'string') throw new Error('idToken vacío');
+  const parts = idToken.split('.');
+  if (parts.length !== 3) throw new Error('Formato JWT inválido');
+  const projectId = env.FIREBASE_PROJECT_ID;
+  if (!projectId) throw new Error('Falta FIREBASE_PROJECT_ID');
+
+  let header, payload;
+  try {
+    header  = JSON.parse(b64urlDecode(parts[0]));
+    payload = JSON.parse(b64urlDecode(parts[1]));
+  } catch { throw new Error('JWT corrupto'); }
+
+  if (header.alg !== 'RS256') throw new Error('Algoritmo inválido');
+  if (!header.kid) throw new Error('Sin kid');
+
+  const jwk = await getFirebaseJwk(env, header.kid);
+  if (!jwk) throw new Error('kid no encontrado en JWKs');
+
+  const key = await crypto.subtle.importKey(
+    'jwk', jwk,
+    { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
+    false, ['verify']
+  );
+  const data = new TextEncoder().encode(parts[0] + '.' + parts[1]);
+  const sig = b64urlToBytes(parts[2]);
+  const valid = await crypto.subtle.verify('RSASSA-PKCS1-v1_5', key, sig, data);
+  if (!valid) throw new Error('Firma inválida');
+
+  const now = Math.floor(Date.now() / 1000);
+  if (!payload.exp || payload.exp < now) throw new Error('Token expirado');
+  if (payload.iat && payload.iat > now + 300) throw new Error('Token del futuro');
+  if (payload.aud !== projectId) throw new Error('aud inválido');
+  if (payload.iss !== 'https://securetoken.google.com/' + projectId) throw new Error('iss inválido');
+  if (!payload.sub) throw new Error('Sin sub');
+  if (!payload.email) throw new Error('Sin email');
+
+  return payload;
+}
+
+// Lookup en cache + refetch on miss. Si el cache está vacío o no contiene el
+// kid pedido, refresca contra Google y reintenta.
+async function getFirebaseJwk(env, kid) {
+  const cacheKey = 'firebase_jwks_v1';
+  let jwks = null;
+  try {
+    const cached = await env.HERO_KV.get(cacheKey);
+    if (cached) jwks = JSON.parse(cached);
+  } catch (_) {}
+  let found = jwks && Array.isArray(jwks.keys) && jwks.keys.find(k => k.kid === kid);
+  if (found) return found;
+
+  const resp = await fetch('https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com');
+  if (!resp.ok) throw new Error('No se pudieron cargar JWKs de Google');
+  jwks = await resp.json();
+  try { await env.HERO_KV.put(cacheKey, JSON.stringify(jwks), { expirationTtl: 3600 }); } catch (_) {}
+  return (jwks.keys || []).find(k => k.kid === kid) || null;
+}
+
+// base64url → Uint8Array (bytes crudos, no UTF-8). `b64urlDecode` ya existente
+// devuelve string, lo cual corrompe firmas binarias.
+function b64urlToBytes(b64) {
+  const pad = b64.length % 4 === 0 ? '' : '='.repeat(4 - (b64.length % 4));
+  const bin = atob(b64.replace(/-/g, '+').replace(/_/g, '/') + pad);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return bytes;
+}
+
+function formatUSD(n) {
+  const num = Number(n);
+  if (!isFinite(num)) return '$0.00';
+  return '$' + num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+// Email branded Hero Light (cyan #06a3b6) con el resumen del payout para el
+// broker. Sin adjuntos — el archivo del reporte se menciona como referencia.
+function renderFinanzasEmail({ ingreso, payout, broker, sender }) {
+  const monto = formatUSD(ingreso.monto);
+  const saldo = formatUSD(payout.saldo);
+  const fecha = ingreso.fecha || '';
+  const mes   = ingreso.mes || '';
+  const desc  = ingreso.descripcionDeposito || 'Hero Insurance';
+  return ''
+    + '<div style="font-family:Trebuchet MS,Arial,sans-serif;max-width:620px;background:#f0f4f8;padding:32px 16px;">'
+    + '<div style="background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);">'
+    + '<div style="background:linear-gradient(135deg,#06a3b6,#048395);padding:28px 40px;text-align:center;">'
+    +   '<img src="https://i.ibb.co/Gr4mzLv/Nuevo-Logo-Cuadrado-compress.png" width="120" style="display:block;margin:0 auto 14px;" alt="Hero Insurance USA"/>'
+    +   '<div style="display:inline-block;background:rgba(255,255,255,0.2);color:#fff;font-weight:700;font-size:11px;letter-spacing:3px;padding:5px 14px;border-radius:20px;margin-bottom:10px;">REPORTE DE COMISIÓN</div>'
+    +   '<h1 style="color:#fff;margin:0;font-size:20px;font-weight:700;">' + esc(desc) + '</h1>'
+    +   (mes ? '<p style="color:rgba(255,255,255,0.85);margin:6px 0 0;font-size:13px;">' + esc(mes) + '</p>' : '')
+    + '</div>'
+    + '<div style="padding:28px 40px;">'
+    +   '<p style="margin:0 0 18px;font-size:14px;color:#4a5568;">Hola <strong>' + esc(broker.nombre || broker.email) + '</strong>,</p>'
+    +   '<p style="margin:0 0 18px;font-size:13px;color:#4a5568;line-height:1.6;">Te compartimos el detalle del payout correspondiente a tu participación en esta comisión.</p>'
+    +   '<div style="background:#f7faff;border-radius:10px;border:1px solid #d8e1ea;padding:18px;margin:0 0 14px;">'
+    +     '<p style="margin:0 0 6px;font-size:10px;font-weight:700;letter-spacing:2px;color:#06a3b6;text-transform:uppercase;">Detalle de la comisión</p>'
+    +     (fecha ? '<p style="margin:0 0 4px;font-size:13px;color:#4a5568;"><strong>Fecha:</strong> ' + esc(fecha) + '</p>' : '')
+    +     (ingreso.tipoPago ? '<p style="margin:0 0 4px;font-size:13px;color:#4a5568;"><strong>Tipo de pago:</strong> ' + esc(ingreso.tipoPago) + '</p>' : '')
+    +     (ingreso.categoria ? '<p style="margin:0 0 4px;font-size:13px;color:#4a5568;"><strong>Categoría:</strong> ' + esc(ingreso.categoria) + '</p>' : '')
+    +     '<p style="margin:0;font-size:13px;color:#4a5568;"><strong>Monto total recibido por Hero:</strong> ' + esc(monto) + '</p>'
+    +   '</div>'
+    +   '<div style="background:#e0f7fa;border-left:4px solid #06a3b6;border-radius:10px;padding:18px;margin:0 0 22px;">'
+    +     '<p style="margin:0 0 4px;font-size:10px;font-weight:700;letter-spacing:2px;color:#06a3b6;text-transform:uppercase;">Tu payout</p>'
+    +     '<p style="margin:0;font-size:28px;font-weight:700;color:#048395;letter-spacing:-0.5px;">' + esc(saldo) + '</p>'
+    +     (payout.reporteFile ? '<p style="margin:10px 0 0;font-size:12px;color:#4a5568;"><strong>Archivo de reporte:</strong> <span style="font-family:monospace;color:#06a3b6;">' + esc(payout.reporteFile) + '</span></p>' : '')
+    +   '</div>'
+    +   '<p style="font-size:12px;color:#999;line-height:1.6;margin:0;">Cualquier consulta, responde a este correo y el equipo de Finanzas te atiende a la brevedad.</p>'
+    + '</div>'
+    + '<div style="padding:12px 40px;background:#f0f4f8;text-align:center;">'
+    +   '<p style="margin:0;font-size:10px;color:#aaa;">CONFIDENTIALITY NOTICE · Hero Insurance USA · Finanzas</p>'
+    +   '<p style="margin:4px 0 0;font-size:10px;color:#aaa;">Enviado por ' + esc(sender) + '</p>'
+    + '</div>'
+    + '</div></div>';
 }

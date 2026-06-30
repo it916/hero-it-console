@@ -22,6 +22,13 @@ compatibility_date = "2025-01-01"
 binding = "HERO_KV"
 id = "1da921302dbd4923a67c7823e449ae34"
 
+# ── Variables públicas ──
+# No son secrets — el FIREBASE_PROJECT_ID viaja en cada token Firebase como
+# `aud` y se ve en el frontend del Hub. Lo usamos para validar Firebase ID
+# tokens en /finanzas/send-report (módulo Finanzas del Hero Hub).
+[vars]
+FIREBASE_PROJECT_ID = "hero-hub-de520"
+
 # ── Cron triggers ──
 # Diario a las 13:00 UTC (9am EDT / 8am EST). Dispara el handler `scheduled`
 # del worker, que revisa licencias por vencer (30/7/1/0 días) y manda un
