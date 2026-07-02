@@ -135,6 +135,49 @@ export default {
       }
     }
 
+    // ── POST /auth/hub-login — Hero Hub intercambia Firebase ID token por HERO_TOKEN ──
+    // El Hub autentica con Firebase; para consumir los endpoints privados del Console
+    // necesita el mismo pase HMAC que emite /auth/login para la SPA legacy. Este
+    // endpoint valida el Firebase ID token, chequea whitelist IT_EMAILS y devuelve
+    // un HERO_TOKEN idéntico al que ya conocen el gate y `authFetch`. Va ANTES del
+    // gate central porque tiene su propia auth.
+    if (request.method === 'POST' && path === '/auth/hub-login') {
+      if (bodyTooLarge(request)) return json({ error: 'Body demasiado grande' }, 413, cors);
+      const ip = clientIp(request);
+      if (!(await rateLimit(env, 'hub-login', ip, 20, 60))) {
+        return json({ error: 'Demasiados intentos. Espera un minuto.' }, 429, cors);
+      }
+      try {
+        const { idToken } = await request.json();
+        if (!idToken) return json({ error: 'Falta idToken' }, 400, cors);
+        let claims;
+        try {
+          claims = await verifyFirebaseIdToken(idToken, env);
+        } catch (err) {
+          logError('hub_login_token_invalid', err);
+          return json({ error: 'Token inválido o expirado' }, 401, cors);
+        }
+        const userEmail = String(claims.email || '').toLowerCase();
+        if (!IT_EMAILS.has(userEmail)) {
+          return json({ error: 'No autorizado para IT Console' }, 403, cors);
+        }
+        // NOTA: mintSession emite un HERO_TOKEN con `email` en el payload y
+        // verifySession lo rechaza si `email !== ALLOWED_EMAIL`. Como IT_EMAILS
+        // = { 'it@...' } y ALLOWED_EMAIL = 'it@...', coincide. Si en el futuro
+        // se expande IT_EMAILS, hay que ajustar también verifySession.
+        const token = await mintSession(env, userEmail);
+        return json({
+          token,
+          email: userEmail,
+          nombre: claims.name || '',
+          exp_sec: SESSION_TTL_SEC,
+        }, 200, cors);
+      } catch (err) {
+        logError('hub_login_failed', err, { path, method: request.method });
+        return json({ error: 'Error interno del servidor' }, 500, cors);
+      }
+    }
+
     // ── Gate de autorización ──────────────────────────────────
     // Todo es privado salvo las rutas públicas (formularios y links de email).
     // Las privadas exigen un pase de sesión válido (Authorization: Bearer …).
@@ -2034,6 +2077,14 @@ const FINANZAS_EMAILS = new Set([
   'finance@heroinsuranceusa.com',
   'samortiz@heroinsuranceusa.com',
   'brokersupport@heroinsuranceusa.com',
+]);
+
+// Emails autorizados a intercambiar Firebase ID token del Hub por HERO_TOKEN
+// via POST /auth/hub-login. Solo it@ por ahora — coincide con ALLOWED_EMAIL.
+// Si se expande, hay que modificar también verifySession() (que compara
+// data.email vs ALLOWED_EMAIL) para aceptar la lista completa.
+const IT_EMAILS = new Set([
+  'it@heroinsuranceusa.com',
 ]);
 
 // Verifica un Firebase ID token (JWT RS256) contra las JWKs públicas de Google.
