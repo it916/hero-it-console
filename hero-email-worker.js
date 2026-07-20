@@ -1026,6 +1026,75 @@ export default {
         });
         await Promise.all(sends);
 
+        // Email de confirmación al solicitante (Fase B).
+        // Le da certeza inmediata de que el form llegó + un ID de referencia +
+        // qué esperar del proceso. Va en su propio try/catch: si Resend falla
+        // o el destinatario rebota, la solicitud ya está guardada y los
+        // autorizadores ya fueron notificados — no bloqueamos el response.
+        if (solicitanteEmail) {
+          try {
+            const isAltaAck = tipoSolicitud === 'alta';
+            const personaFull = isAltaAck
+              ? ((body.nombre || '') + ' ' + (body.apellido || '')).trim()
+              : (body.nombre || '');
+            const correoAck = isAltaAck
+              ? (body.correoPersonal || body.correo || '')
+              : (body.correoEliminar || '');
+            const ackHtml =
+                '<div style="font-family:Trebuchet MS,Arial,sans-serif;max-width:620px;background:#f0f4f8;padding:32px 16px;">'
+              + '<div style="background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);">'
+              + '<div style="background:' + headerGrad + ';padding:28px 40px;text-align:center;">'
+              +   '<img src="https://i.ibb.co/Gr4mzLv/Nuevo-Logo-Cuadrado-compress.png" width="120" style="display:block;margin:0 auto 14px;"/>'
+              +   '<div style="display:inline-block;background:rgba(255,255,255,0.2);color:#fff;font-weight:700;font-size:11px;letter-spacing:3px;padding:5px 14px;border-radius:20px;margin-bottom:10px;">' + badgeText + '</div>'
+              +   '<h1 style="color:#fff;margin:0;font-size:22px;font-weight:700;">Recibimos tu solicitud</h1>'
+              +   '<p style="color:rgba(255,255,255,0.85);margin:6px 0 0;font-size:13px;">Procedimiento PROC-IT-001</p>'
+              + '</div>'
+              + '<div style="padding:28px 40px;">'
+              +   '<p style="margin:0 0 18px;font-size:14px;color:#4a5568;">Hola <strong>' + esc(solicitanteNombre) + '</strong>, tu solicitud fue recibida correctamente y está en proceso de autorización.</p>'
+              +   '<div style="background:#f7faff;border-radius:10px;border:1px solid #d8e1ea;padding:18px;margin:0 0 22px;">'
+              +     '<p style="margin:0 0 6px;font-size:10px;font-weight:700;letter-spacing:2px;color:#06a3b6;text-transform:uppercase;">Referencia · ' + esc(solicitud.id) + '</p>'
+              +     '<p style="margin:0 0 4px;font-size:11px;font-weight:700;letter-spacing:2px;color:#777;text-transform:uppercase;">Tipo</p>'
+              +     '<p style="margin:0 0 10px;font-size:14px;color:#1a202c;">' + esc(tipoLabel.toUpperCase()) + ' · ' + esc(tipoPersona === 'empleado' ? 'empleado' : 'agente') + '</p>'
+              +     (personaFull ? '<p style="margin:0 0 4px;font-size:11px;font-weight:700;letter-spacing:2px;color:#777;text-transform:uppercase;">Persona</p><p style="margin:0 0 10px;font-size:14px;color:#1a202c;">' + esc(personaFull) + '</p>' : '')
+              +     (correoAck ? '<p style="margin:0 0 4px;font-size:11px;font-weight:700;letter-spacing:2px;color:#777;text-transform:uppercase;">' + (isAltaAck ? 'Correo personal' : 'Correo a desactivar') + '</p><p style="margin:0 0 10px;font-family:monospace;font-size:13px;color:#06a3b6;">' + esc(correoAck) + '</p>' : '')
+              +     (fechaRequerida ? '<p style="margin:0 0 4px;font-size:11px;font-weight:700;letter-spacing:2px;color:#777;text-transform:uppercase;">Fecha requerida</p><p style="margin:0;font-size:14px;color:#1a202c;">' + esc(fechaRequerida) + '</p>' : '')
+              +   '</div>'
+              +   '<p style="margin:0 0 12px;font-size:11px;font-weight:700;letter-spacing:2.5px;color:#06a3b6;text-transform:uppercase;">Qué sigue</p>'
+              +   '<ol style="margin:0 0 22px;padding:0 0 0 20px;font-size:13px;color:#4a5568;line-height:1.7;">'
+              +     '<li>Los <strong>autorizadores</strong> (dirección) reciben tu solicitud por email. Basta con que uno la apruebe.</li>'
+              +     '<li>Cuando se autoriza, el equipo de IT es notificado y procede con el ' + (isAltaAck ? 'alta' : 'baja') + '.</li>'
+              +     '<li>Al completarse, ' + (isAltaAck ? 'las credenciales llegan al correo personal indicado y ' : '') + 'te enviamos una confirmación final.</li>'
+              +   '</ol>'
+              +   '<p style="margin:0;font-size:12px;color:#999;line-height:1.5;">Si tienes dudas o quieres cancelar la solicitud, contacta al equipo de IT: <a href="mailto:it@heroinsuranceusa.com" style="color:#06a3b6;">it@heroinsuranceusa.com</a></p>'
+              + '</div>'
+              + '<div style="padding:12px 40px;background:#f0f4f8;text-align:center;"><p style="margin:0;font-size:10px;color:#aaa;">CONFIDENTIALITY NOTICE · Hero Insurance USA · IT Department</p></div>'
+              + '</div></div>';
+            const ackText = 'Recibimos tu solicitud de ' + tipoLabel + '.\n\n'
+              + 'Referencia: ' + solicitud.id + '\n'
+              + 'Tipo: ' + tipoLabel.toUpperCase() + ' (' + tipoPersona + ')\n'
+              + (personaFull ? 'Persona: ' + personaFull + '\n' : '')
+              + (correoAck ? (isAltaAck ? 'Correo personal: ' : 'Correo a desactivar: ') + correoAck + '\n' : '')
+              + (fechaRequerida ? 'Fecha requerida: ' + fechaRequerida + '\n' : '')
+              + '\nQué sigue:\n'
+              + '1. Los autorizadores reciben tu solicitud por email.\n'
+              + '2. Cuando se autoriza, IT procede con el ' + (isAltaAck ? 'alta' : 'baja') + '.\n'
+              + '3. Al completarse, te enviamos una confirmación final.\n'
+              + '\nDudas: it@heroinsuranceusa.com';
+            await sendResend(env, {
+              from: 'Hero IT · Solicitudes <it@heroinsuranceusa.com>',
+              to:   [solicitanteEmail],
+              subject: 'Recibimos tu solicitud de ' + tipoLabel + ' — Ref. ' + solicitud.id,
+              html: ackHtml,
+              text: ackText,
+            }, { event: 'solicitud_cuenta_ack_solicitante', id: solicitud.id, solicitante: solicitanteEmail });
+          } catch (ackErr) {
+            // No propagamos el error: la solicitud ya está creada y los
+            // autorizadores ya recibieron el email — el ack al solicitante
+            // es un extra, no crítico.
+            logError('solicitud_cuenta_ack_failed', ackErr, { id: solicitud.id, solicitante: solicitanteEmail });
+          }
+        }
+
         return json({ ok: true, id: solicitud.id, tipoSolicitud }, 200, cors);
       } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: 'Error interno del servidor' }, 500, cors); }
       }, 'solicitud-cuenta');
