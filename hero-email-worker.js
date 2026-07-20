@@ -1100,6 +1100,176 @@ export default {
       }, 'solicitud-cuenta');
     }
 
+    // ── POST /solicitud-cuenta/reenviar ───────────────────────
+    // Reenvía los emails de autorización a los 3 autorizadores con links
+    // HMAC nuevos (nuevo `exp`, 7 días adelante). Usado desde el IT Console
+    // cuando los links originales expiraron o se perdieron en spam.
+    // Solo procesa si la solicitud está en estado 'pendiente' — si ya fue
+    // autorizada/rechazada/procesada, el reenvío no tiene sentido.
+    // Auth: HERO_TOKEN heredado del gate central; rate limit propio.
+    if (request.method === 'POST' && path === '/solicitud-cuenta/reenviar') {
+      const ip = clientIp(request);
+      if (!(await rateLimit(env, 'solicitud-reenviar', ip, 5, 60))) {
+        return json({ error: 'Demasiados reenvíos. Espera un minuto.' }, 429, cors);
+      }
+      try {
+        const { id } = await request.json();
+        if (!id || !id.startsWith('alta_')) {
+          return json({ error: 'ID de solicitud inválido' }, 400, cors);
+        }
+        const raw = await env.HERO_KV.get(id);
+        if (!raw) return json({ error: 'Solicitud no encontrada' }, 404, cors);
+        const solicitud = JSON.parse(raw);
+        if (solicitud.estado !== 'pendiente') {
+          return json({
+            error: 'Solo se pueden reenviar solicitudes pendientes (estado actual: ' + solicitud.estado + ')'
+          }, 409, cors);
+        }
+
+        // Reconstruye subject / bloqueHtml / textoPlano desde la solicitud
+        // guardada. Duplica la lógica de POST /solicitud-cuenta original
+        // para no acoplar los dos handlers vía refactor riesgoso.
+        const isAlta = solicitud.tipoSolicitud === 'alta';
+        const tipoPersona = solicitud.tipoPersona || 'agente';
+        const personaLabel = tipoPersona === 'empleado' ? 'empleado' : 'agente';
+        const solicitanteNombre = solicitud.solicitanteNombre || 'No especificado';
+        const solicitanteEmail  = solicitud.solicitanteEmail || null;
+        const fechaRequerida    = solicitud.fechaRequerida || null;
+
+        let subject, bloqueHtml, textoPlano;
+        if (isAlta) {
+          const { nombre = '', apellido = '', correoPersonal, correo, telefono = '', cargo = '', area = '' } = solicitud;
+          const correoPers = correoPersonal || correo || '';
+          subject = '[ALTA · Reenvío] Solicitud de alta de cuenta (' + personaLabel + '): ' + nombre + ' ' + apellido;
+          bloqueHtml =
+              '<p style="margin:0 0 4px;font-size:11px;font-weight:700;letter-spacing:2px;color:#06a3b6;text-transform:uppercase;">' + esc(personaLabel) + ' a dar de alta</p>'
+            + '<p style="margin:0 0 4px;font-size:16px;font-weight:700;color:#1a202c;">' + esc(nombre) + ' ' + esc(apellido) + '</p>'
+            + (cargo ? '<p style="margin:0 0 4px;font-size:13px;color:#4a5568;"><strong>Cargo:</strong> ' + esc(cargo) + '</p>' : '')
+            + (area  ? '<p style="margin:0 0 4px;font-size:13px;color:#4a5568;"><strong>Área:</strong> '  + esc(area)  + '</p>' : '')
+            + '<p style="margin:0 0 10px;font-size:13px;color:#4a5568;"><strong>Correo personal:</strong> <span style="font-family:monospace;color:#06a3b6;">' + esc(correoPers) + '</span></p>'
+            + '<p style="margin:0 0 4px;font-size:13px;color:#4a5568;"><strong>Teléfono:</strong> ' + esc(telefono) + '</p>'
+            + (fechaRequerida ? '<p style="margin:0;font-size:13px;color:#4a5568;"><strong>Fecha requerida:</strong> ' + esc(fechaRequerida) + '</p>' : '');
+          textoPlano = '[REENVÍO] Solicitud de ALTA (' + personaLabel + '): ' + nombre + ' ' + apellido
+            + (cargo ? '\nCargo: ' + cargo : '')
+            + (area  ? '\nArea: '  + area  : '')
+            + '\nCorreo personal: ' + correoPers
+            + '\nTelefono: ' + telefono
+            + (fechaRequerida ? '\nFecha requerida: ' + fechaRequerida : '')
+            + '\nSolicitado por: ' + solicitanteNombre + (solicitanteEmail ? ' <' + solicitanteEmail + '>' : '');
+        } else {
+          const { nombre = '', correoEliminar = '', motivo = '', cargo = '', area = '', detalle = '' } = solicitud;
+          subject = '[BAJA · Reenvío] Solicitud de baja de cuenta (' + personaLabel + '): ' + nombre;
+          bloqueHtml =
+              '<p style="margin:0 0 4px;font-size:11px;font-weight:700;letter-spacing:2px;color:#c0392b;text-transform:uppercase;">Cuenta a dar de baja (' + esc(personaLabel) + ')</p>'
+            + '<p style="margin:0 0 4px;font-size:16px;font-weight:700;color:#1a202c;">' + esc(nombre) + '</p>'
+            + '<p style="margin:0 0 10px;font-size:13px;color:#4a5568;"><strong>Correo a eliminar:</strong> <span style="font-family:monospace;color:#c0392b;">' + esc(correoEliminar) + '</span></p>'
+            + (cargo ? '<p style="margin:0 0 4px;font-size:13px;color:#4a5568;"><strong>Cargo:</strong> ' + esc(cargo) + '</p>' : '')
+            + (area  ? '<p style="margin:0 0 4px;font-size:13px;color:#4a5568;"><strong>Área:</strong> '  + esc(area)  + '</p>' : '')
+            + (fechaRequerida ? '<p style="margin:0 0 10px;font-size:13px;color:#4a5568;"><strong>Fecha requerida:</strong> ' + esc(fechaRequerida) + '</p>' : '')
+            + '<div style="background:#fdedec;border-left:3px solid #c0392b;padding:12px 14px;border-radius:6px;margin:12px 0 0;">'
+            +   '<p style="margin:0 0 4px;font-size:10px;font-weight:700;letter-spacing:2px;color:#c0392b;text-transform:uppercase;">Motivo</p>'
+            +   '<p style="margin:0;font-size:13px;color:#444;line-height:1.6;">' + esc(motivo).split('\n').join('<br/>') + '</p>'
+            + '</div>'
+            + (detalle
+                ? '<p style="margin:12px 0 0;font-size:13px;color:#4a5568;line-height:1.6;"><strong>Detalle:</strong> ' + esc(detalle).split('\n').join('<br/>') + '</p>'
+                : '');
+          textoPlano = '[REENVÍO] Solicitud de BAJA (' + personaLabel + '): ' + nombre + ' (' + correoEliminar + ')'
+            + '\nMotivo: ' + motivo
+            + (cargo   ? '\nCargo: '   + cargo   : '')
+            + (area    ? '\nArea: '    + area    : '')
+            + (detalle ? '\nDetalle: ' + detalle : '')
+            + (fechaRequerida ? '\nFecha requerida: ' + fechaRequerida : '')
+            + '\nSolicitado por: ' + solicitanteNombre + (solicitanteEmail ? ' <' + solicitanteEmail + '>' : '');
+        }
+
+        const AUTHORIZERS = await getAuthorizerList(env);
+        const badgeText  = isAlta ? 'ALTA' : 'BAJA';
+        const headerGrad = isAlta
+          ? 'linear-gradient(135deg,#06a3b6,#048395)'
+          : 'linear-gradient(135deg,#c0392b,#a52917)';
+        const btnColor = isAlta ? '#06a3b6' : '#c0392b';
+        const workerBase = url.origin;
+
+        // Banner "REENVÍO" adicional en el email para que el autorizador
+        // sepa que es la 2da (o Nth) vez que llega — no un duplicado por bug.
+        const buildEmailFor = (auth, link) =>
+            '<div style="font-family:Trebuchet MS,Arial,sans-serif;max-width:620px;background:#f0f4f8;padding:32px 16px;">'
+          + '<div style="background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);">'
+          + '<div style="background:' + headerGrad + ';padding:28px 40px;text-align:center;">'
+          +   '<img src="https://i.ibb.co/Gr4mzLv/Nuevo-Logo-Cuadrado-compress.png" width="120" style="display:block;margin:0 auto 14px;"/>'
+          +   '<div style="display:inline-block;background:rgba(255,255,255,0.2);color:#fff;font-weight:700;font-size:11px;letter-spacing:3px;padding:5px 14px;border-radius:20px;margin-bottom:10px;">' + badgeText + ' · REENVÍO</div>'
+          +   '<h1 style="color:#fff;margin:0;font-size:20px;font-weight:700;">Recordatorio: solicitud de ' + (isAlta ? 'alta' : 'baja') + ' de cuenta</h1>'
+          +   '<p style="color:rgba(255,255,255,0.85);margin:6px 0 0;font-size:13px;">Procedimiento PROC-IT-001</p>'
+          + '</div>'
+          + '<div style="padding:28px 40px;">'
+          +   '<div style="background:rgba(232,163,23,0.10);border-left:3px solid #e8a317;padding:12px 14px;border-radius:6px;margin:0 0 18px;">'
+          +     '<p style="margin:0;font-size:13px;color:#8a5f0f;line-height:1.5;">Esta solicitud sigue <strong>pendiente</strong> de tu autorización. Los links anteriores pueden haber expirado — este link es nuevo y tiene 7 días de validez.</p>'
+          +   '</div>'
+          +   '<p style="margin:0 0 16px;font-size:13px;color:#4a5568;">Hola <strong>' + esc(auth.nombre) + '</strong>,</p>'
+          +   '<div style="background:#f7faff;border-radius:10px;border:1px solid #d8e1ea;padding:18px;margin:0 0 18px;">'
+          +     bloqueHtml
+          +   '</div>'
+          +   '<div style="background:#f0f4f8;border-radius:10px;padding:14px 16px;margin:0 0 22px;">'
+          +     '<p style="margin:0 0 4px;font-size:10px;font-weight:700;letter-spacing:2px;color:#777;text-transform:uppercase;">Solicitado por</p>'
+          +     '<p style="margin:0;font-size:13px;color:#1a202c;">' + esc(solicitanteNombre)
+          +       (solicitanteEmail ? ' <span style="color:#06a3b6;font-family:monospace;">&lt;' + esc(solicitanteEmail) + '&gt;</span>' : '')
+          +     '</p>'
+          +   '</div>'
+          +   '<div style="text-align:center;margin:0 0 22px;">'
+          +     '<a href="' + link + '" style="display:inline-block;background:' + btnColor + ';color:#fff;text-decoration:none;font-weight:700;font-size:14px;padding:14px 32px;border-radius:30px;letter-spacing:0.5px;box-shadow:0 4px 14px rgba(0,0,0,0.15);">✓ Autorizar solicitud</a>'
+          +     '<p style="margin:10px 0 0;font-size:11px;color:#999;">Basta con que <strong>uno</strong> de los autorizadores haga click.</p>'
+          +   '</div>'
+          +   '<p style="font-size:12px;color:#999;line-height:1.6;margin:0;text-align:center;">Si el botón no funciona, copia este enlace en tu navegador:<br/><span style="font-family:monospace;font-size:11px;color:#06a3b6;word-break:break-all;">' + link + '</span></p>'
+          + '</div>'
+          + '<div style="padding:12px 40px;background:#f0f4f8;text-align:center;"><p style="margin:0;font-size:10px;color:#aaa;">CONFIDENTIALITY NOTICE · Hero Insurance USA · IT Department</p></div>'
+          + '</div></div>';
+
+        const linkExp = Math.floor(Date.now() / 1000) + 7 * 24 * 3600;
+        const sends = AUTHORIZERS.map(async auth => {
+          let link;
+          try {
+            const sig = await signAuth(env, solicitud.id, auth.email, linkExp);
+            link = workerBase + '/solicitud-cuenta/autorizar'
+              + '?id=' + encodeURIComponent(solicitud.id)
+              + '&by=' + encodeURIComponent(auth.email)
+              + '&exp=' + linkExp
+              + '&sig=' + encodeURIComponent(sig);
+          } catch (e) {
+            link = '';
+          }
+          const html = link
+            ? buildEmailFor(auth, link)
+            : buildEmailFor(auth, '#').replace('✓ Autorizar solicitud', 'Autoriza desde la Hero IT Console');
+          return sendResend(env, {
+            from: 'Fernando Romero <it@heroinsuranceusa.com>',
+            to:   [auth.email],
+            subject: subject,
+            html:    html,
+            text:    textoPlano + '\n\nAutorizar: ' + (link || '(usa la Hero IT Console)'),
+          }, { event: 'solicitud_cuenta_reenviada_autorizador', autorizador: auth.email, id: solicitud.id });
+        });
+        await Promise.all(sends);
+
+        // Marcar en el KV que hubo un reenvío + cuándo expira el nuevo link,
+        // para poder mostrarlo en el Console y auditar.
+        solicitud.reenviosCount = (solicitud.reenviosCount || 0) + 1;
+        solicitud.ultimoReenvio = new Date().toISOString();
+        solicitud.linkExpiresAt = new Date(linkExp * 1000).toISOString();
+        await env.HERO_KV.put(solicitud.id, JSON.stringify(solicitud), { metadata: summarizeSolicitud(solicitud) });
+        await invalidateCaches(env, 'cache_solicitudes_list', 'cache_stats');
+
+        return json({
+          ok: true,
+          id: solicitud.id,
+          autorizadores: AUTHORIZERS.length,
+          expiraEn: solicitud.linkExpiresAt,
+        }, 200, cors);
+      } catch (err) {
+        logError('solicitud_reenviar_failed', err, { path });
+        return json({ error: 'Error interno del servidor' }, 500, cors);
+      }
+    }
+
     // ── GET /alta-agente ──────────────────────────────────────
     if (request.method === 'GET' && path === '/alta-agente') {
       try {
