@@ -827,6 +827,50 @@ export default {
             + 'ID: ' + id,
         }, { event: 'autorizar_notif_it', id });
 
+        // Fase C — Notificación al solicitante: la solicitud fue autorizada
+        // y IT procederá en breve. En try/catch: si Resend falla, el estado
+        // 'autorizada' ya se guardó en KV y no revertimos por un email.
+        if (sol.solicitanteEmail) {
+          try {
+            const isAltaAut = sol.tipoSolicitud !== 'baja';
+            const headerGradAut = isAltaAut
+              ? 'linear-gradient(135deg,#06a3b6,#048395)'
+              : 'linear-gradient(135deg,#c0392b,#a52917)';
+            const ackAutHtml =
+                '<div style="font-family:Trebuchet MS,Arial,sans-serif;max-width:620px;background:#f0f4f8;padding:32px 16px;">'
+              + '<div style="background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);">'
+              + '<div style="background:' + headerGradAut + ';padding:28px 40px;text-align:center;">'
+              +   '<img src="https://i.ibb.co/Gr4mzLv/Nuevo-Logo-Cuadrado-compress.png" width="120" style="display:block;margin:0 auto 14px;"/>'
+              +   '<div style="display:inline-block;background:rgba(255,255,255,0.2);color:#fff;font-weight:700;font-size:11px;letter-spacing:3px;padding:5px 14px;border-radius:20px;margin-bottom:10px;">AUTORIZADA</div>'
+              +   '<h1 style="color:#fff;margin:0;font-size:22px;font-weight:700;">Tu solicitud fue autorizada</h1>'
+              + '</div>'
+              + '<div style="padding:28px 40px;">'
+              +   '<p style="margin:0 0 18px;font-size:14px;color:#4a5568;">Hola <strong>' + esc(sol.solicitanteNombre || '') + '</strong>, tu solicitud de ' + tipoLabel + ' para <strong>' + esc(persona) + '</strong> fue autorizada.</p>'
+              +   '<div style="background:#f7faff;border-radius:10px;border:1px solid #d8e1ea;padding:18px;margin:0 0 22px;">'
+              +     '<p style="margin:0 0 4px;font-size:10px;font-weight:700;letter-spacing:2px;color:#06a3b6;text-transform:uppercase;">Autorizada por</p>'
+              +     '<p style="margin:0 0 10px;font-size:14px;color:#1a202c;">' + esc(nombreAut) + '</p>'
+              +     '<p style="margin:0 0 4px;font-size:10px;font-weight:700;letter-spacing:2px;color:#06a3b6;text-transform:uppercase;">Referencia</p>'
+              +     '<p style="margin:0;font-family:monospace;font-size:13px;color:#06a3b6;">' + esc(id) + '</p>'
+              +   '</div>'
+              +   '<p style="margin:0 0 12px;font-size:13px;color:#4a5568;line-height:1.6;">El equipo de IT ya recibió la notificación y procederá con el ' + tipoLabel + ' en breve. Recibirás una confirmación final cuando esté completa.</p>'
+              +   '<p style="margin:0;font-size:12px;color:#999;line-height:1.5;">Dudas: <a href="mailto:it@heroinsuranceusa.com" style="color:#06a3b6;">it@heroinsuranceusa.com</a></p>'
+              + '</div>'
+              + '<div style="padding:12px 40px;background:#f0f4f8;text-align:center;"><p style="margin:0;font-size:10px;color:#aaa;">CONFIDENTIALITY NOTICE · Hero Insurance USA · IT Department</p></div>'
+              + '</div></div>';
+            await sendResend(env, {
+              from: 'Hero IT · Solicitudes <it@heroinsuranceusa.com>',
+              to:   [sol.solicitanteEmail],
+              subject: 'Tu solicitud de ' + tipoLabel + ' fue autorizada — Ref. ' + id,
+              html: ackAutHtml,
+              text: 'Tu solicitud de ' + tipoLabel + ' para ' + persona + ' fue autorizada por ' + nombreAut + '.\n\n'
+                  + 'IT procederá con el proceso en breve; recibirás una confirmación final cuando esté completa.\n\n'
+                  + 'Referencia: ' + id + '\nDudas: it@heroinsuranceusa.com',
+            }, { event: 'autorizar_notif_solicitante', id, solicitante: sol.solicitanteEmail });
+          } catch (notifErr) {
+            logError('autorizar_notif_solicitante_failed', notifErr, { id });
+          }
+        }
+
         return htmlResponse(buildAuthorizePage({
           titulo: 'Solicitud autorizada', icono: '✓', color: heroCyan,
           mensaje: '¡Gracias, <strong>' + esc(nombreAut) + '</strong>! IT recibió la notificación y procederá con la solicitud.',
@@ -1289,15 +1333,97 @@ export default {
     }
 
     // ── POST /alta-agente/resolver ────────────────────────────
+    // Marca una solicitud como 'procesada' o 'rechazada'. Acepta opcionalmente
+    // `motivo` (incluido en la notificación al solicitante si es rechazo) y
+    // `skipSolicitanteNotif` (usado por crearUsuarioDesdeModal en el Hub para
+    // evitar duplicar el email — /create-user ya notifica al solicitante en
+    // el caso de altas procesadas).
     if (request.method === 'POST' && path === '/alta-agente/resolver') {
       try {
-        const { id, estado } = await request.json();
+        const { id, estado, motivo, skipSolicitanteNotif } = await request.json();
         const val = await env.HERO_KV.get(id);
         if (!val) return json({ error: 'No encontrada' }, 404, cors);
         const item = JSON.parse(val);
-        item.estado = estado || 'procesada';
+        const nuevoEstado = estado || 'procesada';
+        item.estado = nuevoEstado;
+        if (nuevoEstado === 'rechazada' && motivo) item.motivoRechazo = motivo;
+        if (nuevoEstado === 'rechazada') item.fechaRechazo = new Date().toISOString();
+        if (nuevoEstado === 'procesada') item.fechaProcesada = new Date().toISOString();
         await env.HERO_KV.put(id, JSON.stringify(item), { metadata: summarizeSolicitud(item) });
         await invalidateCaches(env, 'cache_solicitudes_list', 'cache_stats');
+
+        // Fase C — Notificación al solicitante del cambio de estado.
+        // En try/catch: si Resend falla, el estado ya está guardado en KV y no
+        // revertimos por un email. skipSolicitanteNotif se usa cuando otro
+        // handler (ej. /create-user) ya se encargó de notificar.
+        if (item.solicitanteEmail && !skipSolicitanteNotif && (nuevoEstado === 'procesada' || nuevoEstado === 'rechazada')) {
+          try {
+            const isAltaRes  = item.tipoSolicitud !== 'baja';
+            const tipoLabelRes = isAltaRes ? 'alta' : 'baja';
+            const personaRes = isAltaRes
+              ? ((item.nombre || '') + ' ' + (item.apellido || '')).trim()
+              : (item.nombre || '');
+            const correoRes = isAltaRes
+              ? (item.correoPersonal || item.correo || '')
+              : (item.correoEliminar || '');
+            const esRechazo = nuevoEstado === 'rechazada';
+            const headerGradRes = esRechazo
+              ? 'linear-gradient(135deg,#c0392b,#a52917)'
+              : 'linear-gradient(135deg,#22a06b,#0f8054)';
+            const badgeTextRes = esRechazo ? 'RECHAZADA' : 'PROCESADA';
+            const tituloRes = esRechazo ? 'Tu solicitud fue rechazada' : 'Tu solicitud fue procesada';
+            const cuerpoRes = esRechazo
+              ? 'tu solicitud de ' + tipoLabelRes + ' para <strong>' + esc(personaRes) + '</strong> no pudo ser procesada.'
+              : (isAltaRes
+                  ? 'la cuenta corporativa de <strong>' + esc(personaRes) + '</strong> fue creada en Google Workspace. Las credenciales iniciales ya fueron enviadas al correo personal indicado.'
+                  : 'la cuenta <strong>' + esc(correoRes) + '</strong> fue suspendida en Google Workspace.');
+            const motivoBlock = (esRechazo && motivo)
+              ? '<div style="background:#fdedec;border-left:3px solid #c0392b;padding:12px 14px;border-radius:6px;margin:12px 0;">'
+                + '<p style="margin:0 0 4px;font-size:10px;font-weight:700;letter-spacing:2px;color:#c0392b;text-transform:uppercase;">Motivo</p>'
+                + '<p style="margin:0;font-size:13px;color:#444;line-height:1.6;">' + esc(motivo).split('\n').join('<br/>') + '</p>'
+                + '</div>'
+              : '';
+            const resHtml =
+                '<div style="font-family:Trebuchet MS,Arial,sans-serif;max-width:620px;background:#f0f4f8;padding:32px 16px;">'
+              + '<div style="background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);">'
+              + '<div style="background:' + headerGradRes + ';padding:28px 40px;text-align:center;">'
+              +   '<img src="https://i.ibb.co/Gr4mzLv/Nuevo-Logo-Cuadrado-compress.png" width="120" style="display:block;margin:0 auto 14px;"/>'
+              +   '<div style="display:inline-block;background:rgba(255,255,255,0.2);color:#fff;font-weight:700;font-size:11px;letter-spacing:3px;padding:5px 14px;border-radius:20px;margin-bottom:10px;">' + badgeTextRes + '</div>'
+              +   '<h1 style="color:#fff;margin:0;font-size:22px;font-weight:700;">' + tituloRes + '</h1>'
+              + '</div>'
+              + '<div style="padding:28px 40px;">'
+              +   '<p style="margin:0 0 18px;font-size:14px;color:#4a5568;">Hola <strong>' + esc(item.solicitanteNombre || '') + '</strong>, ' + cuerpoRes + '</p>'
+              +   motivoBlock
+              +   '<div style="background:#f7faff;border-radius:10px;border:1px solid #d8e1ea;padding:14px 16px;margin:0 0 22px;">'
+              +     '<p style="margin:0 0 4px;font-size:10px;font-weight:700;letter-spacing:2px;color:#06a3b6;text-transform:uppercase;">Referencia</p>'
+              +     '<p style="margin:0;font-family:monospace;font-size:13px;color:#06a3b6;">' + esc(id) + '</p>'
+              +   '</div>'
+              +   '<p style="margin:0;font-size:12px;color:#999;line-height:1.5;">' + (esRechazo ? 'Si crees que es un error o quieres consultar el motivo, contacta al equipo de IT.' : 'Si tienes dudas, contacta al equipo de IT.') + ' <a href="mailto:it@heroinsuranceusa.com" style="color:#06a3b6;">it@heroinsuranceusa.com</a></p>'
+              + '</div>'
+              + '<div style="padding:12px 40px;background:#f0f4f8;text-align:center;"><p style="margin:0;font-size:10px;color:#aaa;">CONFIDENTIALITY NOTICE · Hero Insurance USA · IT Department</p></div>'
+              + '</div></div>';
+            const resText = tituloRes + '\n\n'
+              + 'Hola ' + (item.solicitanteNombre || '') + ',\n'
+              + (esRechazo
+                  ? 'Tu solicitud de ' + tipoLabelRes + ' para ' + personaRes + ' no pudo ser procesada.'
+                  : (isAltaRes
+                      ? 'La cuenta corporativa de ' + personaRes + ' fue creada. Las credenciales iniciales ya fueron enviadas al correo personal indicado.'
+                      : 'La cuenta ' + correoRes + ' fue suspendida en Google Workspace.'))
+              + (esRechazo && motivo ? '\n\nMotivo: ' + motivo : '')
+              + '\n\nReferencia: ' + id
+              + '\nDudas: it@heroinsuranceusa.com';
+            await sendResend(env, {
+              from: 'Hero IT · Solicitudes <it@heroinsuranceusa.com>',
+              to:   [item.solicitanteEmail],
+              subject: (esRechazo ? 'Tu solicitud de ' + tipoLabelRes + ' fue rechazada' : 'Tu solicitud de ' + tipoLabelRes + ' fue procesada') + ' — Ref. ' + id,
+              html: resHtml,
+              text: resText,
+            }, { event: 'resolver_notif_solicitante', id, estado: nuevoEstado, solicitante: item.solicitanteEmail });
+          } catch (notifErr) {
+            logError('resolver_notif_solicitante_failed', notifErr, { id, estado: nuevoEstado });
+          }
+        }
+
         return json({ ok: true }, 200, cors);
       } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: 'Error interno del servidor' }, 500, cors); }
     }
