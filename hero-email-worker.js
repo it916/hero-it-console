@@ -599,22 +599,43 @@ export default {
           }
         }
         const token = await getGoogleToken(env);
+        // projection=full trae `organizations`, `phones`, `aliases`,
+        // `thumbnailPhotoUrl` y campos custom — sin esto solo veríamos
+        // los básicos. El costo es un JSON más grande, despreciable para
+        // ~20 usuarios internos.
         const resp = await fetch(
-          'https://admin.googleapis.com/admin/directory/v1/users?domain=heroinsuranceusa.com&maxResults=200&orderBy=email',
+          'https://admin.googleapis.com/admin/directory/v1/users?domain=heroinsuranceusa.com&maxResults=200&orderBy=email&projection=full',
           { headers: { 'Authorization': 'Bearer ' + token } }
         );
         const data = await resp.json();
         if (!resp.ok) return json({ error: data.error?.message || 'Error Google API' }, resp.status, cors);
-        const users = (data.users || []).map(u => ({
-          nombre: u.name?.fullName || '', email: u.primaryEmail || '',
-          estado: u.suspended ? 'suspendido' : 'activo',
-          creado: u.creationTime || '', ultimoLogin: u.lastLoginTime || '',
-          orgUnitPath: u.orgUnitPath || '/',
-          // Admin SDK reporta si el usuario tiene 2FA activado (`isEnrolledIn2Sv`)
-          // y si está forzado a usarlo por política (`isEnforcedIn2Sv`).
-          mfaEnrolled: !!u.isEnrolledIn2Sv,
-          mfaEnforced: !!u.isEnforcedIn2Sv,
-        }));
+        const users = (data.users || []).map(u => {
+          // La primera org es la "primaria" en la mayoría de dominios;
+          // si hay varias, cae al primer registro.
+          const org = Array.isArray(u.organizations) && u.organizations.length
+            ? (u.organizations.find(o => o.primary) || u.organizations[0])
+            : null;
+          return {
+            nombre: u.name?.fullName || '', email: u.primaryEmail || '',
+            estado: u.suspended ? 'suspendido' : 'activo',
+            suspensionReason: u.suspensionReason || '',
+            creado: u.creationTime || '', ultimoLogin: u.lastLoginTime || '',
+            orgUnitPath: u.orgUnitPath || '/',
+            // Admin SDK reporta si el usuario tiene 2FA activado (`isEnrolledIn2Sv`)
+            // y si está forzado a usarlo por política (`isEnforcedIn2Sv`).
+            mfaEnrolled: !!u.isEnrolledIn2Sv,
+            mfaEnforced: !!u.isEnforcedIn2Sv,
+            // Enriquecimiento: campos que ya venían en el JSON de projection=full
+            // pero que no estábamos exponiendo. Habilitan la nueva vista de tabla
+            // enriquecida del IT Console.
+            cargo:         org?.title || '',
+            departamento:  org?.department || '',
+            aliases:       Array.isArray(u.aliases) ? u.aliases : [],
+            isAdmin:          !!u.isAdmin,
+            isDelegatedAdmin: !!u.isDelegatedAdmin,
+            changePasswordAtNextLogin: !!u.changePasswordAtNextLogin,
+          };
+        });
         try { await env.HERO_KV.put('cache_users', JSON.stringify(users), { expirationTtl: 60 }); }
         catch (e) { logError('users_cache_write_failed', e); }
         return json({ users }, 200, cors);
