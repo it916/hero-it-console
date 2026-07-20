@@ -135,6 +135,82 @@ export default {
       }
     }
 
+    // ── POST /finanzas/send-consolidated-report — envío de reporte consolidado ──
+    // Consumido por el Hero Hub (módulo Finanzas → Reportes de Pago). Recibe el
+    // HTML del cuerpo del email + el PDF ya generado client-side en base64, y
+    // los envía via Resend como attachment. Misma auth que /finanzas/send-report
+    // (Firebase ID token + whitelist FINANZAS_EMAILS). Body más grande que el
+    // otro handler porque incluye el PDF base64 (típico 100-300 KB).
+    if (request.method === 'POST' && path === '/finanzas/send-consolidated-report') {
+      // 20MB: PDF base64 típico ronda 100-500KB con JPEG; margen amplio por si
+      // el reporte tiene muchos ingresos o el user sube el scale. Cloudflare
+      // Workers acepta hasta 100MB, así que hay techo suficiente.
+      if (bodyTooLarge(request, 20 * 1024 * 1024)) return json({ error: 'Body demasiado grande (>20MB)' }, 413, cors);
+      const ip = clientIp(request);
+      // 15/min por IP: los reportes consolidados son eventos menos frecuentes
+      // que los individuales — un usuario típicamente manda 5-15 al día en batch.
+      if (!(await rateLimit(env, 'finanzas-consolidated', ip, 15, 60))) {
+        return json({ error: 'Demasiados envíos. Espera un minuto.' }, 429, cors);
+      }
+      try {
+        const body = await request.json();
+        const { idToken, emailTo, subject, htmlBody, pdfBase64, filename, reporte } = body || {};
+        if (!idToken) return json({ error: 'Falta idToken' }, 400, cors);
+        if (!emailTo || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailTo)) {
+          return json({ error: 'emailTo inválido o ausente' }, 400, cors);
+        }
+        if (!subject || !htmlBody || !pdfBase64 || !filename) {
+          return json({ error: 'Payload incompleto (subject/htmlBody/pdfBase64/filename)' }, 400, cors);
+        }
+
+        let claims;
+        try {
+          claims = await verifyFirebaseIdToken(idToken, env);
+        } catch (err) {
+          logError('finanzas_consolidated_token_invalid', err);
+          return json({ error: 'Token inválido o expirado' }, 401, cors);
+        }
+        const userEmail = String(claims.email || '').toLowerCase();
+        if (!FINANZAS_EMAILS.has(userEmail)) {
+          return json({ error: 'No autorizado para enviar reportes de Finanzas' }, 403, cors);
+        }
+
+        // Texto plano de fallback para clientes que no rendean HTML.
+        const numero = reporte?.numeroReporte || '';
+        const destinatario = reporte?.destinatarioNombre || '';
+        const totalPayout = Number(reporte?.totalPayout) || 0;
+        const text = 'Reporte de pago consolidado ' + numero + '\n\n'
+          + 'Destinatario: ' + destinatario + '\n'
+          + 'Total: ' + formatUSD(totalPayout) + '\n\n'
+          + 'El detalle completo está en el PDF adjunto.\n\n'
+          + 'Enviado por ' + (claims.name || userEmail) + ' · Hero Insurance USA';
+
+        const resendResp = await sendResend(env, {
+          from: 'Hero Finanzas <financesupport@heroinsuranceusa.com>',
+          to: [emailTo],
+          reply_to: 'financesupport@heroinsuranceusa.com',
+          subject,
+          html: htmlBody,
+          text,
+          attachments: [
+            { filename, content: pdfBase64 }
+          ],
+        }, { event: 'finanzas_consolidated_report', to: emailTo, by: userEmail, numero });
+
+        if (!resendResp) return json({ error: 'No se pudo contactar a Resend' }, 502, cors);
+        if (!resendResp.ok) {
+          let msg = 'Resend rechazó el envío (' + resendResp.status + ')';
+          try { const d = await resendResp.clone().json(); msg = d.message || d.error || msg; } catch (_) {}
+          return json({ error: msg }, resendResp.status, cors);
+        }
+        const result = await resendResp.json().catch(() => ({}));
+        return json({ ok: true, id: result.id || null }, 200, cors);
+      } catch (err) {
+        logError('handler_failed', err, { path, method: request.method });
+        return json({ error: 'Error interno del servidor' }, 500, cors);
+      }
+    }
+
     // ── POST /auth/hub-login — Hero Hub intercambia Firebase ID token por HERO_TOKEN ──
     // El Hub autentica con Firebase; para consumir los endpoints privados del Console
     // necesita el mismo pase HMAC que emite /auth/login para la SPA legacy. Este
@@ -1424,11 +1500,48 @@ export default {
     }
 
 
+    // ── POST /email/onboarding → email de onboarding a destinos externos ──
+    // Endpoint dedicado para el caso de uso legítimo de mandar credenciales
+    // al correo PERSONAL del empleado recién creado (@gmail, @yahoo, etc.),
+    // que por diseño está fuera del dominio corporativo. Va detrás del gate
+    // del HERO_TOKEN (misma auth que /email), pero con rate limit propio y
+    // sin la restricción del dominio del `to`. El `from` sigue restringido
+    // a @heroinsuranceusa.com para que no se pueda spoofear la identidad.
+    if (request.method === 'POST' && path === '/email/onboarding') {
+      const ip = clientIp(request);
+      if (!(await rateLimit(env, 'email-onboarding', ip, 10, 60))) {
+        return json({ error: 'Demasiados envíos de onboarding. Espera un minuto.' }, 429, cors);
+      }
+      return dedupByBody(request, env, async () => {
+      try {
+        const { to, subject, html, text, from } = await request.json();
+        if (!to || !subject || !html) return json({ error: 'Faltan campos: to, subject, html' }, 400, cors);
+        const allowedFrom = /@heroinsuranceusa\.com\s*>?\s*$/i;
+        const fromVal = from || 'Fernando Romero <it@heroinsuranceusa.com>';
+        if (!allowedFrom.test(fromVal)) {
+          return json({ error: 'From fuera de dominio @heroinsuranceusa.com' }, 400, cors);
+        }
+        const toList = Array.isArray(to) ? to : [to];
+        const resendResp = await sendResend(env, {
+          from: fromVal,
+          to: toList,
+          subject, html, text: text || '',
+        }, { event: 'onboarding_email', dest: toList.join(',') });
+        if (!resendResp) return json({ error: 'No se pudo enviar el correo' }, 502, cors);
+        const result = await resendResp.json();
+        return json(result, resendResp.status, cors);
+      } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: 'Error interno del servidor' }, 500, cors); }
+      }, 'email-onboarding');
+    }
+
     // ── POST /email → email via Resend ────────────────────────
     // Path explícito (antes era POST / catch-all — footgun: cualquier POST a
     // ruta no reconocida disparaba un envío). Restringimos `to` y `from` al
     // dominio corporativo para que un bug en el frontend no pueda
     // accidentalmente mandar a destinos externos desde la dirección de IT.
+    // Para el caso legítimo de mandar a correos personales externos (onboarding
+    // de empleados nuevos), usar POST /email/onboarding — ese sí acepta destino
+    // externo con rate limit propio.
     // dedupByBody evita doble envío en doble-click del botón "Enviar Onboarding".
     if (request.method === 'POST' && path === '/email') {
       return dedupByBody(request, env, async () => {
