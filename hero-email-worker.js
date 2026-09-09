@@ -254,11 +254,99 @@ export default {
       }
     }
 
+    // ── POST /reportes/notificar — avisos del tile "Reportar" del Hero Hub ──
+    // Lo consume js/reportes.js cuando alguien avisa de una ausencia, un corte
+    // de luz, una caída de internet o una llegada tarde. Trae su propia auth
+    // (Firebase ID token), igual que los endpoints de Finanzas, así que va
+    // antes del gate del Console.
+    //
+    // A diferencia de Finanzas acá NO hay lista blanca: cualquier persona con
+    // cuenta del dominio puede avisar que se quedó sin luz. Lo que sí está
+    // cerrado son los destinatarios — salen de DESTINOS_REPORTES, definido en
+    // este archivo. Si vinieran en el body esto sería un relay de spam abierto.
+    if (request.method === 'POST' && path === '/reportes/notificar') {
+      if (bodyTooLarge(request)) return json({ error: 'Body demasiado grande' }, 413, cors);
+      const ip = clientIp(request);
+      // 10/min por IP. Una persona reporta un par de veces al día como mucho;
+      // más que esto es un bug del frontend o alguien jugando.
+      if (!(await rateLimit(env, 'reportes-notificar', ip, 10, 60))) {
+        return json({ error: 'Demasiados avisos seguidos. Espera un minuto.' }, 429, cors);
+      }
+      try {
+        const body = await request.json();
+        const { idToken, reporte } = body || {};
+        if (!idToken) return json({ error: 'Falta idToken' }, 400, cors);
+        if (!reporte || !reporte.type) return json({ error: 'Falta reporte.type' }, 400, cors);
+
+        let claims;
+        try {
+          claims = await verifyFirebaseIdToken(idToken, env);
+        } catch (err) {
+          logError('reportes_token_invalid', err);
+          return json({ error: 'Token inválido o expirado' }, 401, cors);
+        }
+
+        const userEmail = String(claims.email || '').toLowerCase();
+        if (!userEmail.endsWith('@heroinsuranceusa.com')) {
+          return json({ error: 'Solo cuentas del dominio corporativo' }, 403, cors);
+        }
+
+        const listaReal = DESTINOS_REPORTES[reporte.type];
+        const meta = META_REPORTES[reporte.type];
+        if (!listaReal || !meta) return json({ error: 'Tipo de reporte desconocido' }, 400, cors);
+        const destinos = REPORTES_MODO_ENSAYO ? REPORTES_ENSAYO : listaReal;
+
+        const nombre = claims.name || userEmail.split('@')[0];
+        const cuando = reporte.fecha
+          ? reporte.fecha + (reporte.hora ? ' a las ' + hora12(reporte.hora) : '')
+          : 'sin fecha';
+        const subject = meta.titulo + ' · ' + nombre + ' — ' + (reporte.fecha || '');
+
+        const html = renderReporteEmail({
+          reporte, meta, nombre, email: userEmail, cuando,
+          ensayoPara: REPORTES_MODO_ENSAYO ? listaReal : null,
+        });
+        const text = meta.titulo + '\n\n'
+          + 'Quién: ' + nombre + ' (' + userEmail + ')\n'
+          + 'Cuándo: ' + cuando + '\n'
+          + (reporte.llegadaEstimada ? 'Llegada estimada: ' + hora12(reporte.llegadaEstimada) + '\n' : '')
+          + (reporte.detalle ? 'Detalle: ' + reporte.detalle + '\n' : '')
+          + (reporte.alMomento === true ? '\nReportado al momento, con la hora actual.\n'
+             : reporte.alMomento === false ? '\nLa hora fue ajustada por la persona antes de enviar.\n' : '')
+          + '\nEnviado desde el Hero Hub · Responde a este correo para contestarle directamente.';
+
+        const resendResp = await sendResend(env, {
+          from: 'Hero Hub · Reportes <it@heroinsuranceusa.com>',
+          to: destinos,
+          // Copia al que reporta: le queda constancia de lo que avisó.
+          cc: [userEmail],
+          // Responder va a la persona, no al buzón de IT.
+          reply_to: userEmail,
+          subject,
+          html,
+          text,
+        }, { event: 'reporte_' + reporte.type, to: destinos.join(','), by: userEmail });
+
+        if (!resendResp) return json({ error: 'No se pudo contactar a Resend' }, 502, cors);
+        if (!resendResp.ok) {
+          let msg = 'Resend rechazó el envío (' + resendResp.status + ')';
+          try { const d = await resendResp.clone().json(); msg = d.message || d.error || msg; } catch (_) {}
+          return json({ error: msg }, resendResp.status, cors);
+        }
+        const result = await resendResp.json().catch(() => ({}));
+        return json({ ok: true, id: result.id || null, to: destinos }, 200, cors);
+      } catch (err) {
+        logError('handler_failed', err, { path, method: request.method });
+        return json({ error: 'Error interno del servidor' }, 500, cors);
+      }
+    }
+
     // ── Gate de autorización ──────────────────────────────────
     // Todo es privado salvo las rutas públicas (formularios y links de email).
     // Las privadas exigen un pase de sesión válido (Authorization: Bearer …).
     const isPublicRoute =
          (request.method === 'POST' && path === '/ticket')
+      || (request.method === 'POST' && path === '/ticket/attachment')
       || (request.method === 'POST' && path === '/solicitud-cuenta')
       || (request.method === 'POST' && path === '/alta-agente')
       || (request.method === 'GET'  && path === '/solicitud-cuenta/autorizar');
@@ -634,6 +722,11 @@ export default {
             isAdmin:          !!u.isAdmin,
             isDelegatedAdmin: !!u.isDelegatedAdmin,
             changePasswordAtNextLogin: !!u.changePasswordAtNextLogin,
+            // recoveryEmail: correo de recuperación configurado por el propio
+            // usuario en su cuenta Google. Usado por el flujo de agentes
+            // inactivos como fuente primaria del personalEmail cuando el doc
+            // en shared/workspaceUsers/byEmail aún no existe.
+            recoveryEmail: u.recoveryEmail || '',
           };
         });
         try { await env.HERO_KV.put('cache_users', JSON.stringify(users), { expirationTtl: 60 }); }
@@ -1366,6 +1459,15 @@ export default {
         if (!val) return json({ error: 'No encontrada' }, 404, cors);
         const item = JSON.parse(val);
         const nuevoEstado = estado || 'procesada';
+        // Gate de autorización: solo se puede pasar a 'procesada' desde
+        // 'autorizada'. Si alguien intenta procesar directo desde 'pendiente'
+        // (sin que ninguno de los autorizadores haya hecho click), rechazamos.
+        // Rechazar sigue permitido desde pendiente o autorizada.
+        if (nuevoEstado === 'procesada' && item.estado !== 'autorizada') {
+          return json({
+            error: 'La solicitud debe estar autorizada antes de procesarla. Estado actual: ' + item.estado
+          }, 400, cors);
+        }
         item.estado = nuevoEstado;
         if (nuevoEstado === 'rechazada' && motivo) item.motivoRechazo = motivo;
         if (nuevoEstado === 'rechazada') item.fechaRechazo = new Date().toISOString();
@@ -1450,6 +1552,13 @@ export default {
     }
 
     // ── POST /ticket — crear ticket ───────────────────────────
+    // Endurecido (v2.30 · Fase 1+2):
+    // - Honeypot `website`: si viene con contenido, bot detectado → 200 falso
+    // - Dominio del email obligatorio (@heroinsuranceusa.com)
+    // - Categoría e impacto contra allowlist (TICKET_CATEGORIAS, TICKET_IMPACTOS)
+    // - Prioridad calculada server-side (computeTicketPriority), NO se acepta
+    //   del cliente
+    // - Rate limit: 10 req/min por IP + 5 req/hora por email
     if (request.method === 'POST' && path === '/ticket') {
       if (bodyTooLarge(request)) return json({ error: 'Body demasiado grande' }, 413, cors);
       const ip = clientIp(request);
@@ -1459,17 +1568,95 @@ export default {
       }
       return dedupByBody(request, env, async () => {
       try {
-        const { nombre, email, categoria, prioridad, asunto, descripcion } = await request.json();
-        if (!nombre || !email || !categoria || !asunto || !descripcion)
+        const body = await request.json();
+        const { nombre, email, categoria, impacto, equipo, asunto, descripcion, website, adjuntos } = body;
+
+        // Honeypot: bots rellenan cualquier <input> con name atractivo. Si
+        // `website` viene con contenido, devolvemos 200 falso con un ticketId
+        // fantasma para no darle pista al bot y NO guardamos nada.
+        if (website && String(website).trim().length > 0) {
+          logEvent('ticket_honeypot_triggered', { ip });
+          return json({ ok: true, ticketId: 'HIT-' + Date.now().toString().slice(-6) }, 200, cors);
+        }
+
+        if (!nombre || !email || !categoria || !impacto || !equipo || !asunto || !descripcion)
           return json({ error: 'Faltan campos requeridos' }, 400, cors);
+
+        const emailLower = String(email).toLowerCase().trim();
+        if (!TICKET_EMAIL_DOMAIN.test(emailLower)) {
+          return json({ error: 'El correo debe ser del dominio @heroinsuranceusa.com' }, 400, cors);
+        }
+        if (!TICKET_CATEGORIAS.includes(categoria)) {
+          return json({ error: 'Categoría no válida' }, 400, cors);
+        }
+        if (!TICKET_IMPACTOS.includes(impacto)) {
+          return json({ error: 'Impacto no válido' }, 400, cors);
+        }
+        if (!TICKET_EQUIPOS.includes(equipo)) {
+          return json({ error: 'Equipo/plataforma no válido' }, 400, cors);
+        }
+
+        // Validación de adjuntos (opcional). Cada item debe traer una key que
+        // viene del endpoint /ticket/attachment (que ya validó tipo+tamaño y
+        // subió el archivo a R2 bajo prefix pending/).
+        const adjuntosArr = Array.isArray(adjuntos) ? adjuntos : [];
+        if (adjuntosArr.length > TICKET_ATTACHMENT_MAX_COUNT) {
+          return json({ error: 'Máximo ' + TICKET_ATTACHMENT_MAX_COUNT + ' adjuntos por ticket' }, 400, cors);
+        }
+        for (const a of adjuntosArr) {
+          if (!a || typeof a.key !== 'string' || !a.key.startsWith('pending/')) {
+            return json({ error: 'Adjunto con key inválida' }, 400, cors);
+          }
+        }
+
+        // Rate limit adicional por email (5/hora). Complementa el rate limit
+        // por IP: rotar IP no basta para spamear a nombre de otra persona.
+        if (!(await rateLimit(env, 'ticket-email', emailLower, 5, 3600))) {
+          logEvent('rate_limited', { scope: 'ticket-email', email: emailLower });
+          return json({ error: 'Has enviado demasiados tickets desde este correo en la última hora. Espera antes de enviar otro.' }, 429, cors);
+        }
+
+        const prioridad = computeTicketPriority(impacto, categoria);
 
         const num = Date.now().toString().slice(-6);
         const id = 'ticket_' + Date.now();
         const ticketId = 'HIT-' + num;
+
+        // Renombra los adjuntos de pending/{uuid}-{name} a tickets/{ticketId}/{name}
+        // — copiando el objeto y borrando el original. Si algún rename falla,
+        // se registra pero no bloquea la creación del ticket (mejor perder el
+        // adjunto que perder el ticket entero).
+        const adjuntosFinal = [];
+        for (const a of adjuntosArr) {
+          try {
+            const filename = a.key.split('/').pop().replace(/^[a-f0-9-]+-/, '');
+            const newKey = 'tickets/' + ticketId + '/' + filename;
+            const src = await env.HERO_TICKETS_R2.get(a.key);
+            if (!src) {
+              logEvent('attachment_rename_source_missing', { ticketId, oldKey: a.key });
+              continue;
+            }
+            await env.HERO_TICKETS_R2.put(newKey, src.body, {
+              httpMetadata: src.httpMetadata,
+              customMetadata: { ...(src.customMetadata || {}), ticketId },
+            });
+            await env.HERO_TICKETS_R2.delete(a.key);
+            adjuntosFinal.push({
+              key: newKey,
+              filename: a.filename || filename,
+              size: a.size || 0,
+              mime: a.mime || (src.httpMetadata && src.httpMetadata.contentType) || 'application/octet-stream',
+            });
+          } catch (renameErr) {
+            logError('attachment_rename_failed', renameErr, { ticketId, oldKey: a.key });
+          }
+        }
+
         const ticket = {
-          id, ticketId, nombre, email, categoria, prioridad: prioridad || 'Media',
+          id, ticketId, nombre, email: emailLower, categoria, impacto, equipo, prioridad,
           asunto, descripcion, estado: 'abierto',
           fecha: new Date().toISOString(), respuesta: null, fechaRespuesta: null,
+          adjuntos: adjuntosFinal,
         };
         await env.HERO_KV.put(id, JSON.stringify(ticket), { metadata: summarizeTicket(ticket) });
         await invalidateCaches(env, 'cache_tickets_list', 'cache_stats');
@@ -1479,6 +1666,12 @@ export default {
         const color = colores[prioridad] || '#f0b429';
 
         // Email a IT
+        const impactoLabelMap = {
+          bloqueante: 'Bloqueante — no puede trabajar',
+          parcial: 'Parcial — trabaja con alternativa',
+          molestia: 'Molestia — no bloquea',
+        };
+        const impactoLabel = impactoLabelMap[impacto] || impacto;
         await sendResend(env, {
             from: 'Hero IT Console <it@heroinsuranceusa.com>',
             to: ['it@heroinsuranceusa.com'],
@@ -1490,15 +1683,18 @@ export default {
               + '<div style="background:#f7faff;padding:24px;border:1px solid #e2eaf8;border-top:none;border-radius:0 0 12px 12px;">'
               + '<p><strong>De:</strong> ' + esc(nombre) + ' (' + esc(email) + ')</p>'
               + '<p><strong>Categoría:</strong> ' + esc(categoria) + '</p>'
-              + '<p><strong>Prioridad:</strong> <span style="color:' + color + ';font-weight:700;">' + esc(prioridad) + '</span></p>'
+              + '<p><strong>Equipo/plataforma:</strong> ' + esc(equipo) + '</p>'
+              + '<p><strong>Impacto:</strong> ' + esc(impactoLabel) + '</p>'
+              + '<p><strong>Prioridad (calculada):</strong> <span style="color:' + color + ';font-weight:700;">' + esc(prioridad) + '</span></p>'
               + '<p><strong>Asunto:</strong> ' + esc(asunto) + '</p>'
               + '<hr style="border:none;border-top:1px solid #e2eaf8;margin:16px 0;"/>'
               + '<p style="color:#4a5568;line-height:1.7;">' + esc(descripcion).split('\n').join('<br/>') + '</p>'
               + '</div></div>',
-            text: '[' + ticketId + '] ' + asunto + '\nDe: ' + nombre + ' (' + email + ')\nCategoria: ' + categoria + '\nPrioridad: ' + prioridad + '\n\n' + descripcion,
+            text: '[' + ticketId + '] ' + asunto + '\nDe: ' + nombre + ' (' + email + ')\nCategoria: ' + categoria + '\nEquipo: ' + equipo + '\nImpacto: ' + impactoLabel + '\nPrioridad: ' + prioridad + '\n\n' + descripcion,
         }, { event: 'ticket_notif_it', ticketId });
 
         // Email de confirmación al usuario
+        const slaText = formatSlaText(prioridad);
         await sendResend(env, {
             from: 'Fernando Romero <it@heroinsuranceusa.com>',
             to: [email],
@@ -1508,27 +1704,98 @@ export default {
               + '<div style="background:linear-gradient(135deg,#06a3b6,#048395);padding:32px 40px;text-align:center;">'
               + '<img src="https://i.ibb.co/Gr4mzLv/Nuevo-Logo-Cuadrado-compress.png" width="120" style="display:block;margin:0 auto 16px;"/>'
               + '<h1 style="color:#fff;margin:0;font-size:22px;font-weight:900;">Ticket recibido</h1>'
-              + '<p style="color:rgba(255,255,255,0.85);margin:8px 0 0;font-size:13px;">Tu solicitud ha sido registrada correctamente.</p></div>'
+              + '<p style="color:rgba(255,255,255,0.85);margin:8px 0 0;font-size:13px;">Tu solicitud fue registrada correctamente.</p></div>'
               + '<div style="padding:32px 40px;">'
-              + '<p style="font-size:15px;color:#2d3748;">Hola <strong>' + esc(nombre) + '</strong>, hemos recibido tu solicitud de soporte.</p>'
+              + '<p style="font-size:15px;color:#2d3748;">Hola <strong>' + esc(nombre) + '</strong>, recibimos tu solicitud de soporte.</p>'
               + '<div style="background:#f7faff;border-radius:12px;border:1px solid #e2eaf8;padding:20px;margin:20px 0;">'
               + '<p style="margin:0 0 8px;font-size:11px;font-weight:900;letter-spacing:2px;color:#06a3b6;text-transform:uppercase;">Detalles del ticket</p>'
               + '<p style="margin:0 0 6px;font-family:monospace;font-size:16px;font-weight:700;color:#06a3b6;">' + ticketId + '</p>'
               + '<p style="margin:0 0 4px;font-size:13px;color:#4a5568;"><strong>Asunto:</strong> ' + esc(asunto) + '</p>'
               + '<p style="margin:0 0 4px;font-size:13px;color:#4a5568;"><strong>Categoría:</strong> ' + esc(categoria) + '</p>'
+              + '<p style="margin:0 0 4px;font-size:13px;color:#4a5568;"><strong>Equipo/plataforma:</strong> ' + esc(equipo) + '</p>'
               + '<p style="margin:0;font-size:13px;"><strong>Prioridad:</strong> <span style="color:' + color + ';font-weight:700;">' + esc(prioridad) + '</span></p>'
               + '</div>'
-              + '<p style="font-size:13px;color:#4a5568;line-height:1.6;">Nuestro equipo de IT revisará tu solicitud y te contactará pronto.</p>'
+              + '<div style="background:#eef8ff;border-radius:10px;border:1px solid #c7e3fb;padding:14px 18px;margin:16px 0;">'
+              + '<p style="margin:0 0 4px;font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:#0369a1;">Próximos pasos</p>'
+              + '<p style="margin:0;font-size:13px;color:#0c4a6e;line-height:1.6;">' + slaText + ' Si necesitas agregar información, responde a este correo mencionando el ticket <strong>' + ticketId + '</strong>.</p>'
+              + '</div>'
               + '</div>'
               + '<div style="padding:14px 40px;background:#f0f4f8;text-align:center;">'
               + '<p style="margin:0;font-size:10px;color:#a0aec0;">CONFIDENTIALITY NOTICE: This email is intended solely for the addressee.</p>'
               + '</div></div></div>',
-            text: 'Hola ' + nombre + ', recibimos tu ticket ' + ticketId + '.\nAsunto: ' + asunto + '\nCategoria: ' + categoria + '\nPrioridad: ' + prioridad + '\nNuestro equipo te contactara pronto.',
+            text: 'Hola ' + nombre + ', recibimos tu ticket ' + ticketId + '.\nAsunto: ' + asunto + '\nCategoria: ' + categoria + '\nEquipo: ' + equipo + '\nPrioridad: ' + prioridad + '\n\n' + slaText + '\n\nSi necesitas agregar info, responde a este correo mencionando el ticket ' + ticketId + '.',
         }, { event: 'ticket_notif_user', ticketId });
 
         return json({ ok: true, id, ticketId }, 200, cors);
       } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: 'Error interno del servidor' }, 500, cors); }
       }, 'ticket');
+    }
+
+    // ── POST /ticket/attachment — subir adjunto a R2 ──────────
+    // Endpoint público (misma superficie que /ticket porque el form es sin
+    // login). Recibe multipart/form-data con un archivo. Valida tipo (PNG/
+    // JPG/PDF) + tamaño (10MB) y sube a R2 con key `pending/{uuid}-{name}`.
+    // Cuando el POST /ticket recibe la key, la renombra a tickets/{ticketId}/.
+    // Los archivos que quedan en pending/ sin asociarse a un ticket son
+    // huérfanos (aceptable por ahora, R2 tier free = 10GB).
+    if (request.method === 'POST' && path === '/ticket/attachment') {
+      const ip = clientIp(request);
+      if (!(await rateLimit(env, 'ticket-attachment', ip, 20, 60))) {
+        logEvent('rate_limited', { scope: 'ticket-attachment', ip });
+        return json({ error: 'Demasiadas subidas. Espera un minuto.' }, 429, cors);
+      }
+      try {
+        const formData = await request.formData();
+        const file = formData.get('file');
+        if (!file || typeof file === 'string') {
+          return json({ error: 'Falta el archivo (campo file)' }, 400, cors);
+        }
+        const size = file.size;
+        const mime = file.type || 'application/octet-stream';
+        const originalName = file.name || 'archivo';
+        if (size > TICKET_ATTACHMENT_MAX_SIZE) {
+          return json({ error: 'Archivo demasiado grande (máx 10 MB)' }, 413, cors);
+        }
+        if (!TICKET_ATTACHMENT_MIMES.includes(mime)) {
+          return json({ error: 'Tipo no permitido. Solo PNG, JPG o PDF.' }, 400, cors);
+        }
+        const safeName = sanitizeAttachmentFilename(originalName);
+        const key = 'pending/' + crypto.randomUUID() + '-' + safeName;
+        await env.HERO_TICKETS_R2.put(key, file.stream(), {
+          httpMetadata: { contentType: mime },
+          customMetadata: { originalName, uploadedAt: new Date().toISOString(), uploaderIp: ip },
+        });
+        return json({ ok: true, key, filename: safeName, size, mime }, 200, cors);
+      } catch (err) {
+        logError('handler_failed', err, { path, method: request.method });
+        return json({ error: 'Error subiendo el adjunto' }, 500, cors);
+      }
+    }
+
+    // ── GET /ticket/attachment/:key — descargar adjunto ───────
+    // Protegido por el gate (requireAuth, arriba). Solo IT del Console puede
+    // descargar. Sirve el archivo con Content-Type original y disposition
+    // inline (preview en navegador — imágenes y PDFs se ven directo).
+    if (request.method === 'GET' && path.startsWith('/ticket/attachment/')) {
+      try {
+        const rawKey = decodeURIComponent(path.slice('/ticket/attachment/'.length));
+        // Defensa: solo permitir keys que empiecen con nuestros prefijos válidos.
+        if (!rawKey.startsWith('pending/') && !rawKey.startsWith('tickets/')) {
+          return json({ error: 'Key inválida' }, 400, cors);
+        }
+        const obj = await env.HERO_TICKETS_R2.get(rawKey);
+        if (!obj) return json({ error: 'Adjunto no encontrado' }, 404, cors);
+        const filename = (obj.customMetadata && obj.customMetadata.originalName) ||
+                         rawKey.split('/').pop();
+        const headers = new Headers(cors);
+        headers.set('Content-Type', obj.httpMetadata?.contentType || 'application/octet-stream');
+        headers.set('Content-Disposition', 'inline; filename="' + filename.replace(/"/g, '') + '"');
+        headers.set('Cache-Control', 'private, max-age=300');
+        return new Response(obj.body, { status: 200, headers });
+      } catch (err) {
+        logError('handler_failed', err, { path, method: request.method });
+        return json({ error: 'Error descargando el adjunto' }, 500, cors);
+      }
     }
 
     // ── GET /ticket — listar tickets ──────────────────────────
@@ -1550,15 +1817,36 @@ export default {
     }
 
     // ── POST /ticket/update — actualizar ticket ───────────────
+    // Contrato (post-rediseño modal, v2.32):
+    //   id         (required)  clave interna del ticket ('ticket_...')
+    //   estado     (optional)  nuevo estado; si cambia → email + historial
+    //   impacto    (optional)  reevaluación del impacto por IT; si cambia,
+    //                          recalcula prioridad server-side + historial
+    //   respuesta  (optional)  texto libre; si viene, se envía email de reply
+    //   notificar  (optional)  bool default true; si false, cambio de estado
+    //                          NO envía email. La respuesta libre siempre
+    //                          envía email (si hay texto).
+    // NOTA: `prioridad` del payload se ignora en silencio — se deriva de
+    // impacto + categoría vía computeTicketPriority.
     if (request.method === 'POST' && path === '/ticket/update') {
       try {
-        const { id, estado, prioridad, respuesta } = await request.json();
+        const { id, estado, impacto, respuesta, notificar } = await request.json();
+        const shouldNotify = notificar !== false; // default true
         const val = await env.HERO_KV.get(id);
         if (!val) return json({ error: 'Ticket no encontrado' }, 404, cors);
         const ticket = JSON.parse(val);
         const estadoAnterior = ticket.estado;
+        const impactoAnterior = ticket.impacto;
+        const prioridadAnterior = ticket.prioridad;
         if (estado)    ticket.estado = estado;
-        if (prioridad) ticket.prioridad = prioridad;
+        // Reevaluación de impacto: solo válido, y solo si cambió.
+        if (impacto && impacto !== impactoAnterior) {
+          if (!TICKET_IMPACTOS.includes(impacto)) {
+            return json({ error: 'Impacto no válido' }, 400, cors);
+          }
+          ticket.impacto = impacto;
+          ticket.prioridad = computeTicketPriority(impacto, ticket.categoria);
+        }
         if (!ticket.historial) ticket.historial = [];
 
         const estadoColores = { 'abierto':'#d64545', 'en progreso':'#e8a317', 'resuelto':'#22a06b' };
@@ -1578,19 +1866,35 @@ export default {
           + '<p style="margin:0;font-family:monospace;font-size:15px;font-weight:700;color:#06a3b6;">' + ticket.ticketId + '</p>'
           + '<p style="margin:4px 0 0;font-size:13px;color:#444;">' + esc(ticket.asunto) + '</p></div>';
 
-        // Notify on status change
+        // Historial de cambio de impacto (afecta prioridad automáticamente).
+        if (impacto && impacto !== impactoAnterior) {
+          ticket.historial.push({
+            tipo: 'impacto',
+            de: impactoAnterior || null,
+            a: impacto,
+            prioridadDe: prioridadAnterior,
+            prioridadA: ticket.prioridad,
+            fecha: new Date().toISOString(),
+          });
+        }
+
+        // Notify on status change (a menos que IT haya destildado "Notificar").
         if (estado && estado !== estadoAnterior) {
           ticket.historial.push({ tipo: 'estado', de: estadoAnterior, a: estado, fecha: new Date().toISOString() });
-          const statusMsgs = buildStatusMsgs(estado, ticket, ticketInfo);
-          if (statusMsgs[estado]) {
-            const msg = statusMsgs[estado];
-            await sendResend(env, {
-              from: 'Fernando Romero <it' + '@' + 'heroinsuranceusa.com>',
-              to: [ticket.email],
-              subject: '[' + ticket.ticketId + '] ' + msg.titulo,
-              html: buildEmail(msg.titulo, ticket.ticketId + ' · ' + esc(ticket.asunto), msg.body),
-              text: msg.titulo + ' - ' + ticket.ticketId,
-            }, { event: 'ticket_status_change', ticketId: ticket.ticketId, estado });
+          if (shouldNotify) {
+            const statusMsgs = buildStatusMsgs(estado, ticket, ticketInfo);
+            if (statusMsgs[estado]) {
+              const msg = statusMsgs[estado];
+              await sendResend(env, {
+                from: 'Fernando Romero <it' + '@' + 'heroinsuranceusa.com>',
+                to: [ticket.email],
+                subject: '[' + ticket.ticketId + '] ' + msg.titulo,
+                html: buildEmail(msg.titulo, ticket.ticketId + ' · ' + esc(ticket.asunto), msg.body),
+                text: msg.titulo + ' - ' + ticket.ticketId,
+              }, { event: 'ticket_status_change', ticketId: ticket.ticketId, estado });
+            }
+          } else {
+            logEvent('ticket_status_change_silent', { ticketId: ticket.ticketId, estado });
           }
         }
 
@@ -2160,12 +2464,90 @@ async function rateLimit(env, scope, ip, maxPerWindow, windowSec) {
 // para contar/filtrar sin tener que hacer get() por entrada. Los renders del
 // frontend siguen usando los listados completos, pero el polling del dashboard
 // (cada 60s) ahora solo necesita /stats que NO hace get()s.
+// ── Validación y cálculo de prioridad de tickets (Fase 1+2 endurecimiento) ──
+// Estas constantes son la única fuente de verdad para lo que el POST /ticket
+// acepta. El frontend puede intentar mandar cualquier cosa; server valida.
+const TICKET_CATEGORIAS = [
+  'Problema con equipo o hardware',
+  'Acceso a aplicación o plataforma',
+  'Solicitud de software',
+  'Otro',
+];
+const TICKET_IMPACTOS = ['bloqueante', 'parcial', 'molestia'];
+const TICKET_EQUIPOS = [
+  'Laptop/PC',
+  'Navegador',
+  'Correo (Gmail/Workspace)',
+  'GoHighLevel CRM',
+  'Hero Hub',
+  'Contraseñas y accesos',
+  'Red/Wifi',
+  'Otro',
+];
+const TICKET_EMAIL_DOMAIN = /^[a-z0-9._%+-]+@heroinsuranceusa\.com$/i;
+
+// Adjuntos (Fase 3 · R2). Validaciones server-side de tipo y tamaño.
+const TICKET_ATTACHMENT_MAX_SIZE = 10 * 1024 * 1024; // 10 MB
+const TICKET_ATTACHMENT_MAX_COUNT = 3;               // por ticket
+const TICKET_ATTACHMENT_MIMES = ['image/png', 'image/jpeg', 'application/pdf'];
+
+// Sanitiza el filename: solo letras, números, ., -, _ · máx 60 chars ·
+// preserva la extensión. Evita path traversal (nada de '/' o '..').
+function sanitizeAttachmentFilename(name) {
+  const safe = String(name || 'archivo')
+    .replace(/[^\w.\- ]/g, '_')  // solo alfanumérico + . - _ y espacio
+    .replace(/\s+/g, '_')         // espacios → _
+    .replace(/_+/g, '_')          // colapsa __ → _
+    .replace(/^\.+/, '')          // sin puntos iniciales
+    .slice(0, 60);
+  return safe || 'archivo';
+}
+
+// SLA de respuesta en horas por prioridad. Se muestra al usuario en el email
+// de confirmación. Mientras esté null → texto genérico "lo antes posible".
+// TODO Fernando: reemplazar cada null con el número de horas objetivo.
+const TICKET_SLA_HOURS = {
+  Urgente: null,
+  Alta:    null,
+  Media:   null,
+  Baja:    null,
+};
+
+// Matriz impacto + categoría → prioridad. NO exponer al cliente.
+// Bloqueante + Acceso a aplicación/plataforma → Urgente (bloqueo de acceso).
+// Bloqueante + cualquier otra                → Alta.
+// Parcial                                    → Media.
+// Molestia                                   → Baja.
+function computeTicketPriority(impacto, categoria) {
+  if (impacto === 'molestia') return 'Baja';
+  if (impacto === 'parcial') return 'Media';
+  // bloqueante
+  if (categoria === 'Acceso a aplicación o plataforma') return 'Urgente';
+  return 'Alta';
+}
+
+// Genera el texto del SLA para el email de confirmación. Si TICKET_SLA_HOURS
+// tiene el valor en null, devuelve texto genérico; si tiene un número, lo
+// convierte a horas o días hábiles según magnitud.
+function formatSlaText(prioridad) {
+  const h = TICKET_SLA_HOURS[prioridad];
+  if (h == null) return 'Nuestro equipo revisará tu solicitud lo antes posible.';
+  if (h < 24) {
+    return 'Nuestro equipo responderá en un plazo estimado de ' + h + ' hora' + (h === 1 ? '' : 's') + '.';
+  }
+  const dias = Math.round(h / 24);
+  return 'Nuestro equipo responderá en un plazo estimado de ' + dias + ' día' + (dias === 1 ? '' : 's') + ' hábil' + (dias === 1 ? '' : 'es') + '.';
+}
+
 function summarizeTicket(t) {
   return {
     ticketId: t.ticketId || '',
     estado: t.estado || 'abierto',
     prioridad: t.prioridad || 'Media',
     categoria: t.categoria || '',
+    impacto: t.impacto || '',
+    equipo: t.equipo || '',
+    adjuntosCount: Array.isArray(t.adjuntos) ? t.adjuntos.length : 0,
     fecha: t.fecha || '',
   };
 }
@@ -2666,6 +3048,103 @@ function formatUSD(n) {
 
 // Email branded Hero Light (cyan #06a3b6) con el resumen del payout para el
 // broker. Sin adjuntos — el archivo del reporte se menciona como referencia.
+
+// ══ REPORTES DEL HERO HUB (tile "Reportar" del banner) ══
+// Destinatarios por tipo. Los define el Worker, NUNCA el cliente: si el
+// frontend pudiera elegir a quién avisar, este endpoint sería un relay de
+// spam con la firma del dominio.
+//
+// Para cambiar a quién le llega, se edita acá y se redespliega el Worker
+// (`wrangler deploy` desde hero-it-console/). El mapa DESTINOS de
+// js/reportes.js en el Hub es solo informativo — se guarda en el documento
+// de Firestore para dejar rastro de a quién se avisó.
+const REPORTES_HR = [
+  'brokersupport@heroinsuranceusa.com',
+  'hr@heroinsuranceusa.com',
+  'contracting@heroinsuranceusa.com',
+  'jgutierrez@heroinsuranceusa.com',
+];
+
+// Modo ensayo: con true, TODOS los avisos van únicamente a it@ y el correo
+// dice al pie a dónde habría ido. Sirvió para validar el formato el
+// 2026-09-09 sin escribirle al CEO ni a los buzones compartidos; queda acá
+// como interruptor para la próxima vez que haya que tocar la plantilla.
+// Cambiarlo exige `wrangler deploy` desde este repo.
+const REPORTES_MODO_ENSAYO = false;
+const REPORTES_ENSAYO = ['it@heroinsuranceusa.com'];
+
+const DESTINOS_REPORTES = {
+  'ausencia':        REPORTES_HR,
+  'retraso':         REPORTES_HR,
+  // Un corte de luz o una caída de internet son incidencia técnica para IT y,
+  // a la vez, una persona que no está disponible: le llega a los dos lados.
+  'corte-electrico': ['it@heroinsuranceusa.com'].concat(REPORTES_HR),
+  'falla-internet':  ['it@heroinsuranceusa.com'].concat(REPORTES_HR),
+};
+
+const META_REPORTES = {
+  'ausencia':        { titulo: 'Ausencia',        emoji: '🚫', color: '#f43f5e', bajada: 'no va a poder trabajar' },
+  'retraso':         { titulo: 'Llegada tarde',   emoji: '⏰', color: '#8b5cf6', bajada: 'va a entrar más tarde' },
+  'corte-electrico': { titulo: 'Corte eléctrico', emoji: '⚡', color: '#f5b830', bajada: 'se quedó sin energía' },
+  'falla-internet':  { titulo: 'Sin internet',    emoji: '📶', color: '#06a3b6', bajada: 'se quedó sin conexión' },
+};
+
+// "14:30" → "2:30 PM". El Hub muestra las horas en formato US.
+function hora12(hm) {
+  if (!hm) return '';
+  const parts = String(hm).split(':');
+  const h = Number(parts[0]);
+  const m = parts[1] || '00';
+  if (isNaN(h)) return String(hm);
+  const suf = h >= 12 ? 'PM' : 'AM';
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  return h12 + ':' + m + ' ' + suf;
+}
+
+// Correo del aviso. Sin SVG inline ni CSS externo: Gmail los strippea, así
+// que todo va en estilos inline y el logo es un PNG hospedado en el Hub.
+function renderReporteEmail({ reporte, meta, nombre, email, cuando, ensayoPara }) {
+  const dato = (etiqueta, valor) => valor
+    ? '<p style="margin:0 0 6px;font-size:13px;color:#4a5568;"><strong>' + esc(etiqueta) + ':</strong> ' + esc(valor) + '</p>'
+    : '';
+
+  const marca = reporte.alMomento === true
+    ? '<div style="background:#e6f7f0;border-left:4px solid #10b981;border-radius:8px;padding:12px 14px;margin:0 0 18px;">'
+      + '<p style="margin:0;font-size:12px;color:#047857;"><strong>Reportado al momento.</strong> La hora es la del aviso, sin editar.</p></div>'
+    : reporte.alMomento === false
+    ? '<div style="background:#fff7e6;border-left:4px solid #f5b830;border-radius:8px;padding:12px 14px;margin:0 0 18px;">'
+      + '<p style="margin:0;font-size:12px;color:#8a6100;"><strong>Hora ajustada.</strong> La persona corrigió la fecha o la hora antes de enviar el aviso.</p></div>'
+    : '';
+
+  return ''
+    + '<div style="font-family:Trebuchet MS,Arial,sans-serif;max-width:620px;background:#f0f4f8;padding:32px 16px;">'
+    + '<div style="background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);">'
+    + '<div style="background:linear-gradient(135deg,#06a3b6,#048395);padding:26px 40px;text-align:center;">'
+    +   '<img src="https://hub.heroinsuranceusa.com/images/logo.png" width="120" style="display:block;margin:0 auto 14px;" alt="Hero Insurance USA"/>'
+    +   '<div style="display:inline-block;background:rgba(255,255,255,0.2);color:#fff;font-weight:700;font-size:11px;letter-spacing:3px;padding:5px 14px;border-radius:20px;margin-bottom:10px;">REPORTE DEL EQUIPO</div>'
+    +   '<h1 style="color:#fff;margin:0;font-size:20px;font-weight:700;">' + meta.emoji + ' ' + esc(meta.titulo) + '</h1>'
+    + '</div>'
+    + '<div style="padding:28px 40px;">'
+    +   '<p style="margin:0 0 18px;font-size:14px;color:#4a5568;"><strong>' + esc(nombre) + '</strong> ' + esc(meta.bajada) + '.</p>'
+    +   marca
+    +   '<div style="background:#f7faff;border-radius:10px;border:1px solid #d8e1ea;padding:18px;margin:0 0 18px;">'
+    +     '<p style="margin:0 0 10px;font-size:10px;font-weight:700;letter-spacing:2px;color:' + meta.color + ';text-transform:uppercase;">Detalle del reporte</p>'
+    +     dato('Quién', nombre + ' (' + email + ')')
+    +     dato('Cuándo', cuando)
+    +     dato('Llegada estimada', reporte.llegadaEstimada ? hora12(reporte.llegadaEstimada) : '')
+    +     dato(reporte.type === 'ausencia' || reporte.type === 'retraso' ? 'Motivo' : 'Comentario', reporte.detalle)
+    +   '</div>'
+    +   '<p style="font-size:12px;color:#999;line-height:1.6;margin:0;">Responde a este correo y le contestas directamente a ' + esc(nombre) + '. El reporte también queda registrado en el panel de Recursos Humanos del Hero Hub.</p>'
+    + '</div>'
+    + '<div style="padding:12px 40px;background:#f0f4f8;text-align:center;">'
+    +   '<p style="margin:0;font-size:10px;color:#aaa;">Enviado automáticamente desde el Hero Hub · Hero Insurance USA</p>'
+    +   (ensayoPara && ensayoPara.length
+        ? '<p style="margin:8px 0 0;font-size:10px;color:#b45309;"><strong>MODO ENSAYO</strong> — en producción este aviso iría a: ' + esc(ensayoPara.join(', ')) + '</p>'
+        : '')
+    + '</div>'
+    + '</div></div>';
+}
+
 function renderFinanzasEmail({ ingreso, payout, broker, sender }) {
   const monto = formatUSD(ingreso.monto);
   const saldo = formatUSD(payout.saldo);

@@ -15,12 +15,20 @@ compatibility_date = "2025-01-01"
 
 # ── Bindings ──
 # Los "bindings" conectan el worker a recursos de Cloudflare (KV, R2, D1, etc.).
-# Aquí solo usas un KV (la base de datos clave-valor donde guardas solicitudes,
-# tickets, licencias, etc.). El "binding" es el nombre que usa tu código
-# (env.HERO_KV) y el "id" es el namespace real en tu cuenta.
+# Aquí usas: KV para JSON pequeño (tickets, solicitudes, licencias) + R2 para
+# archivos grandes (adjuntos de tickets — capturas, PDFs).
 [[kv_namespaces]]
 binding = "HERO_KV"
 id = "1da921302dbd4923a67c7823e449ae34"
+
+# R2 bucket para adjuntos de tickets de soporte. Keys de dos formas:
+#   pending/{uuid}-{filename}       → archivo subido pero ticket no creado aún
+#   tickets/{ticketId}/{filename}   → archivo asociado a un ticket real
+# El renombrado pending→tickets ocurre en el handler POST /ticket cuando el
+# ticket se crea con éxito. Los que quedan en pending/* son huérfanos.
+[[r2_buckets]]
+binding = "HERO_TICKETS_R2"
+bucket_name = "hero-tickets-attachments"
 
 # ── Variables públicas ──
 # No son secrets — el FIREBASE_PROJECT_ID viaja en cada token Firebase como
