@@ -3080,6 +3080,11 @@ const DESTINOS_REPORTES = {
   // a la vez, una persona que no está disponible: le llega a los dos lados.
   'corte-electrico': ['it@heroinsuranceusa.com'].concat(REPORTES_HR),
   'falla-internet':  ['it@heroinsuranceusa.com'].concat(REPORTES_HR),
+  // El cierre va a los mismos que recibieron el corte: a quien le llegó
+  // "estoy sin luz" tiene que llegarle "ya volvió", o se queda pensando que
+  // la persona sigue caída.
+  'corte-electrico-fin': ['it@heroinsuranceusa.com'].concat(REPORTES_HR),
+  'falla-internet-fin':  ['it@heroinsuranceusa.com'].concat(REPORTES_HR),
 };
 
 const META_REPORTES = {
@@ -3087,7 +3092,24 @@ const META_REPORTES = {
   'retraso':         { titulo: 'Llegada tarde',   emoji: '⏰', color: '#8b5cf6', bajada: 'va a entrar más tarde' },
   'corte-electrico': { titulo: 'Corte eléctrico', emoji: '⚡', color: '#f5b830', bajada: 'se quedó sin energía' },
   'falla-internet':  { titulo: 'Sin internet',    emoji: '📶', color: '#06a3b6', bajada: 'se quedó sin conexión' },
+  // Verde los dos: son la buena noticia, y se distinguen de un vistazo del
+  // aviso de corte en la bandeja.
+  'corte-electrico-fin': { titulo: 'Volvió la luz',      emoji: '💡', color: '#0f8054', bajada: 'ya tiene energía otra vez' },
+  'falla-internet-fin':  { titulo: 'Volvió el internet', emoji: '🛜', color: '#0f8054', bajada: 'ya tiene conexión otra vez' },
 };
+
+// "200" → "3 h 20 min". Solo la traen los avisos de cierre, calculada en el
+// Hub al enviarse: los documentos de `reports` son inmutables.
+function duracionTexto(min) {
+  if (typeof min !== 'number' || min < 0) return '';
+  if (min < 1) return 'menos de un minuto';
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  const partes = [];
+  if (h) partes.push(h === 1 ? '1 hora' : h + ' horas');
+  if (m) partes.push(m === 1 ? '1 minuto' : m + ' minutos');
+  return partes.join(' y ');
+}
 
 // "14:30" → "2:30 PM". El Hub muestra las horas en formato US.
 function hora12(hm) {
@@ -3132,6 +3154,7 @@ function renderReporteEmail({ reporte, meta, nombre, email, cuando, ensayoPara }
     +     dato('Quién', nombre + ' (' + email + ')')
     +     dato('Cuándo', cuando)
     +     dato('Llegada estimada', reporte.llegadaEstimada ? hora12(reporte.llegadaEstimada) : '')
+    +     dato('Estuvo sin servicio', duracionTexto(reporte.duracionMin))
     +     dato(reporte.type === 'ausencia' || reporte.type === 'retraso' ? 'Motivo' : 'Comentario', reporte.detalle)
     +   '</div>'
     +   '<p style="font-size:12px;color:#999;line-height:1.6;margin:0;">Responde a este correo y le contestas directamente a ' + esc(nombre) + '. El reporte también queda registrado en el panel de Recursos Humanos del Hero Hub.</p>'
