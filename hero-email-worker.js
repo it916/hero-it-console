@@ -370,8 +370,7 @@ export default {
         return json({ error: 'Demasiadas consultas seguidas. Espera un minuto.' }, 429, cors);
       }
       try {
-        const cuerpo = (await request.json()) || {};
-        const { idToken } = cuerpo;
+        const { idToken } = (await request.json()) || {};
         if (!idToken) return json({ error: 'Falta idToken' }, 400, cors);
 
         let claims;
@@ -390,16 +389,12 @@ export default {
         // datosConexion() lee request.cf, que no existe en `wrangler dev` sin
         // --remote: devuelve nulls y el frontend muestra "no disponible" en
         // lugar de romperse.
-        const datos = datosConexion(request);
-        const zonaEquipo = zonaEquipoValida(cuerpo.zonaEquipo);
         return json(Object.assign({
           ok: true,
           email: userEmail,
           nombre: claims.name || userEmail.split('@')[0],
           fecha: new Date().toISOString(),
-          zonaEquipo: zonaEquipo,
-          zona: evaluarZona(zonaEquipo, datos.zonaHoraria),
-        }, datos), 200, cors);
+        }, datosConexion(request)), 200, cors);
       } catch (err) {
         logError('conexion_quien_soy_failed', err, { path, method: request.method });
         return json({ error: 'Error interno del servidor' }, 500, cors);
@@ -426,8 +421,7 @@ export default {
         return json({ error: 'Demasiadas consultas seguidas. Espera un minuto.' }, 429, cors);
       }
       try {
-        const cuerpo = (await request.json()) || {};
-        const { idToken } = cuerpo;
+        const { idToken } = (await request.json()) || {};
         if (!idToken) return json({ error: 'Falta idToken' }, 400, cors);
 
         let claims;
@@ -444,10 +438,6 @@ export default {
         }
 
         const actual = datosConexion(request);
-        actual.zonaEquipo = zonaEquipoValida(cuerpo.zonaEquipo);
-        const veredictoZona = evaluarZona(actual.zonaEquipo, actual.zonaHoraria);
-        actual.zonaCoincide = veredictoZona ? veredictoZona.coincide : null;
-        actual.zonaMismoHuso = veredictoZona ? veredictoZona.mismoHuso : null;
         const ahora = new Date();
         const ahoraISO = ahora.toISOString();
         const dia = diaET(ahora);
@@ -464,9 +454,6 @@ export default {
         if (mismaEntrada) {
           mismaEntrada.hasta = ahoraISO;
           mismaEntrada.veces = (mismaEntrada.veces || 1) + 1;
-          mismaEntrada.zonaEquipo = actual.zonaEquipo;
-          mismaEntrada.zonaCoincide = actual.zonaCoincide;
-          mismaEntrada.zonaMismoHuso = actual.zonaMismoHuso;
         } else {
           doc.registros.unshift(Object.assign({
             dia: dia, desde: ahoraISO, hasta: ahoraISO, veces: 1,
@@ -494,10 +481,6 @@ export default {
             ip: reciente.ip || null,
             isp: reciente.isp || null,
             lugar: [reciente.ciudad, reciente.pais].filter(Boolean).join(', ') || null,
-            // `=== false` a propósito: null es "no se sabe" y no debe leerse
-            // como "coincide". Solo interesa señalar el falso rotundo.
-            zonaDiscrepa: reciente.zonaCoincide === false,
-            zonaEquipo: reciente.zonaEquipo || null,
           },
         });
 
@@ -555,8 +538,6 @@ export default {
               ip: m.ip || null,
               isp: m.isp || null,
               lugar: m.lugar || null,
-              zonaDiscrepa: m.zonaDiscrepa === true,
-              zonaEquipo: m.zonaEquipo || null,
             };
           });
           personas.sort(function (a, b) {
@@ -3244,54 +3225,11 @@ function claveConexion(email) {
   return 'conexion_' + String(email || '').toLowerCase();
 }
 
-// Offset actual de una zona IANA, p.ej. 'GMT-04:00'. Sirve para distinguir
-// una discrepancia real de una cosmética.
-function offsetDeZona(zona) {
-  try {
-    const partes = new Intl.DateTimeFormat('en-US', {
-      timeZone: zona, timeZoneName: 'longOffset',
-    }).formatToParts(new Date());
-    const tz = partes.find(function (p) { return p.type === 'timeZoneName'; });
-    return tz ? tz.value : null;
-  } catch (e) {
-    return null;  // zona inventada o no reconocida
-  }
-}
-
-// Señal de VPN o proxy sin depender de listas de terceros.
-//
-// El navegador sabe en qué zona horaria está configurado el equipo; la IP dice
-// por dónde sale la conexión. Casi nadie que enciende una VPN cambia además el
-// reloj de su computadora, así que cuando esas dos no son la misma zona, lo
-// más probable es que la ubicación de la IP no sea donde está la persona.
-//
-// Se compara el NOMBRE de la zona, no la hora. La primera versión de esto
-// descartaba las discrepancias con el mismo offset por considerarlas
-// cosméticas, y así se le escapaba el caso que motivó la señal: America/
-// Caracas y America/New_York marcan lo mismo medio año, y son países
-// distintos. El huso queda como matiz para graduar la confianza, no para
-// callar el aviso.
-//
-// ⚠ La zona del equipo la manda el navegador, así que es falsificable — al
-// revés que la IP, que la ve este Worker. Es una señal para leer la tabla con
-// criterio, NO una prueba de nada. Devuelve null cuando no se puede concluir:
-// sin dato, o con una zona que ni siquiera se reconoce.
-function evaluarZona(zonaEquipo, zonaIp) {
-  if (!zonaEquipo || !zonaIp) return null;
-  if (zonaEquipo === zonaIp) return { coincide: true, mismoHuso: true };
-  const a = offsetDeZona(zonaEquipo);
-  if (!a) return null;  // zona que no existe: no se saca conclusión de eso
-  const b = offsetDeZona(zonaIp);
-  return { coincide: false, mismoHuso: !!(b && a === b) };
-}
-
-// La zona viene del cliente: se acota antes de guardarla en ningún sitio.
-function zonaEquipoValida(v) {
-  if (typeof v !== 'string') return null;
-  const z = v.trim();
-  if (!z || z.length > 64) return null;
-  return /^[A-Za-z0-9_+\-\/]+$/.test(z) ? z : null;
-}
+// Nota: hubo una señal que comparaba la zona horaria del equipo con la que se
+// deduce de la IP, para avisar de conexiones por VPN. Se retiró el 2026-09-18
+// por decisión de IT: para lo que se pide da igual por dónde salga la
+// conexión, y la marca solo añadía ruido a la tabla. El registro responde
+// "desde qué conexión entró", sin interpretarla.
 
 // Emails autorizados a intercambiar Firebase ID token del Hub por HERO_TOKEN
 // via POST /auth/hub-login. Solo it@ por ahora — coincide con ALLOWED_EMAIL.
