@@ -11,6 +11,8 @@
 //  GET  /ticket        → Listar tickets
 //  POST /ticket/update → Actualizar estado/prioridad/respuesta
 //  POST /conexion/quien-soy → Desde dónde se conecta quien llama (IP/ISP/geo)
+//  POST /conexion/registrar → Deja constancia de la entrada al Hub (KV, 90 dias)
+//  POST /conexion/registros → Registro de todo el equipo (solo lista admin)
 //  POST /audit         → Guardar entrada de auditoría
 //  GET  /audit         → Listar entradas de auditoría
 // ═══════════════════════════════════════════════════════════════
@@ -368,7 +370,8 @@ export default {
         return json({ error: 'Demasiadas consultas seguidas. Espera un minuto.' }, 429, cors);
       }
       try {
-        const { idToken } = (await request.json()) || {};
+        const cuerpo = (await request.json()) || {};
+        const { idToken } = cuerpo;
         if (!idToken) return json({ error: 'Falta idToken' }, 400, cors);
 
         let claims;
@@ -384,27 +387,195 @@ export default {
           return json({ error: 'Solo cuentas del dominio corporativo' }, 403, cors);
         }
 
-        // request.cf no existe en `wrangler dev` sin --remote: se devuelve lo
-        // que haya y el frontend muestra "no disponible" en lugar de romperse.
-        const cf = request.cf || {};
-        return json({
+        // datosConexion() lee request.cf, que no existe en `wrangler dev` sin
+        // --remote: devuelve nulls y el frontend muestra "no disponible" en
+        // lugar de romperse.
+        const datos = datosConexion(request);
+        const zonaEquipo = zonaEquipoValida(cuerpo.zonaEquipo);
+        return json(Object.assign({
           ok: true,
           email: userEmail,
           nombre: claims.name || userEmail.split('@')[0],
-          ip: ipCliente,
-          isp: cf.asOrganization || null,
-          asn: cf.asn || null,
-          ciudad: cf.city || null,
-          region: cf.region || null,
-          pais: cf.country || null,
-          zonaHoraria: cf.timezone || null,
-          // Nodo de Cloudflare que atendió la petición. No es dónde está la
-          // persona, pero ayuda a entender una geolocalización rara.
-          colo: cf.colo || null,
           fecha: new Date().toISOString(),
-        }, 200, cors);
+          zonaEquipo: zonaEquipo,
+          zona: evaluarZona(zonaEquipo, datos.zonaHoraria),
+        }, datos), 200, cors);
       } catch (err) {
         logError('conexion_quien_soy_failed', err, { path, method: request.method });
+        return json({ error: 'Error interno del servidor' }, 500, cors);
+      }
+    }
+
+    // ── POST /conexion/registrar — deja constancia de la entrada al Hub ──
+    // Lo llama el Hub al iniciar sesión (js/auth.js). Sin botón que pulsar:
+    // el dato es el mismo que ya da /conexion/quien-soy, aquí además se guarda.
+    //
+    // ⚠ Deduplica el WORKER, no el navegador. El Hub tiene muchas páginas y
+    // cada navegación dispara el evento de sesión; registrar cada una daría
+    // 30 o 40 entradas por persona al día y haría el registro ilegible. Si ya
+    // hay una entrada de hoy desde la misma IP, se actualiza su hora de fin en
+    // vez de crear otra. Se deduplica aquí y no en el cliente porque el
+    // cliente es la parte que no controlamos.
+    //
+    // Una IP distinta el mismo día SÍ crea entrada nueva: es justo el caso que
+    // interesa — se conectó desde otro sitio a media jornada.
+    if (request.method === 'POST' && path === '/conexion/registrar') {
+      if (bodyTooLarge(request)) return json({ error: 'Body demasiado grande' }, 413, cors);
+      const ipCliente = clientIp(request);
+      if (!(await rateLimit(env, 'conexion-registrar', ipCliente, 30, 60))) {
+        return json({ error: 'Demasiadas consultas seguidas. Espera un minuto.' }, 429, cors);
+      }
+      try {
+        const cuerpo = (await request.json()) || {};
+        const { idToken } = cuerpo;
+        if (!idToken) return json({ error: 'Falta idToken' }, 400, cors);
+
+        let claims;
+        try {
+          claims = await verifyFirebaseIdToken(idToken, env);
+        } catch (err) {
+          logError('conexion_registrar_token_invalid', err);
+          return json({ error: 'Token inválido o expirado' }, 401, cors);
+        }
+
+        const userEmail = String(claims.email || '').toLowerCase();
+        if (!userEmail.endsWith('@heroinsuranceusa.com')) {
+          return json({ error: 'Solo cuentas del dominio corporativo' }, 403, cors);
+        }
+
+        const actual = datosConexion(request);
+        actual.zonaEquipo = zonaEquipoValida(cuerpo.zonaEquipo);
+        const veredictoZona = evaluarZona(actual.zonaEquipo, actual.zonaHoraria);
+        actual.zonaCoincide = veredictoZona ? veredictoZona.coincide : null;
+        actual.zonaMismoHuso = veredictoZona ? veredictoZona.mismoHuso : null;
+        const ahora = new Date();
+        const ahoraISO = ahora.toISOString();
+        const dia = diaET(ahora);
+        const clave = claveConexion(userEmail);
+
+        let doc = null;
+        try { doc = JSON.parse((await env.HERO_KV.get(clave)) || 'null'); }
+        catch (e) { doc = null; }
+        if (!doc || !Array.isArray(doc.registros)) doc = { email: userEmail, registros: [] };
+
+        const mismaEntrada = doc.registros.find(function (r) {
+          return r && r.dia === dia && r.ip === actual.ip;
+        });
+        if (mismaEntrada) {
+          mismaEntrada.hasta = ahoraISO;
+          mismaEntrada.veces = (mismaEntrada.veces || 1) + 1;
+          mismaEntrada.zonaEquipo = actual.zonaEquipo;
+          mismaEntrada.zonaCoincide = actual.zonaCoincide;
+          mismaEntrada.zonaMismoHuso = actual.zonaMismoHuso;
+        } else {
+          doc.registros.unshift(Object.assign({
+            dia: dia, desde: ahoraISO, hasta: ahoraISO, veces: 1,
+          }, actual));
+        }
+
+        // Retención: fuera lo que pase del plazo. El tope de 500 entradas es un
+        // cinturón por si alguien rota de IP sin parar (datos móviles).
+        const corte = Date.now() - CONEXIONES_DIAS_RETENCION * 86400000;
+        doc.registros = doc.registros
+          .filter(function (r) { return r && new Date(r.desde).getTime() >= corte; })
+          .slice(0, 500);
+        doc.email = userEmail;
+        doc.nombre = claims.name || doc.nombre || userEmail.split('@')[0];
+        doc.actualizado = ahoraISO;
+
+        const reciente = doc.registros[0] || {};
+        await env.HERO_KV.put(clave, JSON.stringify(doc), {
+          expirationTtl: CONEXIONES_TTL_CLAVE_SEG,
+          // El resumen va en metadata para que la vista de administración
+          // liste a todo el mundo sin leer cada documento entero.
+          metadata: {
+            nombre: doc.nombre,
+            ultima: ahoraISO,
+            ip: reciente.ip || null,
+            isp: reciente.isp || null,
+            lugar: [reciente.ciudad, reciente.pais].filter(Boolean).join(', ') || null,
+            // `=== false` a propósito: null es "no se sabe" y no debe leerse
+            // como "coincide". Solo interesa señalar el falso rotundo.
+            zonaDiscrepa: reciente.zonaCoincide === false,
+            zonaEquipo: reciente.zonaEquipo || null,
+          },
+        });
+
+        return json({
+          ok: true,
+          email: userEmail,
+          nombre: doc.nombre,
+          fecha: ahoraISO,
+          nuevaEntrada: !mismaEntrada,
+          registros: doc.registros.slice(0, 30),
+        }, 200, cors);
+      } catch (err) {
+        logError('conexion_registrar_failed', err, { path, method: request.method });
+        return json({ error: 'Error interno del servidor' }, 500, cors);
+      }
+    }
+
+    // ── POST /conexion/registros — el registro de todo el equipo ──
+    // Solo para quien esté en CONEXIONES_ADMIN_EMAILS: son ubicaciones de
+    // personas, no una tabla cualquiera. Quien no esté en la lista ve las
+    // suyas y nada más, que ya se las devuelve /conexion/registrar.
+    if (request.method === 'POST' && path === '/conexion/registros') {
+      if (bodyTooLarge(request)) return json({ error: 'Body demasiado grande' }, 413, cors);
+      const ipCliente = clientIp(request);
+      if (!(await rateLimit(env, 'conexion-registros', ipCliente, 30, 60))) {
+        return json({ error: 'Demasiadas consultas seguidas. Espera un minuto.' }, 429, cors);
+      }
+      try {
+        const { idToken, detalle } = (await request.json()) || {};
+        if (!idToken) return json({ error: 'Falta idToken' }, 400, cors);
+
+        let claims;
+        try {
+          claims = await verifyFirebaseIdToken(idToken, env);
+        } catch (err) {
+          logError('conexion_registros_token_invalid', err);
+          return json({ error: 'Token inválido o expirado' }, 401, cors);
+        }
+
+        const userEmail = String(claims.email || '').toLowerCase();
+        if (!CONEXIONES_ADMIN_EMAILS.has(userEmail)) {
+          return json({ error: 'No autorizado para consultar el registro del equipo' }, 403, cors);
+        }
+
+        const lista = await env.HERO_KV.list({ prefix: 'conexion_' });
+        // Sin `detalle` basta la metadata: una fila por persona con su última
+        // conexión, sin leer los documentos. Con `detalle` se traen enteros.
+        if (!detalle) {
+          const personas = lista.keys.map(function (k) {
+            const m = k.metadata || {};
+            return {
+              email: k.name.slice('conexion_'.length),
+              nombre: m.nombre || null,
+              ultima: m.ultima || null,
+              ip: m.ip || null,
+              isp: m.isp || null,
+              lugar: m.lugar || null,
+              zonaDiscrepa: m.zonaDiscrepa === true,
+              zonaEquipo: m.zonaEquipo || null,
+            };
+          });
+          personas.sort(function (a, b) {
+            return String(b.ultima || '').localeCompare(String(a.ultima || ''));
+          });
+          return json({ ok: true, personas: personas, detalle: false }, 200, cors);
+        }
+
+        const docs = await Promise.all(lista.keys.map(async function (k) {
+          try { return JSON.parse((await env.HERO_KV.get(k.name)) || 'null'); }
+          catch (e) { return null; }
+        }));
+        const personas = docs.filter(Boolean);
+        personas.sort(function (a, b) {
+          return String(b.actualizado || '').localeCompare(String(a.actualizado || ''));
+        });
+        return json({ ok: true, personas: personas, detalle: true }, 200, cors);
+      } catch (err) {
+        logError('conexion_registros_failed', err, { path, method: request.method });
         return json({ error: 'Error interno del servidor' }, 500, cors);
       }
     }
@@ -3027,6 +3198,100 @@ const FINANZAS_EMAILS = new Set([
   'samortiz@heroinsuranceusa.com',
   'brokersupport@heroinsuranceusa.com',
 ]);
+
+// ═══════════════════════════════════════════════════════════════
+//  Registro de conexiones (Hero Hub)
+// ═══════════════════════════════════════════════════════════════
+// Quién puede consultar el registro de TODO el equipo. Son las ubicaciones
+// de gente real: la lista arranca en solo it@ a propósito, y se amplía
+// cuando alguien decida que corresponde — no por defecto.
+// Cada persona ve las suyas sin estar aquí (POST /conexion/mias).
+const CONEXIONES_ADMIN_EMAILS = new Set([
+  'it@heroinsuranceusa.com',
+]);
+
+// Cuánto se conserva. Pasado el plazo el registro se cae solo: no hay que
+// acordarse de limpiar nada ni queda un archivo de ubicaciones creciendo sin
+// fin. El TTL de la clave es mayor que el recorte para que a quien deja de
+// entrar se le borre el documento entero en vez de quedar congelado.
+const CONEXIONES_DIAS_RETENCION = 90;
+const CONEXIONES_TTL_CLAVE_SEG = 180 * 86400;
+
+// Lo que Cloudflare ya sabe de quien llama. Se lee en un solo sitio para que
+// /conexion/quien-soy y /conexion/registrar no se desincronicen.
+function datosConexion(request) {
+  const cf = request.cf || {};
+  return {
+    ip: clientIp(request),
+    isp: cf.asOrganization || null,
+    asn: cf.asn || null,
+    ciudad: cf.city || null,
+    region: cf.region || null,
+    pais: cf.country || null,
+    zonaHoraria: cf.timezone || null,
+    colo: cf.colo || null,
+  };
+}
+
+// El "día" del registro va en hora de Florida, como el resto del Hub: si no,
+// alguien que entra a las 9pm en Venezuela aparecería registrado al día
+// siguiente. 'en-CA' da el formato YYYY-MM-DD.
+function diaET(fecha) {
+  return (fecha || new Date()).toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
+}
+
+function claveConexion(email) {
+  return 'conexion_' + String(email || '').toLowerCase();
+}
+
+// Offset actual de una zona IANA, p.ej. 'GMT-04:00'. Sirve para distinguir
+// una discrepancia real de una cosmética.
+function offsetDeZona(zona) {
+  try {
+    const partes = new Intl.DateTimeFormat('en-US', {
+      timeZone: zona, timeZoneName: 'longOffset',
+    }).formatToParts(new Date());
+    const tz = partes.find(function (p) { return p.type === 'timeZoneName'; });
+    return tz ? tz.value : null;
+  } catch (e) {
+    return null;  // zona inventada o no reconocida
+  }
+}
+
+// Señal de VPN o proxy sin depender de listas de terceros.
+//
+// El navegador sabe en qué zona horaria está configurado el equipo; la IP dice
+// por dónde sale la conexión. Casi nadie que enciende una VPN cambia además el
+// reloj de su computadora, así que cuando esas dos no son la misma zona, lo
+// más probable es que la ubicación de la IP no sea donde está la persona.
+//
+// Se compara el NOMBRE de la zona, no la hora. La primera versión de esto
+// descartaba las discrepancias con el mismo offset por considerarlas
+// cosméticas, y así se le escapaba el caso que motivó la señal: America/
+// Caracas y America/New_York marcan lo mismo medio año, y son países
+// distintos. El huso queda como matiz para graduar la confianza, no para
+// callar el aviso.
+//
+// ⚠ La zona del equipo la manda el navegador, así que es falsificable — al
+// revés que la IP, que la ve este Worker. Es una señal para leer la tabla con
+// criterio, NO una prueba de nada. Devuelve null cuando no se puede concluir:
+// sin dato, o con una zona que ni siquiera se reconoce.
+function evaluarZona(zonaEquipo, zonaIp) {
+  if (!zonaEquipo || !zonaIp) return null;
+  if (zonaEquipo === zonaIp) return { coincide: true, mismoHuso: true };
+  const a = offsetDeZona(zonaEquipo);
+  if (!a) return null;  // zona que no existe: no se saca conclusión de eso
+  const b = offsetDeZona(zonaIp);
+  return { coincide: false, mismoHuso: !!(b && a === b) };
+}
+
+// La zona viene del cliente: se acota antes de guardarla en ningún sitio.
+function zonaEquipoValida(v) {
+  if (typeof v !== 'string') return null;
+  const z = v.trim();
+  if (!z || z.length > 64) return null;
+  return /^[A-Za-z0-9_+\-\/]+$/.test(z) ? z : null;
+}
 
 // Emails autorizados a intercambiar Firebase ID token del Hub por HERO_TOKEN
 // via POST /auth/hub-login. Solo it@ por ahora — coincide con ALLOWED_EMAIL.
