@@ -10,6 +10,7 @@
 //  POST /ticket        → Crear ticket de soporte
 //  GET  /ticket        → Listar tickets
 //  POST /ticket/update → Actualizar estado/prioridad/respuesta
+//  POST /conexion/quien-soy → Desde dónde se conecta quien llama (IP/ISP/geo)
 //  POST /audit         → Guardar entrada de auditoría
 //  GET  /audit         → Listar entradas de auditoría
 // ═══════════════════════════════════════════════════════════════
@@ -337,6 +338,73 @@ export default {
         return json({ ok: true, id: result.id || null, to: destinos }, 200, cors);
       } catch (err) {
         logError('handler_failed', err, { path, method: request.method });
+        return json({ error: 'Error interno del servidor' }, 500, cors);
+      }
+    }
+
+    // ── POST /conexion/quien-soy — desde dónde se conecta quien llama ──
+    // PROTOTIPO (Fase A). Devuelve el dato, NO lo guarda todavía: sirve para
+    // enseñar qué se capturaría antes de decidir si se registra a nadie.
+    //
+    // El dato sale de Cloudflare, que ya lo trae en cada petición: la IP en
+    // CF-Connecting-IP y el resto en request.cf. Por eso no hace falta llamar
+    // a ipapi.co ni a ningún tercero — y ninguna IP de un empleado sale de
+    // aquí hacia fuera.
+    //
+    // Va ANTES del gate del Console, como /reportes/notificar: lo llama
+    // cualquier persona del dominio desde el Hub, no solo it@. Su auth es el
+    // Firebase ID token, no el pase de sesión del Console.
+    //
+    // ⚠ Este endpoint es la única fuente fiable del dato: la IP la ve el
+    // Worker, no el navegador. Si algún día el registro lo escribiera el
+    // cliente, cualquiera podría mandar la IP que quisiera y el registro no
+    // valdría para lo que se pide.
+    if (request.method === 'POST' && path === '/conexion/quien-soy') {
+      if (bodyTooLarge(request)) return json({ error: 'Body demasiado grande' }, 413, cors);
+      const ipCliente = clientIp(request);
+      // 20/min: al entrar al Hub se llama una vez. Más que esto es un bucle
+      // del frontend, no una persona.
+      if (!(await rateLimit(env, 'conexion-quien-soy', ipCliente, 20, 60))) {
+        return json({ error: 'Demasiadas consultas seguidas. Espera un minuto.' }, 429, cors);
+      }
+      try {
+        const { idToken } = (await request.json()) || {};
+        if (!idToken) return json({ error: 'Falta idToken' }, 400, cors);
+
+        let claims;
+        try {
+          claims = await verifyFirebaseIdToken(idToken, env);
+        } catch (err) {
+          logError('conexion_token_invalid', err);
+          return json({ error: 'Token inválido o expirado' }, 401, cors);
+        }
+
+        const userEmail = String(claims.email || '').toLowerCase();
+        if (!userEmail.endsWith('@heroinsuranceusa.com')) {
+          return json({ error: 'Solo cuentas del dominio corporativo' }, 403, cors);
+        }
+
+        // request.cf no existe en `wrangler dev` sin --remote: se devuelve lo
+        // que haya y el frontend muestra "no disponible" en lugar de romperse.
+        const cf = request.cf || {};
+        return json({
+          ok: true,
+          email: userEmail,
+          nombre: claims.name || userEmail.split('@')[0],
+          ip: ipCliente,
+          isp: cf.asOrganization || null,
+          asn: cf.asn || null,
+          ciudad: cf.city || null,
+          region: cf.region || null,
+          pais: cf.country || null,
+          zonaHoraria: cf.timezone || null,
+          // Nodo de Cloudflare que atendió la petición. No es dónde está la
+          // persona, pero ayuda a entender una geolocalización rara.
+          colo: cf.colo || null,
+          fecha: new Date().toISOString(),
+        }, 200, cors);
+      } catch (err) {
+        logError('conexion_quien_soy_failed', err, { path, method: request.method });
         return json({ error: 'Error interno del servidor' }, 500, cors);
       }
     }
