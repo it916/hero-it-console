@@ -17,15 +17,24 @@
 //  GET  /audit         → Listar entradas de auditoría
 // ═══════════════════════════════════════════════════════════════
 
-// Orígenes legítimos del Console + formularios públicos (todos en
-// it916.github.io: hero-it-console, alta-agentes, soporte.html).
-// Hero Hub (módulo Finanzas) también consume este Worker — endpoint
-// /finanzas/send-report — con su propia auth (Firebase ID token).
+// Orígenes legítimos del Hero Hub y del Console. El Hub consume este Worker
+// desde varios módulos (tickets, solicitudes, reportes, conexiones, Finanzas),
+// siempre con su propia auth encima: Firebase ID token o token HMAC.
+//
+// it916.github.io salió de la lista el 2026-09-21. El IT Console que vivía ahí
+// se apagó en julio, y los cuatro sitios que siguen publicados en esa cuenta
+// (alta-agentes, hero-portal, hero-suppliers-database, hero_training_calendar)
+// se revisaron uno por uno: ninguno llama a este Worker.
 const ALLOWED_ORIGINS = [
-  'https://it916.github.io',
   'https://it.heroinsuranceusa.com',  // subdominio futuro
-  'https://hub.heroinsuranceusa.com', // Hero Hub (Finanzas)
+  'https://hub.heroinsuranceusa.com', // Hero Hub (producción)
 ];
+
+// Firebase Hosting del proyecto del Hub: los dos dominios por defecto y los
+// canales de vista previa, que se llaman hero-hub-de520--<canal>-<hash>.web.app.
+// El hash lo genera Firebase y cambia cada vez que el canal se recrea, así que
+// se valida por patrón en vez de anotar la URL de turno.
+const FIREBASE_HOSTING = /^https:\/\/hero-hub-de520(--[a-z0-9-]+)?\.(web\.app|firebaseapp\.com)$/;
 
 export default {
   async fetch(request, env) {
@@ -34,15 +43,22 @@ export default {
     // útil para probar /finanzas/send-report desde el Hub en desarrollo.
     // El gate de seguridad real es el Firebase ID token + lista de emails.
     const isLocalhost = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(requestOrigin);
-    const corsOrigin = (ALLOWED_ORIGINS.includes(requestOrigin) || isLocalhost)
-      ? requestOrigin
-      : ALLOWED_ORIGINS[0];
+    const isAllowedOrigin = ALLOWED_ORIGINS.includes(requestOrigin)
+      || FIREBASE_HOSTING.test(requestOrigin)
+      || isLocalhost;
     const cors = {
-      'Access-Control-Allow-Origin': corsOrigin,
       'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type, Authorization',
       'Vary': 'Origin',
     };
+    // Un origen no permitido se queda SIN Access-Control-Allow-Origin. Antes se
+    // le devolvía ALLOWED_ORIGINS[0]: el navegador lo bloqueaba igual, pero el
+    // error apuntaba a un dominio ajeno y mandaba el diagnóstico a otro lado.
+    // Las peticiones sin Origin (curl, webhooks, Apps Script) no son CORS y no
+    // necesitan la cabecera: siguen funcionando igual que siempre.
+    if (isAllowedOrigin && requestOrigin) {
+      cors['Access-Control-Allow-Origin'] = requestOrigin;
+    }
     if (request.method === 'OPTIONS') return new Response(null, { headers: cors });
 
     const url = new URL(request.url);
