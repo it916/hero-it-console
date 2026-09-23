@@ -2505,6 +2505,7 @@ export default {
   // (licencia, período) usando marcas en KV con TTL 32 días.
   async scheduled(event, env, ctx) {
     ctx.waitUntil(runLicenciaReminders(env));
+    ctx.waitUntil(limpiarAdjuntosHuerfanos(env));
   }
 };
 
@@ -2548,6 +2549,49 @@ async function runLicenciaReminders(env) {
     logEvent('cron_lic_reminders_done', { sent, skipped, day: today.toISOString().slice(0, 10) });
   } catch (err) {
     logError('cron_lic_reminders_failed', err);
+  }
+}
+
+// ── Cron diario: borrar adjuntos huerfanos de R2 ────────────
+// POST /ticket/attachment es publico a proposito (el formulario de soporte es
+// sin login) y sube a `pending/{uuid}-{name}`. El POST /ticket renombra esa
+// key a `tickets/{ticketId}/` cuando el ticket se crea. Lo que nunca llega a
+// crearse queda en `pending/` para siempre: con 20 subidas/min por IP y 10 MB
+// por archivo, el bucket se llena solo. Esto lo barre una vez al dia.
+//
+// El umbral de 24 h es deliberadamente generoso: un formulario abierto toda
+// una jornada sigue pudiendo enviarse con sus adjuntos intactos.
+const ADJUNTO_HUERFANO_HORAS = 24;
+
+async function limpiarAdjuntosHuerfanos(env) {
+  try {
+    const corte = Date.now() - ADJUNTO_HUERFANO_HORAS * 3600 * 1000;
+    let cursor;
+    let revisados = 0, borrados = 0, bytes = 0;
+
+    // R2 pagina de a 1000; el borrado tambien acepta como mucho 1000 keys.
+    do {
+      const lista = await env.HERO_TICKETS_R2.list({ prefix: 'pending/', cursor });
+      const caducados = [];
+      for (const obj of lista.objects) {
+        revisados++;
+        // `uploaded` lo pone R2, no el cliente: no se puede falsear desde fuera
+        // para que un archivo sobreviva a la limpieza.
+        if (obj.uploaded && obj.uploaded.getTime() < corte) {
+          caducados.push(obj.key);
+          bytes += obj.size || 0;
+        }
+      }
+      if (caducados.length) {
+        await env.HERO_TICKETS_R2.delete(caducados);
+        borrados += caducados.length;
+      }
+      cursor = lista.truncated ? lista.cursor : undefined;
+    } while (cursor);
+
+    logEvent('cron_adjuntos_huerfanos_done', { revisados, borrados, mb: +(bytes / 1048576).toFixed(1) });
+  } catch (err) {
+    logError('cron_adjuntos_huerfanos_failed', err);
   }
 }
 
