@@ -472,6 +472,23 @@ export default {
       }
     }
 
+    // ── GET /workspace/devices — dispositivos de Google Workspace ──
+    // La misma lista que Google Admin → Dispositivos, sin exportar un CSV.
+    // Sale de la Cloud Identity Devices API con la delegación de dominio del
+    // Worker (scope cloud-identity.devices.readonly, solo lectura: no bloquea
+    // ni borra nada). Va detrás del gate central, así que solo la ve IT: trae
+    // números de serie e IMEI. `?fresh=1` salta la caché de 10 minutos.
+    if (request.method === 'GET' && path === '/workspace/devices') {
+      try {
+        const fresh = url.searchParams.get('fresh') === '1';
+        const data = await fetchWorkspaceDevicesData(env, { fresh });
+        return json(data, 200, cors);
+      } catch (err) {
+        logError('handler_failed', err, { path, method: request.method });
+        return json({ error: err.message || 'Error interno del servidor' }, 500, cors);
+      }
+    }
+
     // ── GET /zoho/session/:id — iniciar sesión remota ─────────
     // Llama a la API oficial de Zoho Assist v2 para abrir una sesión de
     // acceso desatendido. Devuelve `technician_uri`: la URL que el técnico
@@ -3004,6 +3021,109 @@ async function fetchZohoDevicesData(env, { fresh = false } = {}) {
   return { devices, fromCache: false };
 }
 
+// ═══════════════════════════════════════════════════════════════
+//  Dispositivos de Google Workspace (Cloud Identity Devices API)
+// ═══════════════════════════════════════════════════════════════
+// Requiere, fuera del código: la Cloud Identity API activada en el proyecto de
+// la cuenta de servicio, y el scope de abajo añadido a su delegación de todo el
+// dominio en Google Admin (junto al de usuarios, sin reemplazarlo).
+const WS_DEVICES_SCOPE = 'https://www.googleapis.com/auth/cloud-identity.devices.readonly';
+const WS_DEVICES_CACHE_SEG = 600;
+// Topes de páginas. Cada página es una subpetición y un Worker tiene un límite
+// por invocación (50 en el plan gratuito). deviceUsers devuelve como mucho 20
+// por página, así que es el que manda: 30 páginas = 600 registros. Si se llega
+// al tope, la respuesta lleva `truncado: true` y la lista está incompleta.
+const WS_MAX_PAGINAS_DEVICES  = 8;   // 100 por página → 800 equipos
+const WS_MAX_PAGINAS_USUARIOS = 30;  // 20 por página → 600 registros
+
+async function fetchWorkspaceDevicesData(env, { fresh = false } = {}) {
+  if (!fresh) {
+    const cached = await env.HERO_KV.get('cache_ws_devices');
+    if (cached) {
+      try { return { ...JSON.parse(cached), fromCache: true }; }
+      catch (_) { /* caché corrupta: se vuelve a pedir */ }
+    }
+  }
+  const token = await getGoogleTokenFor(env, WS_DEVICES_SCOPE, 'cache_google_token_devices');
+  const base = 'https://cloudidentity.googleapis.com/v1/';
+  const customer = 'customers/my_customer';
+
+  // Las dos listas no dependen una de otra: se piden a la vez. El equipo no
+  // trae el correo de quien lo usa; eso vive en deviceUsers.
+  const [equipos, usuarios] = await Promise.all([
+    paginarCloudIdentity(token, base + 'devices',
+      { customer, view: 'USER_ASSIGNED_DEVICES', pageSize: '100' }, 'devices', WS_MAX_PAGINAS_DEVICES),
+    paginarCloudIdentity(token, base + 'devices/-/deviceUsers',
+      { customer, pageSize: '20' }, 'deviceUsers', WS_MAX_PAGINAS_USUARIOS),
+  ]);
+
+  // El name de un deviceUser es devices/{d}/deviceUsers/{u}: su equipo es devices/{d}.
+  const usuariosPorEquipo = {};
+  for (const u of usuarios.items) {
+    const clave = String(u.name || '').split('/deviceUsers/')[0];
+    (usuariosPorEquipo[clave] ||= []).push({
+      email:        u.userEmail || '',
+      estado:       u.managementState || '',
+      primeraSync:  u.firstSyncTime || null,
+      ultimaSync:   u.lastSyncTime || null,
+      userAgent:    u.userAgent || '',
+      comprometido: u.compromisedState === 'COMPROMISED',
+    });
+  }
+
+  const devices = equipos.items.map(d => ({
+    id:           String(d.name || '').replace('devices/', ''),
+    tipo:         d.deviceType || '',
+    propiedad:    d.ownerType || '',
+    modelo:       d.model || '',
+    fabricante:   d.manufacturer || d.brand || '',
+    serial:       d.serialNumber || '',
+    imei:         d.imei || d.meid || '',
+    os:           d.osVersion || '',
+    hostname:     d.hostname || '',
+    estado:       d.managementState || '',
+    cifrado:      d.encryptionState || '',
+    comprometido: d.compromisedState === 'COMPROMISED',
+    creado:       d.createTime || null,
+    ultimaSync:   d.lastSyncTime || null,
+    usuarios:     usuariosPorEquipo[d.name] || [],
+  }));
+
+  const data = {
+    devices,
+    total: devices.length,
+    generado: new Date().toISOString(),
+    truncado: equipos.truncado || usuarios.truncado,
+  };
+  try { await env.HERO_KV.put('cache_ws_devices', JSON.stringify(data), { expirationTtl: WS_DEVICES_CACHE_SEG }); }
+  catch (e) { logError('ws_devices_cache_write_failed', e); }
+  return { ...data, fromCache: false };
+}
+
+// Recorre las páginas de un list de Cloud Identity hasta el final o hasta el tope.
+async function paginarCloudIdentity(token, url, params, campo, maxPaginas) {
+  const items = [];
+  let pageToken = '';
+  for (let i = 0; i < maxPaginas; i++) {
+    const qs = new URLSearchParams(params);
+    if (pageToken) qs.set('pageToken', pageToken);
+    const resp = await fetch(url + '?' + qs.toString(), { headers: { Authorization: 'Bearer ' + token } });
+    const text = await resp.text();
+    let data;
+    try { data = JSON.parse(text); }
+    catch (_) { throw new Error('Respuesta no JSON de Cloud Identity: ' + text.substring(0, 200)); }
+    if (!resp.ok) {
+      // El mensaje de Google va tal cual ("API has not been used in project…",
+      // "Caller does not have permission"…): dice qué paso de la configuración falta.
+      throw new Error('Cloud Identity (' + resp.status + '): ' + (data.error?.message || text.substring(0, 200)));
+    }
+    items.push(...(data[campo] || []));
+    pageToken = data.nextPageToken || '';
+    if (!pageToken) return { items, truncado: false };
+  }
+  return { items, truncado: true };
+}
+
 // Cache de tokens OAuth en KV. Los tokens duran 1h; cacheamos ~55min para
 // margen. Evita firmar JWT RS256 + round-trip a Google/Zoho en cada request
 // del dashboard (~200-400 ms ahorrados por endpoint).
@@ -3048,12 +3168,19 @@ async function getZohoToken(env) {
 }
 
 async function getGoogleToken(env) {
-  const cached = await getCachedToken(env, 'cache_google_token');
+  return getGoogleTokenFor(env, 'https://www.googleapis.com/auth/admin.directory.user', 'cache_google_token');
+}
+
+// Un token por scope, cada uno con su clave de caché: la delegación de todo el
+// dominio autoriza varios scopes, pero pedirlos juntos obligaría a que TODOS
+// estén dados de alta en Google Admin, y un scope nuevo sin autorizar tumbaría
+// también la gestión de usuarios. Separados, si falla uno, falla solo lo suyo.
+async function getGoogleTokenFor(env, scope, cacheKey) {
+  const cached = await getCachedToken(env, cacheKey);
   if (cached) return cached;
   const clientEmail = env.GOOGLE_CLIENT_EMAIL;
   const privateKey  = env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n');
   const adminEmail  = env.GOOGLE_ADMIN_EMAIL;
-  const scope = 'https://www.googleapis.com/auth/admin.directory.user';
   const now = Math.floor(Date.now() / 1000);
   const b64 = obj => btoa(JSON.stringify(obj)).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
   const signingInput = b64({ alg:'RS256', typ:'JWT' }) + '.' + b64({
@@ -3072,10 +3199,10 @@ async function getGoogleToken(env) {
   });
   const tokenData = await tokenResp.json();
   if (!tokenData.access_token) {
-    logError('google_token_failed', new Error('no access_token'), { status: tokenResp.status });
+    logError('google_token_failed', new Error('no access_token'), { status: tokenResp.status, scope });
     throw new Error('Token fallido: ' + JSON.stringify(tokenData));
   }
-  await setCachedToken(env, 'cache_google_token', tokenData.access_token, tokenData.expires_in);
+  await setCachedToken(env, cacheKey, tokenData.access_token, tokenData.expires_in);
   return tokenData.access_token;
 }
 
