@@ -445,33 +445,6 @@ export default {
       if (!authedEmail) return json({ error: 'No autorizado' }, 401, cors);
     }
 
-    // ── GET /zoho/debug — ver respuesta raw de Zoho ───────────
-    if (request.method === 'GET' && path === '/zoho/debug') {
-      try {
-        const token = await getZohoToken(env);
-        // Get user info to find correct department ID
-        const resp = await fetch('https://assist.zoho.com/api/v2/user', {
-          headers: { 'Authorization': 'Zoho-oauthtoken ' + token }
-        });
-        const text = await resp.text();
-        return new Response(text, { status: resp.status, headers: { ...cors, 'Content-Type': 'application/json' } });
-      } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: 'Error interno del servidor' }, 500, cors); }
-    }
-
-    // ── GET /zoho/devices — listar dispositivos Zoho Assist ───
-    // Mantenido por back-compat. Para la vista nueva de Dispositivos unificada,
-    // usar GET /device?withZoho=1 (mergea live data Zoho + metadata KV).
-    if (request.method === 'GET' && path === '/zoho/devices') {
-      try {
-        const noCache = url.searchParams.get('fresh') === '1';
-        const { devices, fromCache } = await fetchZohoDevicesData(env, { fresh: noCache });
-        return json({ devices, cached: fromCache }, 200, cors);
-      } catch (err) {
-        logError('handler_failed', err, { path, method: request.method });
-        return json({ error: err.message || 'Error interno del servidor' }, 500, cors);
-      }
-    }
-
     // ── GET /workspace/devices — dispositivos de Google Workspace ──
     // La misma lista que Google Admin → Dispositivos, sin exportar un CSV.
     // Sale de la Cloud Identity Devices API con la delegación de dominio del
@@ -489,47 +462,9 @@ export default {
       }
     }
 
-    // ── GET /zoho/session/:id — iniciar sesión remota ─────────
-    // Llama a la API oficial de Zoho Assist v2 para abrir una sesión de
-    // acceso desatendido. Devuelve `technician_uri`: la URL que el técnico
-    // abre para conectarse al equipo (NO depende de un portal hardcodeado).
-    // Ref: https://www.zoho.com/assist/api/unattendedsession.html
-    if (request.method === 'GET' && path.startsWith('/zoho/session/')) {
-      try {
-        const computerId = path.replace('/zoho/session/', '');
-        if (!computerId) return json({ error: 'Falta computerId' }, 400, cors);
-        const token = await getZohoToken(env);
-        const apiUrl = 'https://assist.zoho.com/api/v2/unattended/'
-                     + encodeURIComponent(computerId)
-                     + '/connect?department_id=' + encodeURIComponent(env.ZOHO_DEPARTMENT_ID);
-        const resp = await fetch(apiUrl, {
-          method: 'POST',
-          headers: {
-            'Authorization': 'Zoho-oauthtoken ' + token,
-            'Content-Type': 'application/json',
-            'x-com-zoho-assist-department-id': env.ZOHO_DEPARTMENT_ID
-          }
-        });
-        const text = await resp.text();
-        let data;
-        try { data = JSON.parse(text); }
-        catch (e) { return json({ error: 'Respuesta no JSON de Zoho: ' + text.substring(0, 200) }, 500, cors); }
-        if (!resp.ok) {
-          logError('zoho_session_failed', new Error('status ' + resp.status), { computerId, body: text.substring(0, 300) });
-          return json({ error: data.message || data.error || 'Error al iniciar sesión Zoho' }, resp.status, cors);
-        }
-        const sessionUrl = data.representation?.technician_uri || '';
-        if (!sessionUrl) {
-          logError('zoho_session_no_uri', new Error('no technician_uri'), { computerId, data: JSON.stringify(data).substring(0, 300) });
-          return json({ error: 'Zoho no devolvió URL de técnico (verificá que el dispositivo siga registrado)' }, 502, cors);
-        }
-        return json({ sessionUrl }, 200, cors);
-      } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: 'Error interno del servidor' }, 500, cors); }
-    }
-
     // ── GET /stats — counts ligeros para el polling del dashboard ─
-    // Cache 2 min en KV (1 get vs 3 list). Las mutaciones de ticket/solicitud/
-    // device invalidan 'cache_stats' para que el dashboard refleje cambios YA.
+    // Cache 2 min en KV (1 get vs 2 list). Las mutaciones de ticket/solicitud
+    // invalidan 'cache_stats' para que el dashboard refleje cambios YA.
     // `?fresh=1` fuerza bypass.
     // El cálculo subyacente usa list() + metadata sin get()s. Las entradas
     // pre-deploy sin metadata requieren un get() — el endpoint
@@ -546,10 +481,9 @@ export default {
             } catch (_) { /* cache corrupta, refetch */ }
           }
         }
-        const [tickets, solicitudes, devices] = await Promise.all([
+        const [tickets, solicitudes] = await Promise.all([
           env.HERO_KV.list({ prefix: 'ticket_' }),
           env.HERO_KV.list({ prefix: 'alta_' }),
-          env.HERO_KV.list({ prefix: 'device_' }),
         ]);
         const countByEstado = async (keys, target) => {
           let count = 0; const legacy = [];
@@ -572,7 +506,6 @@ export default {
         const stats = {
           tickets:     { open: t.count, total: tickets.keys.length,     legacy: t.legacy },
           solicitudes: { pending: s.count, total: solicitudes.keys.length, legacy: s.legacy },
-          devices:     { total: devices.keys.length },
         };
         try { await env.HERO_KV.put('cache_stats', JSON.stringify(stats), { expirationTtl: 120 }); }
         catch (e) { logError('stats_cache_write_failed', e); }
@@ -589,7 +522,6 @@ export default {
         const SUMMARIZERS = {
           'ticket_': summarizeTicket,
           'alta_':   summarizeSolicitud,
-          'device_': summarizeDevice,
           'lic_':    summarizeLicencia,
           'audit_':  summarizeAudit,
           'kb_':     summarizeKb,
@@ -2128,175 +2060,6 @@ export default {
       } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: 'Error interno del servidor' }, 500, cors); }
     }
 
-// ── POST /device — crear dispositivo ──────────────────────
-    if (request.method === 'POST' && path === '/device') {
-      try {
-        const { nombre, tipo, usuario, so, gcpw, apps, estado,
-                fechaCompra, vidaUtilAnios, costoOriginal, zohoId } = await request.json();
-        if (!nombre || !tipo) return json({ error: 'Faltan campos: nombre, tipo' }, 400, cors);
-        const id = 'device_' + Date.now();
-        const device = {
-          id, nombre, tipo,
-          usuario: usuario || '',
-          so: so || '',
-          gcpw: gcpw || false,
-          apps: apps || [],
-          estado: estado || 'activo',
-          fechaCompra:   fechaCompra   || null,
-          vidaUtilAnios: vidaUtilAnios != null ? Number(vidaUtilAnios) : 4,
-          costoOriginal: costoOriginal != null ? Number(costoOriginal) : null,
-          zohoId: zohoId || null,
-          fecha: new Date().toISOString(),
-          intervenciones: [],
-        };
-        await env.HERO_KV.put(id, JSON.stringify(device), { metadata: summarizeDevice(device) });
-        await invalidateCaches(env, 'cache_stats');
-        return json({ ok: true, id }, 200, cors);
-      } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: 'Error interno del servidor' }, 500, cors); }
-    }
-
-    // ── GET /device — listar dispositivos ─────────────────────
-    // Si viene `?withZoho=1`, mergea: lista los devices Zoho live y para cada
-    // uno busca su KV record (por zohoId o por nombre normalizado). Si no
-    // existe, lo auto-crea con defaults; si existe pero sin zohoId, lo linkea.
-    // Resultado: cada device de Zoho tiene siempre un id KV estable + metadata
-    // (usuario, fechaCompra, intervenciones, etc.) + live data (status, ip, os).
-    if (request.method === 'GET' && path === '/device') {
-      try {
-        const withZoho = url.searchParams.get('withZoho') === '1';
-        const list = await env.HERO_KV.list({ prefix: 'device_', ...paginationParams(url) });
-        const items = await Promise.all(list.keys.map(async k => {
-          const v = await env.HERO_KV.get(k.name); return v ? JSON.parse(v) : null;
-        }));
-        const kvDevices = items.filter(Boolean);
-
-        if (!withZoho) {
-          return json({
-            devices: kvDevices.sort((a, b) => new Date(b.fecha) - new Date(a.fecha)),
-            ...listMeta(list)
-          }, 200, cors);
-        }
-
-        // ── Merge con Zoho ───────────────────────────────────
-        const fresh = url.searchParams.get('fresh') === '1';
-        const { devices: zohoDevices } = await fetchZohoDevicesData(env, { fresh });
-        const normName = s => (s || '').toLowerCase().trim();
-        const kvByZohoId = {};
-        const kvByName   = {};
-        for (const d of kvDevices) {
-          if (d.zohoId) kvByZohoId[d.zohoId] = d;
-          if (d.nombre) kvByName[normName(d.nombre)] = d;
-        }
-
-        const merged = [];
-        let kvMutated = false;
-        for (const z of zohoDevices) {
-          let kv = (z.id && kvByZohoId[z.id]) || kvByName[normName(z.name)];
-          if (!kv) {
-            // Auto-create con defaults
-            const newId = 'device_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
-            kv = {
-              id: newId, nombre: z.name, tipo: 'laptop',
-              usuario: '', so: z.os || '', gcpw: false, apps: [],
-              estado: 'activo',
-              fechaCompra: null, vidaUtilAnios: 4, costoOriginal: null,
-              zohoId: z.id || null,
-              fecha: new Date().toISOString(),
-              intervenciones: [],
-            };
-            await env.HERO_KV.put(newId, JSON.stringify(kv), { metadata: summarizeDevice(kv) });
-            kvMutated = true;
-          } else if (!kv.zohoId && z.id) {
-            // Auto-link existing por nombre — persistir el zohoId
-            kv.zohoId = z.id;
-            await env.HERO_KV.put(kv.id, JSON.stringify(kv), { metadata: summarizeDevice(kv) });
-            kvMutated = true;
-          }
-          merged.push({
-            ...kv,
-            // Live data (no se persiste, viene de Zoho cada vez):
-            zohoStatus: z.status || 'offline',
-            zohoLiveOs: z.os || '',
-            zohoIp:     z.ip   || '',
-            zohoGroup:  z.group || '',
-          });
-        }
-
-        // Orden: online primero, luego alfabético
-        merged.sort((a, b) => {
-          const aOn = (a.zohoStatus === 'online') ? 0 : 1;
-          const bOn = (b.zohoStatus === 'online') ? 0 : 1;
-          if (aOn !== bOn) return aOn - bOn;
-          return (a.nombre || '').localeCompare(b.nombre || '');
-        });
-
-        if (kvMutated) await invalidateCaches(env, 'cache_stats');
-        return json({ devices: merged }, 200, cors);
-      } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: 'Error interno del servidor' }, 500, cors); }
-    }
-
-    // ── GET /device/:id — obtener dispositivo ─────────────────
-    if (request.method === 'GET' && path.startsWith('/device/')) {
-      try {
-        const id = path.replace('/device/', '');
-        const v = await env.HERO_KV.get(id);
-        if (!v) return json({ error: 'Dispositivo no encontrado' }, 404, cors);
-        return json({ device: JSON.parse(v) }, 200, cors);
-      } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: 'Error interno del servidor' }, 500, cors); }
-    }
-
-    // ── POST /device/update — actualizar dispositivo ──────────
-    if (request.method === 'POST' && path === '/device/update') {
-      try {
-        const { id, nombre, tipo, usuario, so, gcpw, apps, estado,
-                fechaCompra, vidaUtilAnios, costoOriginal, zohoId } = await request.json();
-        const v = await env.HERO_KV.get(id);
-        if (!v) return json({ error: 'Dispositivo no encontrado' }, 404, cors);
-        const device = JSON.parse(v);
-        if (nombre !== undefined) device.nombre  = nombre;
-        if (tipo    !== undefined) device.tipo    = tipo;
-        if (usuario !== undefined) device.usuario = usuario;
-        if (so      !== undefined) device.so      = so;
-        if (gcpw    !== undefined) device.gcpw    = gcpw;
-        if (apps    !== undefined) device.apps    = apps;
-        if (estado  !== undefined) device.estado  = estado;
-        if (fechaCompra   !== undefined) device.fechaCompra   = fechaCompra;
-        if (vidaUtilAnios !== undefined) device.vidaUtilAnios = vidaUtilAnios != null ? Number(vidaUtilAnios) : null;
-        if (costoOriginal !== undefined) device.costoOriginal = costoOriginal != null ? Number(costoOriginal) : null;
-        if (zohoId        !== undefined) device.zohoId        = zohoId || null;
-        await env.HERO_KV.put(id, JSON.stringify(device), { metadata: summarizeDevice(device) });
-        return json({ ok: true }, 200, cors);
-      } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: 'Error interno del servidor' }, 500, cors); }
-    }
-
-    // ── POST /device/intervencion — registrar intervención ────
-    if (request.method === 'POST' && path === '/device/intervencion') {
-      try {
-        const { id, tipo, descripcion, notas } = await request.json();
-        if (!id || !tipo || !descripcion) return json({ error: 'Faltan campos' }, 400, cors);
-        // Lista blanca: alineada con el <select> del Console. Evita que un cliente
-        // autenticado escriba basura arbitraria al historial de intervenciones.
-        const TIPOS_VALIDOS = ['Instalación de software', 'Reparación o diagnóstico', 'Soporte remoto'];
-        if (!TIPOS_VALIDOS.includes(tipo)) {
-          return json({ error: 'Tipo de intervención no válido' }, 400, cors);
-        }
-        const v = await env.HERO_KV.get(id);
-        if (!v) return json({ error: 'Dispositivo no encontrado' }, 404, cors);
-        const device = JSON.parse(v);
-        const intervencion = {
-          iid: 'int_' + Date.now(),
-          tipo, descripcion,
-          notas: notas || '',
-          fecha: new Date().toISOString(),
-        };
-        device.intervenciones = device.intervenciones || [];
-        device.intervenciones.unshift(intervencion);
-        await env.HERO_KV.put(id, JSON.stringify(device), { metadata: summarizeDevice(device) });
-        return json({ ok: true, intervencion }, 200, cors);
-      } catch (err) { logError('handler_failed', err, { path, method: request.method }); return json({ error: 'Error interno del servidor' }, 500, cors); }
-    }
-
-
     // ── POST /email/onboarding → email de onboarding a destinos externos ──
     // Endpoint dedicado para el caso de uso legítimo de mandar credenciales
     // al correo PERSONAL del empleado recién creado (@gmail, @yahoo, etc.),
@@ -2710,12 +2473,6 @@ function summarizeSolicitud(s) {
     fecha: s.fecha || '',
   };
 }
-function summarizeDevice(d) {
-  return {
-    estado: d.estado || '',
-    tipo: d.tipo || '',
-  };
-}
 function summarizeLicencia(l) {
   return {
     estado: l.estado || 'activa',
@@ -2984,43 +2741,6 @@ function buildStatusMsgs(estado, ticket, ticketInfo) {
   };
 }
 
-// Fetch + normalize Zoho devices con cache KV de 60s. Compartido por
-// GET /zoho/devices (back-compat) y el merge en GET /device?withZoho=1.
-async function fetchZohoDevicesData(env, { fresh = false } = {}) {
-  if (!fresh) {
-    const cached = await env.HERO_KV.get('cache_zoho_devices');
-    if (cached) {
-      try { return { devices: JSON.parse(cached), fromCache: true }; }
-      catch (_) { /* cache corrupta, refetch */ }
-    }
-  }
-  const token = await getZohoToken(env);
-  const resp = await fetch('https://assist.zoho.com/api/v2/devices', {
-    headers: {
-      'Authorization': 'Zoho-oauthtoken ' + token,
-      'Content-Type': 'application/json',
-      'x-com-zoho-assist-department-id': env.ZOHO_DEPARTMENT_ID
-    }
-  });
-  const text = await resp.text();
-  let data;
-  try { data = JSON.parse(text); }
-  catch (e) { throw new Error('Respuesta no JSON de Zoho: ' + text.substring(0, 200)); }
-  if (!resp.ok) throw new Error(data.message || data.error || 'Error Zoho API');
-  const computers = data.representation?.computers || data.computers || data || [];
-  const devices = computers.map(c => ({
-    id:     c.resource_id || c.urs_key || '',
-    name:   c.display_name || c.device_info?.name || c.device_info?.device_name || 'Sin nombre',
-    status: c.device_info?.status || 'offline',
-    os:     c.platform_details?.os_name || '',
-    group:  c.group_name || '',
-    ip:     c.device_info?.public_ip_address || c.device_info?.private_ip_address || '',
-  }));
-  try { await env.HERO_KV.put('cache_zoho_devices', JSON.stringify(devices), { expirationTtl: 60 }); }
-  catch (e) { logError('zoho_devices_cache_write_failed', e); }
-  return { devices, fromCache: false };
-}
-
 // ═══════════════════════════════════════════════════════════════
 //  Dispositivos de Google Workspace (Cloud Identity Devices API)
 // ═══════════════════════════════════════════════════════════════
@@ -3125,7 +2845,7 @@ async function paginarCloudIdentity(token, url, params, campo, maxPaginas) {
 }
 
 // Cache de tokens OAuth en KV. Los tokens duran 1h; cacheamos ~55min para
-// margen. Evita firmar JWT RS256 + round-trip a Google/Zoho en cada request
+// margen. Evita firmar JWT RS256 + round-trip a Google en cada request
 // del dashboard (~200-400 ms ahorrados por endpoint).
 async function getCachedToken(env, cacheKey) {
   try {
@@ -3143,28 +2863,6 @@ async function setCachedToken(env, cacheKey, token, expiresInSec) {
       token, exp: Math.floor(Date.now() / 1000) + ttl
     }), { expirationTtl: ttl });
   } catch (e) { logError('token_cache_write_failed', e, { cacheKey }); }
-}
-
-async function getZohoToken(env) {
-  const cached = await getCachedToken(env, 'cache_zoho_token');
-  if (cached) return cached;
-  const resp = await fetch('https://accounts.zoho.com/oauth/v2/token', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      refresh_token: env.ZOHO_REFRESH_TOKEN,
-      client_id:     env.ZOHO_CLIENT_ID,
-      client_secret: env.ZOHO_CLIENT_SECRET,
-      grant_type:    'refresh_token'
-    }).toString()
-  });
-  const data = await resp.json();
-  if (!data.access_token) {
-    logError('zoho_token_failed', new Error('no access_token'), { status: resp.status });
-    throw new Error('Zoho token fallido: ' + JSON.stringify(data));
-  }
-  await setCachedToken(env, 'cache_zoho_token', data.access_token, data.expires_in);
-  return data.access_token;
 }
 
 async function getGoogleToken(env) {
