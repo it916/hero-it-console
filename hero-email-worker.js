@@ -1168,7 +1168,7 @@ export default {
           +   '<img src="https://i.ibb.co/Gr4mzLv/Nuevo-Logo-Cuadrado-compress.png" width="120" style="display:block;margin:0 auto 14px;"/>'
           +   '<div style="display:inline-block;background:rgba(255,255,255,0.2);color:#fff;font-weight:700;font-size:11px;letter-spacing:3px;padding:5px 14px;border-radius:20px;margin-bottom:10px;">' + badgeText + '</div>'
           +   '<h1 style="color:#fff;margin:0;font-size:20px;font-weight:700;">Nueva solicitud de ' + (isAlta ? 'alta' : 'baja') + ' de cuenta</h1>'
-          +   '<p style="color:rgba(255,255,255,0.85);margin:6px 0 0;font-size:13px;">Procedimiento PROC-IT-001</p>'
+          +   '<p style="color:rgba(255,255,255,0.85);margin:6px 0 0;font-size:13px;">Procedimiento IT-01</p>'
           + '</div>'
           + '<div style="padding:28px 40px;">'
           +   '<p style="margin:0 0 16px;font-size:13px;color:#4a5568;">Hola <strong>' + esc(auth.nombre) + '</strong>,</p>'
@@ -1244,7 +1244,7 @@ export default {
               +   '<img src="https://i.ibb.co/Gr4mzLv/Nuevo-Logo-Cuadrado-compress.png" width="120" style="display:block;margin:0 auto 14px;"/>'
               +   '<div style="display:inline-block;background:rgba(255,255,255,0.2);color:#fff;font-weight:700;font-size:11px;letter-spacing:3px;padding:5px 14px;border-radius:20px;margin-bottom:10px;">' + badgeText + '</div>'
               +   '<h1 style="color:#fff;margin:0;font-size:22px;font-weight:700;">Recibimos tu solicitud</h1>'
-              +   '<p style="color:rgba(255,255,255,0.85);margin:6px 0 0;font-size:13px;">Procedimiento PROC-IT-001</p>'
+              +   '<p style="color:rgba(255,255,255,0.85);margin:6px 0 0;font-size:13px;">Procedimiento IT-01</p>'
               + '</div>'
               + '<div style="padding:28px 40px;">'
               +   '<p style="margin:0 0 18px;font-size:14px;color:#4a5568;">Hola <strong>' + esc(solicitanteNombre) + '</strong>, tu solicitud fue recibida correctamente y está en proceso de autorización.</p>'
@@ -1396,7 +1396,7 @@ export default {
           +   '<img src="https://i.ibb.co/Gr4mzLv/Nuevo-Logo-Cuadrado-compress.png" width="120" style="display:block;margin:0 auto 14px;"/>'
           +   '<div style="display:inline-block;background:rgba(255,255,255,0.2);color:#fff;font-weight:700;font-size:11px;letter-spacing:3px;padding:5px 14px;border-radius:20px;margin-bottom:10px;">' + badgeText + ' · REENVÍO</div>'
           +   '<h1 style="color:#fff;margin:0;font-size:20px;font-weight:700;">Recordatorio: solicitud de ' + (isAlta ? 'alta' : 'baja') + ' de cuenta</h1>'
-          +   '<p style="color:rgba(255,255,255,0.85);margin:6px 0 0;font-size:13px;">Procedimiento PROC-IT-001</p>'
+          +   '<p style="color:rgba(255,255,255,0.85);margin:6px 0 0;font-size:13px;">Procedimiento IT-01</p>'
           + '</div>'
           + '<div style="padding:28px 40px;">'
           +   '<div style="background:rgba(232,163,23,0.10);border-left:3px solid #e8a317;padding:12px 14px;border-radius:6px;margin:0 0 18px;">'
@@ -1971,7 +1971,7 @@ export default {
         const token = await getGoogleToken(env);
         const userUrl = 'https://admin.googleapis.com/admin/directory/v1/users/' + encodeURIComponent(email);
 
-        // PROC-IT-001: solo suspender — el borrado permanente no está permitido
+        // IT-01: solo suspender — el borrado permanente no está permitido
         // desde la Console (se hace manualmente en Google Admin si hiciera falta).
         let body = {};
         if      (action === 'reset')   body = { password: newPassword, changePasswordAtNextLogin: true };
