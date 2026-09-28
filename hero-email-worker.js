@@ -728,15 +728,27 @@ export default {
         const token = await getGoogleToken(env);
         // projection=full trae `organizations`, `phones`, `aliases`,
         // `thumbnailPhotoUrl` y campos custom — sin esto solo veríamos
-        // los básicos. El costo es un JSON más grande, despreciable para
-        // ~20 usuarios internos.
-        const resp = await fetch(
-          'https://admin.googleapis.com/admin/directory/v1/users?domain=heroinsuranceusa.com&maxResults=200&orderBy=email&projection=full',
-          { headers: { 'Authorization': 'Bearer ' + token } }
-        );
-        const data = await resp.json();
-        if (!resp.ok) return json({ error: data.error?.message || 'Error Google API' }, resp.status, cors);
-        const users = (data.users || []).map(u => {
+        // los básicos. El costo es un JSON más grande, despreciable.
+        //
+        // Se recorren todas las páginas: hasta el 09/28/2026 se pedía una sola
+        // de 200 y, con agentes incluidos, el dominio podía pasar de ahí sin
+        // que nadie lo notara. 500 es el máximo que admite la API; el tope de
+        // 10 páginas (5.000 cuentas) solo evita un bucle infinito.
+        const todos = [];
+        let pageToken = '';
+        for (let pagina = 0; pagina < 10; pagina++) {
+          const resp = await fetch(
+            'https://admin.googleapis.com/admin/directory/v1/users?domain=heroinsuranceusa.com&maxResults=500&orderBy=email&projection=full'
+              + (pageToken ? '&pageToken=' + encodeURIComponent(pageToken) : ''),
+            { headers: { 'Authorization': 'Bearer ' + token } }
+          );
+          const data = await resp.json();
+          if (!resp.ok) return json({ error: data.error?.message || 'Error Google API' }, resp.status, cors);
+          todos.push(...(data.users || []));
+          pageToken = data.nextPageToken || '';
+          if (!pageToken) break;
+        }
+        const users = todos.map(u => {
           // La primera org es la "primaria" en la mayoría de dominios;
           // si hay varias, cae al primer registro.
           const org = Array.isArray(u.organizations) && u.organizations.length
