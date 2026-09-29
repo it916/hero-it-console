@@ -462,6 +462,18 @@ export default {
       }
     }
 
+    // ── POST /planit/avisos/prueba — ensayo de los avisos del día ─
+    // Manda a quien la llama TODOS los correos que saldrían hoy, marcados
+    // [PRUEBA], sin tocar las marcas de KV: el envío real de mañana no cambia.
+    // Detrás del gate: solo IT. Desde la consola del navegador del IT Console:
+    //   await (await authFetch(WORKER_URL + '/planit/avisos/prueba', { method: 'POST' })).json()
+    if (request.method === 'POST' && path === '/planit/avisos/prueba') {
+      const quien = await requireAuth(request, env);
+      if (!quien) return json({ error: 'No autorizado' }, 401, cors);
+      const resumen = await runPlanitAvisos(env, { prueba: quien });
+      return json(resumen, resumen.error ? 500 : 200, cors);
+    }
+
     // ── GET /stats — counts ligeros para el polling del dashboard ─
     // Cache 2 min en KV (1 get vs 2 list). Las mutaciones de ticket/solicitud
     // invalidan 'cache_stats' para que el dashboard refleje cambios YA.
@@ -2152,6 +2164,7 @@ export default {
   async scheduled(event, env, ctx) {
     ctx.waitUntil(runLicenciaReminders(env));
     ctx.waitUntil(limpiarAdjuntosHuerfanos(env));
+    ctx.waitUntil(runPlanitAvisos(env));
   }
 };
 
@@ -2239,6 +2252,289 @@ async function limpiarAdjuntosHuerfanos(env) {
   } catch (err) {
     logError('cron_adjuntos_huerfanos_failed', err);
   }
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  Avisos de PlanIt (Hero Hub)
+// ═══════════════════════════════════════════════════════════════
+// Un correo al día por persona, de lunes a viernes, con sus tareas abiertas
+// de PlanIt: vencidas, las que vencen hoy y las de los dos días siguientes.
+// Quien no tiene nada no recibe nada. Lo dispara el cron diario (13:00 UTC).
+//
+// Lee Firestore del proyecto del Hub con la cuenta de servicio del Worker, que
+// tiene ahí el rol Cloud Datastore Viewer: solo lectura. Las reglas de
+// Firestore no aplican a esta cuenta; por eso aquí se filtra a mano lo mismo
+// que filtra "Mis tareas" (proyectos archivados fuera).
+//
+// La consulta (status IN + dueDate <=) necesita el índice compuesto
+// tasks(status, dueDate) de firestore.indexes.json en el repo del Hub.
+//
+// Las fechas se comparan por día en America/New_York: el Hub guarda dueDate
+// a mediodía del día elegido, así que ningún huso lo corre de día.
+
+const PLANIT_URL = 'https://hub.heroinsuranceusa.com/planit.html';
+const PLANIT_FROM = 'Hero PlanIt <hub@heroinsuranceusa.com>';
+const PLANIT_ROLES_INTERNOS = ['admin', 'interno', 'it'];
+const PLANIT_DIAS_ANTES = 2;          // "próximos días" = mañana y pasado mañana
+const PLANIT_TZ = 'America/New_York';
+
+function firestoreBase(env) {
+  return 'https://firestore.googleapis.com/v1/projects/' + env.FIREBASE_PROJECT_ID + '/databases/(default)/documents';
+}
+
+// Token de la cuenta de servicio EN SU NOMBRE (sin delegación de dominio): el
+// permiso sobre Firestore es su rol de IAM, no el de it@.
+function getFirestoreToken(env) {
+  return getGoogleTokenFor(env, 'https://www.googleapis.com/auth/datastore', 'cache_firestore_token', { comoAdmin: false });
+}
+
+// Valor de la API REST de Firestore → valor de JS.
+function fsValor(v) {
+  if (!v) return null;
+  if ('nullValue' in v) return null;
+  if ('stringValue' in v) return v.stringValue;
+  if ('booleanValue' in v) return v.booleanValue;
+  if ('integerValue' in v) return Number(v.integerValue);
+  if ('doubleValue' in v) return v.doubleValue;
+  if ('timestampValue' in v) return new Date(v.timestampValue);
+  if ('mapValue' in v) return fsCampos(v.mapValue.fields || {});
+  if ('arrayValue' in v) return (v.arrayValue.values || []).map(fsValor);
+  return null;
+}
+function fsCampos(fields) {
+  const o = {};
+  for (const k of Object.keys(fields || {})) o[k] = fsValor(fields[k]);
+  return o;
+}
+const fsId = (name) => name.split('/').pop();
+
+async function fsConsulta(env, token, structuredQuery) {
+  const resp = await fetch(firestoreBase(env) + ':runQuery', {
+    method: 'POST',
+    headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ structuredQuery }),
+  });
+  const data = await resp.json();
+  if (!resp.ok) throw new Error('Firestore runQuery ' + resp.status + ': ' + JSON.stringify(data).slice(0, 300));
+  return data.filter(r => r.document).map(r => ({ id: fsId(r.document.name), ...fsCampos(r.document.fields) }));
+}
+
+async function fsLeerVarios(env, token, rutas) {
+  if (!rutas.length) return [];
+  const prefijo = 'projects/' + env.FIREBASE_PROJECT_ID + '/databases/(default)/documents/';
+  const resp = await fetch(firestoreBase(env) + ':batchGet', {
+    method: 'POST',
+    headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ documents: rutas.map(r => prefijo + r) }),
+  });
+  const data = await resp.json();
+  if (!resp.ok) throw new Error('Firestore batchGet ' + resp.status + ': ' + JSON.stringify(data).slice(0, 300));
+  return data.filter(r => r.found).map(r => ({ id: fsId(r.found.name), ...fsCampos(r.found.fields) }));
+}
+
+// Partes de una fecha en Nueva York.
+function partesNuevaYork(fecha, conDia) {
+  const opciones = { timeZone: PLANIT_TZ, year: 'numeric', month: '2-digit', day: '2-digit' };
+  if (conDia) opciones.weekday = 'short';
+  const partes = {};
+  for (const p of new Intl.DateTimeFormat('en-US', opciones).formatToParts(fecha)) partes[p.type] = p.value;
+  return partes;
+}
+function isoEnNuevaYork(fecha) {
+  const p = partesNuevaYork(fecha, false);
+  return p.year + '-' + p.month + '-' + p.day;
+}
+// Hoy en Nueva York: { iso: 'AAAA-MM-DD', finde: bool }.
+function hoyEnNuevaYork(ahora = new Date()) {
+  const p = partesNuevaYork(ahora, true);
+  return { iso: p.year + '-' + p.month + '-' + p.day, finde: p.weekday === 'Sat' || p.weekday === 'Sun' };
+}
+function sumarDias(iso, n) {
+  const [a, m, d] = iso.split('-').map(Number);
+  return new Date(Date.UTC(a, m - 1, d + n)).toISOString().slice(0, 10);
+}
+const fechaUS = (iso) => iso.slice(5, 7) + '/' + iso.slice(8, 10) + '/' + iso.slice(0, 4);
+
+/**
+ * Manda los avisos del día. Con `prueba` (un correo) no toca KV y envía TODOS
+ * los resúmenes a esa dirección, marcados [PRUEBA]; tampoco se salta el fin
+ * de semana, para poder probar cualquier día.
+ * Devuelve un resumen para el log o para la ruta de prueba.
+ */
+async function runPlanitAvisos(env, { prueba = null } = {}) {
+  const resumen = { dia: null, tareas: 0, personas: 0, enviados: 0, yaAvisados: 0, fallidos: 0, omitidos: [] };
+  try {
+    const hoy = hoyEnNuevaYork();
+    resumen.dia = hoy.iso;
+    if (hoy.finde && !prueba) {
+      logEvent('planit_avisos_finde', { dia: hoy.iso });
+      return resumen;
+    }
+    const limite = sumarDias(hoy.iso, PLANIT_DIAS_ANTES);
+
+    const token = await getFirestoreToken(env);
+
+    // Tope holgado (mediodía UTC del día siguiente al límite): las fechas se
+    // guardan a mediodía de Nueva York y se reparten por día más abajo.
+    const [a, m, d] = limite.split('-').map(Number);
+    const tope = new Date(Date.UTC(a, m - 1, d + 1, 12)).toISOString();
+
+    const tareas = await fsConsulta(env, token, {
+      from: [{ collectionId: 'tasks' }],
+      where: { compositeFilter: { op: 'AND', filters: [
+        { fieldFilter: { field: { fieldPath: 'status' }, op: 'IN',
+          value: { arrayValue: { values: [{ stringValue: 'pendiente' }, { stringValue: 'en_curso' }] } } } },
+        { fieldFilter: { field: { fieldPath: 'dueDate' }, op: 'LESS_THAN_OR_EQUAL', value: { timestampValue: tope } } },
+      ] } },
+    });
+
+    const proyectos = await fsConsulta(env, token, {
+      from: [{ collectionId: 'projects' }],
+      where: { fieldFilter: { field: { fieldPath: 'status' }, op: 'EQUAL', value: { stringValue: 'activo' } } },
+    });
+    const nombreProyecto = new Map(proyectos.map(p => [p.id, p.name || 'Proyecto']));
+
+    // Reparto por persona y por bloque. Fuera: sin responsable, sin fecha,
+    // de proyectos archivados o más allá del límite.
+    const porPersona = new Map();
+    for (const t of tareas) {
+      if (!t.assigneeEmail || !(t.dueDate instanceof Date) || !nombreProyecto.has(t.projectId)) continue;
+      const dia = isoEnNuevaYork(t.dueDate);
+      if (dia > limite) continue;
+      const bloque = dia < hoy.iso ? 'vencidas' : dia === hoy.iso ? 'hoy' : 'proximas';
+      const email = t.assigneeEmail.toLowerCase();
+      if (!porPersona.has(email)) porPersona.set(email, { vencidas: [], hoy: [], proximas: [] });
+      porPersona.get(email)[bloque].push({
+        titulo: t.title || '(sin título)', dia, proyecto: nombreProyecto.get(t.projectId),
+        projectId: t.projectId, prioridad: t.priority || 'media',
+      });
+      resumen.tareas++;
+    }
+
+    // Solo gente del equipo interno y activa: alguien que salió no recibe nada.
+    const fichas = await fsLeerVarios(env, token, [...porPersona.keys()].map(e => 'users/' + e));
+    const ficha = new Map(fichas.map(f => [f.id.toLowerCase(), f]));
+
+    for (const [email, bloques] of porPersona) {
+      const f = ficha.get(email);
+      const acceso = (f && f.access) || {};
+      if (!f || acceso.active === false || !PLANIT_ROLES_INTERNOS.includes(acceso.role)) {
+        resumen.omitidos.push(email);
+        continue;
+      }
+      resumen.personas++;
+
+      const marca = 'planit_aviso_' + email + '_' + hoy.iso;
+      if (!prueba && await env.HERO_KV.get(marca)) { resumen.yaAvisados++; continue; }
+
+      for (const b of Object.values(bloques)) {
+        b.sort((x, y) => x.dia.localeCompare(y.dia) || x.titulo.localeCompare(y.titulo, 'es'));
+      }
+      const nombre = (f.identity && f.identity.name) || email;
+      const correo = armarAvisoPlanit(nombre, bloques, hoy.iso);
+
+      const resp = await sendResend(env, {
+        from: PLANIT_FROM,
+        to: [prueba || email],
+        subject: (prueba ? '[PRUEBA · ' + email + '] ' : '') + correo.asunto,
+        html: correo.html,
+        text: correo.texto,
+      }, { event: 'planit_aviso', email, prueba: !!prueba });
+
+      if (resp && resp.ok) {
+        resumen.enviados++;
+        if (!prueba) await env.HERO_KV.put(marca, '1', { expirationTtl: 3 * 86400 });
+      } else {
+        resumen.fallidos++;
+      }
+      // Resend limita las peticiones por segundo; 20 correos seguidos lo rozan.
+      await new Promise(r => setTimeout(r, 600));
+    }
+
+    logEvent('planit_avisos_done', { ...resumen, omitidos: resumen.omitidos.length, prueba: !!prueba });
+  } catch (err) {
+    logError('planit_avisos_failed', err, { prueba: !!prueba });
+    resumen.error = err.message;
+  }
+  return resumen;
+}
+
+// ── Plantilla ──────────────────────────────────────────────────
+// Los correos del Hub se leen en Gmail (no se diseñan para Outlook). Reglas:
+// tablas y estilos en línea, sin SVG (Gmail lo quita) ni emojis, imágenes
+// desde el dominio del Hub. Colores de Hero Light (los mismos que EMAIL_DS
+// del Hub).
+function armarAvisoPlanit(nombre, bloques, hoyIso) {
+  const nV = bloques.vencidas.length, nH = bloques.hoy.length, nP = bloques.proximas.length;
+  const partes = [];
+  if (nV) partes.push(nV + (nV === 1 ? ' vencida' : ' vencidas'));
+  if (nH) partes.push(nH + ' para hoy');
+  if (nP) partes.push(nP + ' para los próximos días');
+  const asunto = 'Tus tareas de PlanIt: ' + partes.join(', ');
+  const primerNombre = String(nombre).split(' ')[0];
+  const manana = sumarDias(hoyIso, 1);
+
+  const COLOR = { vencidas: '#d64545', hoy: '#e8930c', proximas: '#06a3b6' };
+  const TITULO = { vencidas: 'Vencidas', hoy: 'Vencen hoy', proximas: 'Próximos días' };
+  const PRIO = { baja: 'Baja', media: 'Media', alta: 'Alta', urgente: 'Urgente' };
+
+  const cuando = (b, dia) => b === 'vencidas' ? 'Venció el ' + fechaUS(dia)
+    : b === 'hoy' ? 'Vence hoy'
+    : dia === manana ? 'Vence mañana, ' + fechaUS(dia) : 'Vence el ' + fechaUS(dia);
+
+  let cuerpo = '';
+  let texto = 'Hola, ' + primerNombre + '. Estas son tus tareas de PlanIt:\n';
+  for (const b of ['vencidas', 'hoy', 'proximas']) {
+    const lista = bloques[b];
+    if (!lista.length) continue;
+    texto += '\n' + TITULO[b].toUpperCase() + '\n';
+    cuerpo += '<tr><td style="padding:18px 32px 6px;font-family:Inter,Arial,sans-serif;font-size:11px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;color:' + COLOR[b] + ';">'
+      + esc(TITULO[b]) + ' (' + lista.length + ')</td></tr>';
+    for (const t of lista) {
+      const enlace = PLANIT_URL + '#proyecto/' + encodeURIComponent(t.projectId);
+      texto += '- ' + t.titulo + ' · ' + t.proyecto + ' · ' + cuando(b, t.dia) + '\n';
+      cuerpo += '<tr><td style="padding:4px 32px;">'
+        + '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>'
+        + '<td style="border-left:3px solid ' + COLOR[b] + ';background:#f0f4f8;padding:10px 14px;font-family:Inter,Arial,sans-serif;">'
+        +   '<a href="' + esc(enlace) + '" style="color:#0a3d4a;font-size:14px;font-weight:700;text-decoration:none;">' + esc(t.titulo) + '</a>'
+        +   '<div style="font-size:12px;color:#5a7480;margin-top:3px;">' + esc(t.proyecto) + ' &middot; ' + esc(cuando(b, t.dia)) + ' &middot; Prioridad ' + esc(PRIO[t.prioridad] || t.prioridad) + '</div>'
+        + '</td></tr></table></td></tr>';
+    }
+  }
+  texto += '\nAbre PlanIt: ' + PLANIT_URL + '#mis\n\nCorreo automático de Hero Hub. No respondas a este correo.';
+
+  const html = '<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>'
+    + '<body style="margin:0;padding:0;background:#f0f4f8;">'
+    + '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f0f4f8;"><tr><td align="center" style="padding:24px 12px;">'
+    + '<table role="presentation" width="560" cellpadding="0" cellspacing="0" border="0" style="max-width:560px;width:100%;background:#ffffff;border-radius:16px;">'
+    // Cabecera en dos celdas: el texto a la izquierda y el escudo a la derecha,
+    // centrado en vertical. Tabla y no flex: Gmail no respeta flex en todas
+    // sus versiones (la app del móvil, sobre todo).
+    +   '<tr><td bgcolor="#06a3b6" style="background:#06a3b6;border-radius:16px 16px 0 0;padding:22px 32px;">'
+    +     '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>'
+    +       '<td valign="middle" style="font-family:Inter,Arial,sans-serif;">'
+    +         '<div style="color:#ffffff;font-size:20px;font-weight:800;">Tus tareas de PlanIt</div>'
+    +         '<div style="color:#e8f4f6;font-size:13px;margin-top:4px;">' + esc(fechaUS(hoyIso)) + '</div>'
+    +       '</td>'
+    +       '<td valign="middle" align="right" width="44" style="width:44px;">'
+    +         '<img src="https://hub.heroinsuranceusa.com/images/logo-shield-only.png" width="40" height="40" alt="Hero" style="display:block;">'
+    +       '</td>'
+    +     '</tr></table>'
+    +   '</td></tr>'
+    +   '<tr><td style="padding:22px 32px 4px;font-family:Inter,Arial,sans-serif;font-size:14px;color:#0a3d4a;line-height:1.5;">'
+    +     'Hola, ' + esc(primerNombre) + '. Esto es lo que tienes pendiente:'
+    +   '</td></tr>'
+    +   cuerpo
+    +   '<tr><td style="padding:24px 32px 8px;"><table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>'
+    +     '<td bgcolor="#06a3b6" style="background:#06a3b6;border-radius:14px;padding:12px 26px;">'
+    +       '<a href="' + PLANIT_URL + '#mis" style="color:#ffffff;font-family:Inter,Arial,sans-serif;font-size:14px;font-weight:700;text-decoration:none;">Abrir mis tareas</a>'
+    +     '</td></tr></table></td></tr>'
+    +   '<tr><td style="padding:14px 32px 24px;font-family:Inter,Arial,sans-serif;font-size:11px;color:#5a7480;line-height:1.5;">'
+    +     'Correo automático de Hero Hub, de lunes a viernes, solo cuando tienes tareas pendientes. No respondas a este correo.'
+    +   '</td></tr>'
+    + '</table></td></tr></table></body></html>';
+
+  return { asunto, html, texto };
 }
 
 function buildLicReminderEmail(lic, days, urgency) {
@@ -2885,7 +3181,10 @@ async function getGoogleToken(env) {
 // dominio autoriza varios scopes, pero pedirlos juntos obligaría a que TODOS
 // estén dados de alta en Google Admin, y un scope nuevo sin autorizar tumbaría
 // también la gestión de usuarios. Separados, si falla uno, falla solo lo suyo.
-async function getGoogleTokenFor(env, scope, cacheKey) {
+// `comoAdmin: false` pide el token en nombre de la propia cuenta de servicio,
+// sin delegación de dominio: lo usa Firestore (avisos de PlanIt), donde el
+// permiso es su rol de IAM y no el de it@.
+async function getGoogleTokenFor(env, scope, cacheKey, { comoAdmin = true } = {}) {
   const cached = await getCachedToken(env, cacheKey);
   if (cached) return cached;
   const clientEmail = env.GOOGLE_CLIENT_EMAIL;
@@ -2893,10 +3192,9 @@ async function getGoogleTokenFor(env, scope, cacheKey) {
   const adminEmail  = env.GOOGLE_ADMIN_EMAIL;
   const now = Math.floor(Date.now() / 1000);
   const b64 = obj => btoa(JSON.stringify(obj)).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
-  const signingInput = b64({ alg:'RS256', typ:'JWT' }) + '.' + b64({
-    iss: clientEmail, sub: adminEmail, scope,
-    aud: 'https://oauth2.googleapis.com/token', iat: now, exp: now + 3600,
-  });
+  const claims = { iss: clientEmail, scope, aud: 'https://oauth2.googleapis.com/token', iat: now, exp: now + 3600 };
+  if (comoAdmin) claims.sub = adminEmail;
+  const signingInput = b64({ alg:'RS256', typ:'JWT' }) + '.' + b64(claims);
   const keyData = privateKey.replace('-----BEGIN PRIVATE KEY-----','').replace('-----END PRIVATE KEY-----','').replace(/\s/g,'');
   const binaryKey = Uint8Array.from(atob(keyData), c => c.charCodeAt(0));
   const cryptoKey = await crypto.subtle.importKey('pkcs8', binaryKey.buffer, { name:'RSASSA-PKCS1-v1_5', hash:'SHA-256' }, false, ['sign']);
