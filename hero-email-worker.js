@@ -271,6 +271,43 @@ export default {
       }
     }
 
+    // ── POST /planit/mencion — correo a quien mencionan en un comentario ──
+    // Lo llama el Hub (js/planit-tarea.js) justo después de guardar un
+    // comentario con "@Nombre". Auth: Firebase ID token del dominio, como
+    // /conexion/quien-soy. No se fía del navegador: lee el comentario de
+    // Firestore y comprueba autor, antigüedad y destinatarios
+    // (enviarMencionesPlanit, más abajo).
+    if (request.method === 'POST' && path === '/planit/mencion') {
+      if (bodyTooLarge(request)) return json({ error: 'Body demasiado grande' }, 413, cors);
+      // 30/min por IP: un comentario es una llamada. Más es un bucle.
+      if (!(await rateLimit(env, 'planit-mencion', clientIp(request), 30, 60))) {
+        return json({ error: 'Demasiados avisos seguidos. Espera un minuto.' }, 429, cors);
+      }
+      try {
+        const { idToken, taskId, commentId } = (await request.json()) || {};
+        if (!idToken || !taskId || !commentId) return json({ error: 'Faltan datos' }, 400, cors);
+
+        let claims;
+        try {
+          claims = await verifyFirebaseIdToken(idToken, env);
+        } catch (err) {
+          logError('planit_mencion_token_invalid', err);
+          return json({ error: 'Token inválido o expirado' }, 401, cors);
+        }
+        const autor = String(claims.email || '').toLowerCase();
+        if (!autor.endsWith('@heroinsuranceusa.com')) {
+          return json({ error: 'Solo cuentas del dominio corporativo' }, 403, cors);
+        }
+
+        const resumen = await enviarMencionesPlanit(env, { autor, taskId: String(taskId), commentId: String(commentId) });
+        return json({ ok: true, ...resumen }, 200, cors);
+      } catch (err) {
+        if (err && err.status) return json({ error: err.message }, err.status, cors);
+        logError('planit_mencion_failed', err, { path, method: request.method });
+        return json({ error: 'Error interno del servidor' }, 500, cors);
+      }
+    }
+
     // ── POST /conexion/registrar — deja constancia de la entrada al Hub ──
     // Lo llama el Hub al iniciar sesión (js/auth.js). Sin botón que pulsar:
     // el dato es el mismo que ya da /conexion/quien-soy, aquí además se guarda.
@@ -2535,6 +2572,127 @@ function armarAvisoPlanit(nombre, bloques, hoyIso) {
     + '</table></td></tr></table></body></html>';
 
   return { asunto, html, texto };
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  Menciones de PlanIt (Hero Hub, v2.80.0)
+// ═══════════════════════════════════════════════════════════════
+// Cuando alguien escribe "@Nombre" en un comentario, el Hub guarda el
+// comentario con `menciones` (correos) y llama a POST /planit/mencion. Aquí
+// NO se confía en lo que manda el navegador: se lee el comentario de
+// Firestore y solo se avisa si existe, es de quien llama, es reciente y cada
+// mencionado es del equipo interno y activo. Un correo por comentario y
+// persona (marca en KV).
+
+const PLANIT_MENCION_MINUTOS = 15;   // un comentario más viejo ya no avisa
+
+async function enviarMencionesPlanit(env, { autor, taskId, commentId }) {
+  const resumen = { enviados: 0, yaAvisados: 0, omitidos: 0 };
+  if (!/^[A-Za-z0-9_-]{1,64}$/.test(taskId) || !/^[A-Za-z0-9_-]{1,64}$/.test(commentId)) {
+    throw Object.assign(new Error('Identificador no válido'), { status: 400 });
+  }
+  const token = await getFirestoreToken(env);
+
+  const [comentario] = await fsLeerVarios(env, token, ['tasks/' + taskId + '/comments/' + commentId]);
+  if (!comentario) throw Object.assign(new Error('El comentario no existe'), { status: 404 });
+  if (String(comentario.authorEmail || '').toLowerCase() !== autor) {
+    throw Object.assign(new Error('El comentario no es tuyo'), { status: 403 });
+  }
+  const creado = comentario.createdAt instanceof Date ? comentario.createdAt.getTime() : 0;
+  if (Date.now() - creado > PLANIT_MENCION_MINUTOS * 60 * 1000) {
+    throw Object.assign(new Error('El comentario es demasiado antiguo para avisar'), { status: 409 });
+  }
+
+  const destinatarios = [...new Set((comentario.menciones || [])
+    .map(e => String(e || '').toLowerCase())
+    .filter(e => e && e !== autor))].slice(0, 10);
+  if (!destinatarios.length) return resumen;
+
+  const [tarea] = await fsLeerVarios(env, token, ['tasks/' + taskId]);
+  if (!tarea) throw Object.assign(new Error('La tarea no existe'), { status: 404 });
+  const [proyecto] = await fsLeerVarios(env, token, ['projects/' + tarea.projectId]);
+  const fichas = await fsLeerVarios(env, token, [autor, ...destinatarios].map(e => 'users/' + e));
+  const ficha = new Map(fichas.map(f => [f.id.toLowerCase(), f]));
+  const nombreDe = (email) => (ficha.get(email)?.identity?.name) || email;
+
+  for (const email of destinatarios) {
+    const f = ficha.get(email);
+    const acceso = (f && f.access) || {};
+    // Mismo criterio que cargarEquipo() del Hub: activo, del equipo y no excluido.
+    if (!f || acceso.active === false || !PLANIT_ROLES_INTERNOS.includes(acceso.role) || (f.meta && f.meta.excluded === true)) { resumen.omitidos++; continue; }
+
+    const marca = 'planit_mencion_' + commentId + '_' + email;
+    if (await env.HERO_KV.get(marca)) { resumen.yaAvisados++; continue; }
+
+    const correo = armarMencionPlanit({
+      autor: nombreDe(autor),
+      destinatario: nombreDe(email),
+      tarea: tarea.title || '(sin título)',
+      proyecto: (proyecto && proyecto.name) || 'PlanIt',
+      texto: comentario.text || '',
+      enlace: PLANIT_URL + '#tarea/' + encodeURIComponent(taskId),
+    });
+    const resp = await sendResend(env, {
+      from: PLANIT_FROM,
+      to: [email],
+      subject: correo.asunto,
+      html: correo.html,
+      text: correo.texto,
+    }, { event: 'planit_mencion', email, taskId });
+
+    if (resp && resp.ok) {
+      resumen.enviados++;
+      await env.HERO_KV.put(marca, '1', { expirationTtl: 7 * 86400 });
+    } else {
+      resumen.omitidos++;
+    }
+  }
+  logEvent('planit_mencion_done', { ...resumen, taskId });
+  return resumen;
+}
+
+// Mismas reglas de correo que los avisos diarios (Gmail: tablas, estilos en
+// línea, sin SVG ni emojis). Los saltos de línea del comentario se pasan a
+// <br> con split/join: un regex /\n/ en strings largos falla en Cloudflare.
+function armarMencionPlanit({ autor, destinatario, tarea, proyecto, texto, enlace }) {
+  const primerNombre = String(destinatario).split(' ')[0];
+  const corto = texto.length > 600 ? texto.slice(0, 600) + '…' : texto;
+  const asunto = autor + ' te mencionó en "' + (tarea.length > 60 ? tarea.slice(0, 60) + '…' : tarea) + '"';
+
+  const html = '<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>'
+    + '<body style="margin:0;padding:0;background:#f0f4f8;">'
+    + '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f0f4f8;"><tr><td align="center" style="padding:24px 12px;">'
+    + '<table role="presentation" width="560" cellpadding="0" cellspacing="0" border="0" style="max-width:560px;width:100%;background:#ffffff;border-radius:16px;">'
+    +   '<tr><td bgcolor="#06a3b6" style="background:#06a3b6;border-radius:16px 16px 0 0;padding:22px 32px;">'
+    +     '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>'
+    +       '<td valign="middle" style="font-family:Inter,Arial,sans-serif;">'
+    +         '<div style="color:#ffffff;font-size:20px;font-weight:800;">Te mencionaron en PlanIt</div>'
+    +         '<div style="color:#e8f4f6;font-size:13px;margin-top:4px;">' + esc(proyecto) + '</div>'
+    +       '</td>'
+    +       '<td valign="middle" align="right" width="44" style="width:44px;">'
+    +         '<img src="https://hub.heroinsuranceusa.com/images/logo-shield-only.png" width="40" height="40" alt="Hero" style="display:block;">'
+    +       '</td>'
+    +     '</tr></table>'
+    +   '</td></tr>'
+    +   '<tr><td style="padding:22px 32px 8px;font-family:Inter,Arial,sans-serif;font-size:14px;color:#0a3d4a;line-height:1.5;">'
+    +     'Hola, ' + esc(primerNombre) + '. <strong>' + esc(autor) + '</strong> te mencionó en la tarea <strong>' + esc(tarea) + '</strong>:'
+    +   '</td></tr>'
+    +   '<tr><td style="padding:6px 32px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>'
+    +     '<td style="border-left:3px solid #06a3b6;background:#f0f4f8;padding:12px 16px;font-family:Inter,Arial,sans-serif;font-size:14px;color:#0a3d4a;line-height:1.55;">'
+    +       esc(corto).split('\n').join('<br>')
+    +     '</td></tr></table></td></tr>'
+    +   '<tr><td style="padding:22px 32px 8px;"><table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>'
+    +     '<td bgcolor="#06a3b6" style="background:#06a3b6;border-radius:14px;padding:12px 26px;">'
+    +       '<a href="' + esc(enlace) + '" style="color:#ffffff;font-family:Inter,Arial,sans-serif;font-size:14px;font-weight:700;text-decoration:none;">Abrir la tarea</a>'
+    +     '</td></tr></table></td></tr>'
+    +   '<tr><td style="padding:14px 32px 24px;font-family:Inter,Arial,sans-serif;font-size:11px;color:#5a7480;line-height:1.5;">'
+    +     'Correo automático de Hero Hub. Para responder, comenta en la tarea: no respondas a este correo.'
+    +   '</td></tr>'
+    + '</table></td></tr></table></body></html>';
+
+  const texto_ = 'Hola, ' + primerNombre + '. ' + autor + ' te mencionó en la tarea "' + tarea + '" (' + proyecto + '):\n\n'
+    + corto + '\n\nAbrir la tarea: ' + enlace + '\n\nCorreo automático de Hero Hub. Para responder, comenta en la tarea.';
+  return { asunto, html, texto: texto_ };
 }
 
 function buildLicReminderEmail(lic, days, urgency) {
