@@ -2439,16 +2439,22 @@ async function runPlanitAvisos(env, { prueba = null } = {}) {
     // de proyectos archivados o más allá del límite.
     const porPersona = new Map();
     for (const t of tareas) {
-      if (!t.assigneeEmail || !(t.dueDate instanceof Date) || !nombreProyecto.has(t.projectId)) continue;
+      // Varios responsables (v2.82.0): cada uno recibe la tarea en su correo.
+      // Una tarea sin migrar solo tiene assigneeEmail.
+      const responsables = [...new Set((Array.isArray(t.assignees) && t.assignees.length
+        ? t.assignees : (t.assigneeEmail ? [t.assigneeEmail] : []))
+        .map(e => String(e || '').toLowerCase()).filter(Boolean))];
+      if (!responsables.length || !(t.dueDate instanceof Date) || !nombreProyecto.has(t.projectId)) continue;
       const dia = isoEnNuevaYork(t.dueDate);
       if (dia > limite) continue;
       const bloque = dia < hoy.iso ? 'vencidas' : dia === hoy.iso ? 'hoy' : 'proximas';
-      const email = t.assigneeEmail.toLowerCase();
-      if (!porPersona.has(email)) porPersona.set(email, { vencidas: [], hoy: [], proximas: [] });
-      porPersona.get(email)[bloque].push({
-        titulo: t.title || '(sin título)', dia, proyecto: nombreProyecto.get(t.projectId),
-        projectId: t.projectId, prioridad: t.priority || 'media',
-      });
+      for (const email of responsables) {
+        if (!porPersona.has(email)) porPersona.set(email, { vencidas: [], hoy: [], proximas: [] });
+        porPersona.get(email)[bloque].push({
+          titulo: t.title || '(sin título)', dia, proyecto: nombreProyecto.get(t.projectId),
+          projectId: t.projectId, prioridad: t.priority || 'media',
+        });
+      }
       resumen.tareas++;
     }
 
