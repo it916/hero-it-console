@@ -2314,6 +2314,10 @@ const PLANIT_FROM = 'Hero PlanIt <hub@heroinsuranceusa.com>';
 const PLANIT_ROLES_INTERNOS = ['admin', 'interno', 'it'];
 const PLANIT_DIAS_ANTES = 2;          // "próximos días" = mañana y pasado mañana
 const PLANIT_TZ = 'America/New_York';
+// Estados que entran en el aviso diario (v2.81.0). Misma lista que los
+// `aviso: true` de ESTADOS en js/planit-datos.js del Hub: En espera, Detenido
+// y Postergado están pausados a propósito y no se avisan.
+const PLANIT_ESTADOS_AVISO = ['pendiente', 'en_curso', 'en_revision'];
 
 function firestoreBase(env) {
   return 'https://firestore.googleapis.com/v1/projects/' + env.FIREBASE_PROJECT_ID + '/databases/(default)/documents';
@@ -2420,7 +2424,7 @@ async function runPlanitAvisos(env, { prueba = null } = {}) {
       from: [{ collectionId: 'tasks' }],
       where: { compositeFilter: { op: 'AND', filters: [
         { fieldFilter: { field: { fieldPath: 'status' }, op: 'IN',
-          value: { arrayValue: { values: [{ stringValue: 'pendiente' }, { stringValue: 'en_curso' }] } } } },
+          value: { arrayValue: { values: PLANIT_ESTADOS_AVISO.map(v => ({ stringValue: v })) } } } },
         { fieldFilter: { field: { fieldPath: 'dueDate' }, op: 'LESS_THAN_OR_EQUAL', value: { timestampValue: tope } } },
       ] } },
     });
