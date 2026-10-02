@@ -109,7 +109,7 @@ export default {
         }
         const userEmail = String(claims.email || '').toLowerCase();
         if (!IT_EMAILS.has(userEmail)) {
-          return json({ error: 'No autorizado para IT Console' }, 403, cors);
+          return json({ error: 'No autorizado para FixIt' }, 403, cors);
         }
         // NOTA: mintSession emite un HERO_TOKEN con `email` en el payload y
         // verifySession lo rechaza si `email !== ALLOWED_EMAIL`. Como IT_EMAILS
@@ -1308,13 +1308,13 @@ export default {
           }
           const html = link
             ? buildEmailFor(auth, link)
-            : buildEmailFor(auth, '#').replace('✓ Autorizar solicitud', 'Autoriza desde la Hero IT Console');
+            : buildEmailFor(auth, '#').replace('✓ Autorizar solicitud', 'Autoriza desde FixIt');
           return sendResend(env, {
             from: 'Fernando Romero <it@heroinsuranceusa.com>',
             to:   [auth.email],
             subject: subject,
             html:    html,
-            text:    textoPlano + '\n\nAutorizar: ' + (link || '(usa la Hero IT Console)'),
+            text:    textoPlano + '\n\nAutorizar: ' + (link || '(usa FixIt)'),
           }, { event: 'solicitud_cuenta_to_autorizador', autorizador: auth.email, id: solicitud.id });
         });
         await Promise.all(sends);
@@ -1532,13 +1532,13 @@ export default {
           }
           const html = link
             ? buildEmailFor(auth, link)
-            : buildEmailFor(auth, '#').replace('✓ Autorizar solicitud', 'Autoriza desde la Hero IT Console');
+            : buildEmailFor(auth, '#').replace('✓ Autorizar solicitud', 'Autoriza desde FixIt');
           return sendResend(env, {
             from: 'Fernando Romero <it@heroinsuranceusa.com>',
             to:   [auth.email],
             subject: subject,
             html:    html,
-            text:    textoPlano + '\n\nAutorizar: ' + (link || '(usa la Hero IT Console)'),
+            text:    textoPlano + '\n\nAutorizar: ' + (link || '(usa FixIt)'),
           }, { event: 'solicitud_cuenta_reenviada_autorizador', autorizador: auth.email, id: solicitud.id });
         });
         await Promise.all(sends);
@@ -1808,7 +1808,7 @@ export default {
         };
         const impactoLabel = impactoLabelMap[impacto] || impacto;
         await sendResend(env, {
-            from: 'Hero IT Console <it@heroinsuranceusa.com>',
+            from: 'Hero FixIt <it@heroinsuranceusa.com>',
             to: ['it@heroinsuranceusa.com'],
             subject: '[' + ticketId + '] ' + asunto,
             html: '<div style="font-family:Arial,sans-serif;max-width:600px;">'
@@ -2264,7 +2264,7 @@ async function runLicenciaReminders(env) {
                     : days === 1 ? 'Vence mañana'
                     : 'Vence en ' + days + ' días';
       const resp = await sendResend(env, {
-        from: 'Hero IT Console <it@heroinsuranceusa.com>',
+        from: 'Hero FixIt <it@heroinsuranceusa.com>',
         to:   ['it@heroinsuranceusa.com'],
         subject: '[' + urgency.toUpperCase() + '] Licencia: ' + lic.nombre,
         html: buildLicReminderEmail(lic, days, urgency),
@@ -2899,9 +2899,9 @@ function buildLicReminderEmail(lic, days, urgency) {
     +   '</div>'
     +   (lic.costo > 0 ? '<div style="font-size:13px;color:#444;">💵 Costo: $' + lic.costo + '/mes (' + esc(lic.tipoSub || 'mensual') + ')</div>' : '')
     +   (lic.usuarios > 0 ? '<div style="font-size:13px;color:#444;margin-top:4px;">👤 ' + esc(String(lic.usuarios)) + ' usuarios</div>' : '')
-    +   '<p style="font-size:13px;color:#666;line-height:1.6;margin-top:18px;">Revisa en la Hero IT Console si toca renovar o cancelar.</p>'
+    +   '<p style="font-size:13px;color:#666;line-height:1.6;margin-top:18px;">Revisa en FixIt si toca renovar o cancelar.</p>'
     + '</div>'
-    + '<div style="padding:12px 32px;background:#f0f4f8;text-align:center;"><p style="margin:0;font-size:10px;color:#aaa;">Hero IT Console · Recordatorio automático</p></div>'
+    + '<div style="padding:12px 32px;background:#f0f4f8;text-align:center;"><p style="margin:0;font-size:10px;color:#aaa;">Hero FixIt · Recordatorio automático</p></div>'
     + '</div></div>';
 }
 
