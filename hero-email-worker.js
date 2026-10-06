@@ -3704,6 +3704,9 @@ async function fetchWorkspaceDevicesData(env, { fresh = false } = {}) {
     cifrado:      d.encryptionState || '',
     comprometido: d.compromisedState === 'COMPROMISED',
     creado:       d.createTime || null,
+    // El mismo createTime en ISO estándar (Google lo da con nanosegundos):
+    // FixIt lo usa para la alerta de equipo nuevo (Hub v2.89.0).
+    alta:         d.createTime && !isNaN(Date.parse(d.createTime)) ? new Date(d.createTime).toISOString() : null,
     ultimaSync:   d.lastSyncTime || null,
     usuarios:     usuariosPorEquipo[d.name] || [],
   }));
