@@ -2682,18 +2682,8 @@ function fechaHoraUS(fecha) {
   return new Intl.DateTimeFormat('en-US', { timeZone: PLANIT_TZ, month: '2-digit', day: '2-digit', year: 'numeric',
     hour: 'numeric', minute: '2-digit', hour12: true }).format(fecha).replace(',', '');
 }
-// "14:30" (input type=time del Hub) → "2:30 PM".
-function hora12(hhmm) {
-  const m = String(hhmm || '').match(/^(\d{1,2}):(\d{2})$/);
-  if (!m) return hhmm || '';
-  const h = Number(m[1]);
-  return ((h % 12) || 12) + ':' + m[2] + ' ' + (h < 12 ? 'AM' : 'PM');
-}
-function duracionTexto(min) {
-  if (!(min >= 0)) return '';
-  const h = Math.floor(min / 60), m = min % 60;
-  return h ? h + ' h' + (m ? ' ' + m + ' min' : '') : m + ' min';
-}
+// hora12() y duracionTexto() son las de los avisos sueltos de Reportar (más
+// abajo): el resumen escribe horas y duraciones igual que esos correos.
 
 async function consultaPorFecha(env, token, coleccion, desde, hasta) {
   return fsConsulta(env, token, {
