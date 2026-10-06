@@ -42,5 +42,11 @@ FIREBASE_PROJECT_ID = "hero-hub-de520"
 # del worker, que revisa licencias por vencer (30/7/1/0 días) y manda un
 # correo recordatorio a IT. Marca cada combinación (lic + período) como
 # avisada en KV para no repetir en el mismo ciclo.
+#
+# Viernes 20:00 y 21:00 UTC: resumen semanal de Reportar para Broker Support
+# a las 4 PM de Nueva York. Son dos por el horario de verano (4 PM EDT =
+# 20:00 UTC, 4 PM EST = 21:00 UTC); solo envía el que cae a las 16 h. Deben
+# coincidir con RESUMEN_REPORTES_CRONS del worker, que los separa del diario.
+# FRI con nombre: en Cloudflare el 1 es el domingo, no el lunes.
 [triggers]
-crons = ["0 13 * * *"]
+crons = ["0 13 * * *", "0 20 * * FRI", "0 21 * * FRI"]

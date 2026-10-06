@@ -546,6 +546,19 @@ export default {
       return json(resumen, resumen.error ? 500 : 200, cors);
     }
 
+    // ── POST /reportes/resumen/prueba — ensayo del resumen semanal ─
+    // Manda a quien la llama el resumen de Reportar de los últimos 7 días,
+    // marcado [PRUEBA], sin tocar la marca de KV: el envío del viernes a
+    // Broker Support no cambia. Detrás del gate: solo IT. Desde la consola
+    // del navegador del IT Console:
+    //   await (await authFetch(WORKER_URL + '/reportes/resumen/prueba', { method: 'POST' })).json()
+    if (request.method === 'POST' && path === '/reportes/resumen/prueba') {
+      const quien = await requireAuth(request, env);
+      if (!quien) return json({ error: 'No autorizado' }, 401, cors);
+      const resumen = await runResumenReportes(env, { prueba: quien });
+      return json(resumen, resumen.error ? 500 : 200, cors);
+    }
+
     // ── GET /stats — counts ligeros para el polling del dashboard ─
     // Cache 2 min en KV (1 get vs 2 list). Las mutaciones de ticket/solicitud
     // invalidan 'cache_stats' para que el dashboard refleje cambios YA.
@@ -2233,7 +2246,13 @@ export default {
   // licencia con `vencimiento` y, si el día actual coincide con 30/7/1/0
   // días antes del vencimiento, manda un email a IT — una sola vez por
   // (licencia, período) usando marcas en KV con TTL 32 días.
+  // Cada cron hace solo lo suyo: sin separarlos, el resumen de los viernes
+  // dispararía también los avisos diarios dos veces más (v2.88.0).
   async scheduled(event, env, ctx) {
+    if (RESUMEN_REPORTES_CRONS.includes(event.cron)) {
+      ctx.waitUntil(runResumenReportes(env, { desdeCron: true }));
+      return;
+    }
     ctx.waitUntil(runLicenciaReminders(env));
     ctx.waitUntil(limpiarAdjuntosHuerfanos(env));
     ctx.waitUntil(runPlanitAvisos(env));
@@ -2613,6 +2632,246 @@ function armarAvisoPlanit(nombre, bloques, hoyIso) {
     +     '</td></tr></table></td></tr>'
     +   '<tr><td style="padding:14px 32px 24px;font-family:Inter,Arial,sans-serif;font-size:11px;color:#5a7480;line-height:1.5;">'
     +     'Correo automático de Hero Hub, de lunes a viernes, solo cuando tienes tareas pendientes. No respondas a este correo.'
+    +   '</td></tr>'
+    + '</table></td></tr></table></body></html>';
+
+  return { asunto, html, texto };
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  Resumen semanal de Reportar (Hero Hub, v2.88.0)
+// ═══════════════════════════════════════════════════════════════
+// Cada viernes a las 4:00 PM de Nueva York, un correo a Broker Support
+// (Ramón) con lo que cada persona del equipo interno avisó desde el tile
+// "Reportar" en los últimos 7 días: ausencias (colección `attendance`,
+// type "Ausencia") y retrasos, cortes de luz y caídas de internet
+// (colección `reports`). Cada aviso ya le llega suelto en el momento; esto
+// es la foto de la semana, persona por persona.
+//
+// La ventana es de viernes 4 PM a viernes 4 PM, no de lunes a viernes: lo
+// que se avisa el fin de semana tiene que entrar en algún resumen.
+//
+// Cron: hay dos (20:00 y 21:00 UTC del viernes) porque las 4 PM de Nueva
+// York caen a una u otra hora según el horario de verano. Solo envía el que
+// cae a las 16 h en Nueva York, y una marca en KV impide repetir la semana.
+
+const RESUMEN_REPORTES_PARA = ['brokersupport@heroinsuranceusa.com'];
+const RESUMEN_REPORTES_FROM = 'Hero Hub <hub@heroinsuranceusa.com>';
+const RESUMEN_REPORTES_CRONS = ['0 20 * * FRI', '0 21 * * FRI'];
+const RESUMEN_REPORTES_HORA = 16;     // 4 PM en Nueva York
+const RESUMEN_REPORTES_DIAS = 7;
+
+// Tipos que entran, en el orden en que se enseñan los totales. Los "-fin"
+// de `reports` (la luz o el internet volvieron) no salen como fila propia:
+// completan con su duración el corte que cierran.
+const RESUMEN_TIPOS = {
+  'ausencia':        { label: 'Ausencia',          plural: 'ausencias' },
+  'retraso':         { label: 'Retraso',           plural: 'retrasos' },
+  'corte-electrico': { label: 'Corte de luz',      plural: 'cortes de luz' },
+  'falla-internet':  { label: 'Caída de internet', plural: 'caídas de internet' },
+};
+const RESUMEN_FIN = { 'corte-electrico-fin': 'corte-electrico', 'falla-internet-fin': 'falla-internet' };
+
+function horaNuevaYork(fecha) {
+  const p = {};
+  for (const x of new Intl.DateTimeFormat('en-US', { timeZone: PLANIT_TZ, hour: 'numeric', hourCycle: 'h23', weekday: 'short' }).formatToParts(fecha)) p[x.type] = x.value;
+  return { hora: Number(p.hour), dia: p.weekday };
+}
+// "MM/DD/YYYY 4:05 PM" en Nueva York.
+function fechaHoraUS(fecha) {
+  return new Intl.DateTimeFormat('en-US', { timeZone: PLANIT_TZ, month: '2-digit', day: '2-digit', year: 'numeric',
+    hour: 'numeric', minute: '2-digit', hour12: true }).format(fecha).replace(',', '');
+}
+// "14:30" (input type=time del Hub) → "2:30 PM".
+function hora12(hhmm) {
+  const m = String(hhmm || '').match(/^(\d{1,2}):(\d{2})$/);
+  if (!m) return hhmm || '';
+  const h = Number(m[1]);
+  return ((h % 12) || 12) + ':' + m[2] + ' ' + (h < 12 ? 'AM' : 'PM');
+}
+function duracionTexto(min) {
+  if (!(min >= 0)) return '';
+  const h = Math.floor(min / 60), m = min % 60;
+  return h ? h + ' h' + (m ? ' ' + m + ' min' : '') : m + ' min';
+}
+
+async function consultaPorFecha(env, token, coleccion, desde, hasta) {
+  return fsConsulta(env, token, {
+    from: [{ collectionId: coleccion }],
+    where: { compositeFilter: { op: 'AND', filters: [
+      { fieldFilter: { field: { fieldPath: 'timestamp' }, op: 'GREATER_THAN_OR_EQUAL', value: { timestampValue: desde.toISOString() } } },
+      { fieldFilter: { field: { fieldPath: 'timestamp' }, op: 'LESS_THAN', value: { timestampValue: hasta.toISOString() } } },
+    ] } },
+  });
+}
+
+/**
+ * Arma y manda el resumen. Desde el cron (`desdeCron`) solo envía el viernes
+ * a las 16 h de Nueva York y una vez por semana. Con `prueba` (un correo) lo
+ * manda a esa dirección marcado [PRUEBA], con los últimos 7 días hasta ahora,
+ * cualquier día y sin tocar KV.
+ */
+async function runResumenReportes(env, { prueba = null, desdeCron = false } = {}) {
+  const resumen = { desde: null, hasta: null, personas: 0, conReportes: 0, reportes: 0, enviado: false };
+  try {
+    const hasta = new Date();
+    if (desdeCron && !prueba) {
+      const ny = horaNuevaYork(hasta);
+      if (ny.dia !== 'Fri' || ny.hora !== RESUMEN_REPORTES_HORA) return resumen;
+    }
+    const marca = 'resumen_reportes_' + isoEnNuevaYork(hasta);
+    if (!prueba && await env.HERO_KV.get(marca)) { resumen.yaEnviado = true; return resumen; }
+
+    const desde = new Date(hasta.getTime() - RESUMEN_REPORTES_DIAS * 86400000);
+    resumen.desde = desde.toISOString();
+    resumen.hasta = hasta.toISOString();
+
+    const token = await getFirestoreToken(env);
+    const [usuarios, asistencia, reportes] = await Promise.all([
+      fsConsulta(env, token, { from: [{ collectionId: 'users' }] }),
+      consultaPorFecha(env, token, 'attendance', desde, hasta),
+      consultaPorFecha(env, token, 'reports', desde, hasta),
+    ]);
+
+    // Equipo interno activo, salvo las cuentas con la asistencia apagada
+    // (admin → Usuarios): así quedan fuera buzones como it@ o hub@.
+    const personas = new Map();
+    for (const u of usuarios) {
+      const acceso = u.access || {};
+      if (acceso.active === false || !PLANIT_ROLES_INTERNOS.includes(acceso.role) || acceso.trackAttendance === false) continue;
+      const email = u.id.toLowerCase();
+      personas.set(email, { email, nombre: (u.identity && u.identity.name) || email, items: [] });
+    }
+    // Quien avisó algo aparece aunque no esté en la lista: ningún aviso se pierde.
+    const de = (email, nombre) => {
+      const e = String(email || '').toLowerCase();
+      if (!personas.has(e)) personas.set(e, { email: e, nombre: nombre || e, items: [], fueraDeLista: true });
+      return personas.get(e);
+    };
+
+    for (const a of asistencia) {
+      if (a.type !== 'Ausencia') continue;
+      de(a.email, a.name).items.push({ tipo: 'ausencia', cuando: a.timestamp,
+        texto: (a.absenceDate ? 'Falta el ' + a.absenceDate : 'Sin fecha') + (a.reason ? ' · "' + a.reason + '"' : '') });
+    }
+
+    // Cierre de cada corte (luz o internet volvieron) dentro de la ventana,
+    // por id del corte que cierra.
+    const cierres = new Map();
+    for (const r of reportes) if (RESUMEN_FIN[r.type] && r.cierra) cierres.set(r.cierra, r);
+
+    const cortesVistos = new Set();
+    for (const r of reportes) {
+      if (r.type === 'retraso') {
+        de(r.email, r.name).items.push({ tipo: 'retraso', cuando: r.timestamp,
+          texto: (r.fecha || '') + (r.llegadaEstimada ? ' · llega a las ' + hora12(r.llegadaEstimada) : '') + (r.detalle ? ' · "' + r.detalle + '"' : '') });
+      } else if (r.type === 'corte-electrico' || r.type === 'falla-internet') {
+        cortesVistos.add(r.id);
+        const inicio = r.ocurrido instanceof Date ? r.ocurrido : r.timestamp;
+        const fin = cierres.get(r.id);
+        const dur = fin && fin.duracionMin >= 0 ? duracionTexto(fin.duracionMin) : '';
+        de(r.email, r.name).items.push({ tipo: r.type, cuando: inicio, minutos: fin ? fin.duracionMin : null, sinCierre: !fin,
+          texto: (inicio instanceof Date ? fechaHoraUS(inicio) : '') + (fin ? (dur ? ' · ' + dur : '') : ' · sin aviso de que volvió') });
+      }
+    }
+    // Un corte de la semana anterior que se cerró en esta entra por su cierre.
+    for (const [id, fin] of cierres) {
+      if (cortesVistos.has(id)) continue;
+      const cuandoFin = fin.ocurrido instanceof Date ? fin.ocurrido : fin.timestamp;
+      const inicio = cuandoFin instanceof Date && fin.duracionMin >= 0 ? new Date(cuandoFin.getTime() - fin.duracionMin * 60000) : null;
+      de(fin.email, fin.name).items.push({ tipo: RESUMEN_FIN[fin.type], cuando: inicio || cuandoFin, minutos: fin.duracionMin,
+        texto: (inicio ? fechaHoraUS(inicio) : 'Empezó la semana anterior') + ' · ' + (duracionTexto(fin.duracionMin) || 'duración desconocida') });
+    }
+
+    // Primero quien reportó algo, luego el resto; por nombre dentro de cada grupo.
+    const lista = [...personas.values()].sort((x, y) =>
+      (y.items.length > 0) - (x.items.length > 0) || x.nombre.localeCompare(y.nombre, 'es'));
+    for (const p of lista) p.items.sort((x, y) => (x.cuando || 0) - (y.cuando || 0));
+    resumen.personas = lista.length;
+    resumen.conReportes = lista.filter(p => p.items.length).length;
+    resumen.reportes = lista.reduce((n, p) => n + p.items.length, 0);
+
+    const correo = armarResumenReportes(lista, desde, hasta);
+    const resp = await sendResend(env, {
+      from: RESUMEN_REPORTES_FROM,
+      to: prueba ? [prueba] : RESUMEN_REPORTES_PARA,
+      subject: (prueba ? '[PRUEBA] ' : '') + correo.asunto,
+      html: correo.html,
+      text: correo.texto,
+    }, { event: 'resumen_reportes', prueba: !!prueba });
+
+    resumen.enviado = !!(resp && resp.ok);
+    if (resumen.enviado && !prueba) await env.HERO_KV.put(marca, '1', { expirationTtl: 3 * 86400 });
+    logEvent('resumen_reportes_done', { ...resumen, prueba: !!prueba });
+  } catch (err) {
+    logError('resumen_reportes_failed', err, { prueba: !!prueba });
+    resumen.error = err.message;
+  }
+  return resumen;
+}
+
+// Misma plantilla que los avisos de PlanIt: tablas y estilos en línea, sin
+// SVG ni emojis (Gmail), colores de Hero Light.
+function armarResumenReportes(lista, desde, hasta) {
+  const COLOR = { 'ausencia': '#e11d48', 'retraso': '#7c3aed', 'corte-electrico': '#d97706', 'falla-internet': '#06a3b6' };
+  const totales = {};
+  let minutosCortes = 0;
+  for (const p of lista) for (const it of p.items) {
+    totales[it.tipo] = (totales[it.tipo] || 0) + 1;
+    if (it.tipo === 'corte-electrico' && it.minutos >= 0) minutosCortes += it.minutos;
+  }
+  const partes = Object.keys(RESUMEN_TIPOS).filter(t => totales[t]).map(t =>
+    totales[t] + ' ' + (totales[t] === 1 ? RESUMEN_TIPOS[t].label.toLowerCase() : RESUMEN_TIPOS[t].plural)
+    + (t === 'corte-electrico' && minutosCortes ? ' (' + duracionTexto(minutosCortes) + ')' : ''));
+  const lineaTotales = partes.length ? partes.join(' · ') : 'Nadie reportó nada esta semana';
+  const rango = fechaHoraUS(desde) + ' – ' + fechaHoraUS(hasta);
+  const asunto = 'Resumen semanal de Reportar · ' + fechaUS(isoEnNuevaYork(desde)) + ' – ' + fechaUS(isoEnNuevaYork(hasta));
+
+  let texto = 'Resumen semanal de Reportar\n' + rango + '\n\nTotales: ' + lineaTotales + '\n';
+  let cuerpo = '';
+  for (const p of lista) {
+    const sinNada = !p.items.length;
+    texto += '\n' + p.nombre + (sinNada ? ' — sin reportes' : '') + '\n';
+    cuerpo += '<tr><td style="padding:14px 32px 4px;font-family:Inter,Arial,sans-serif;">'
+      + '<span style="font-size:14px;font-weight:700;color:#0a3d4a;">' + esc(p.nombre) + '</span>'
+      + (sinNada ? '<span style="font-size:12px;color:#5a7480;"> &middot; Sin reportes</span>' : '')
+      + (p.fueraDeLista ? '<span style="font-size:11px;color:#5a7480;"> &middot; fuera de la lista del equipo</span>' : '')
+      + '</td></tr>';
+    for (const it of p.items) {
+      const label = RESUMEN_TIPOS[it.tipo].label;
+      texto += '  - ' + label + ': ' + it.texto + '\n';
+      cuerpo += '<tr><td style="padding:3px 32px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>'
+        + '<td style="border-left:3px solid ' + COLOR[it.tipo] + ';background:#f0f4f8;padding:8px 12px;font-family:Inter,Arial,sans-serif;font-size:13px;color:#0a3d4a;">'
+        +   '<strong>' + esc(label) + '</strong> &middot; ' + esc(it.texto)
+        +   (it.sinCierre ? ' <span style="color:#d64545;font-weight:700;">(sin cierre)</span>' : '')
+        + '</td></tr></table></td></tr>';
+    }
+  }
+  texto += '\nCorreo automático de Hero Hub, cada viernes a las 4:00 PM ET. No respondas a este correo.';
+
+  const html = '<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>'
+    + '<body style="margin:0;padding:0;background:#f0f4f8;">'
+    + '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f0f4f8;"><tr><td align="center" style="padding:24px 12px;">'
+    + '<table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;width:100%;background:#ffffff;border-radius:16px;">'
+    +   '<tr><td bgcolor="#06a3b6" style="background:#06a3b6;border-radius:16px 16px 0 0;padding:22px 32px;">'
+    +     '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>'
+    +       '<td valign="middle" style="font-family:Inter,Arial,sans-serif;">'
+    +         '<div style="color:#ffffff;font-size:20px;font-weight:800;">Resumen semanal de Reportar</div>'
+    +         '<div style="color:#e8f4f6;font-size:13px;margin-top:4px;">' + esc(rango) + '</div>'
+    +       '</td>'
+    +       '<td valign="middle" align="right" width="44" style="width:44px;">'
+    +         '<img src="https://hub.heroinsuranceusa.com/images/logo-shield-only.png" width="40" height="40" alt="Hero" style="display:block;">'
+    +       '</td>'
+    +     '</tr></table>'
+    +   '</td></tr>'
+    +   '<tr><td style="padding:20px 32px 6px;font-family:Inter,Arial,sans-serif;">'
+    +     '<div style="font-size:11px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;color:#06a3b6;">Totales</div>'
+    +     '<div style="font-size:14px;color:#0a3d4a;margin-top:4px;line-height:1.5;">' + esc(lineaTotales) + '</div>'
+    +   '</td></tr>'
+    +   cuerpo
+    +   '<tr><td style="padding:20px 32px 24px;font-family:Inter,Arial,sans-serif;font-size:11px;color:#5a7480;line-height:1.5;">'
+    +     'Lo que cada persona del equipo interno avisó desde el recuadro Reportar del Hero Hub en los últimos 7 días. '
+    +     'Correo automático, cada viernes a las 4:00 PM ET. No respondas a este correo.'
     +   '</td></tr>'
     + '</table></td></tr></table></body></html>';
 
