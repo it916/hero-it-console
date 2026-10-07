@@ -2880,6 +2880,20 @@ function armarResumenReportes(lista, desde, hasta) {
 
 const PLANIT_MENCION_MINUTOS = 15;   // un comentario más viejo ya no avisa
 
+// Proyectos de solo miembros (Hub v2.91.0): en uno así no se avisa a quien no
+// es miembro; en una mención, tampoco a quien no está asignado a la tarea, que
+// ya puede verla. Un proyecto de antes sin `visibilidad` es de todo el equipo.
+function esPrivadoPlanit(proyecto) {
+  return !!proyecto && proyecto.visibilidad === 'miembros';
+}
+function miembrosPlanit(proyecto) {
+  return new Set((Array.isArray(proyecto && proyecto.miembros) ? proyecto.miembros : []).map(e => String(e || '').toLowerCase()));
+}
+function responsablesPlanit(tarea) {
+  return (Array.isArray(tarea.assignees) && tarea.assignees.length ? tarea.assignees : (tarea.assigneeEmail ? [tarea.assigneeEmail] : []))
+    .map(e => String(e || '').toLowerCase()).filter(Boolean);
+}
+
 async function enviarMencionesPlanit(env, { autor, taskId, commentId }) {
   const resumen = { enviados: 0, yaAvisados: 0, omitidos: 0 };
   if (!/^[A-Za-z0-9_-]{1,64}$/.test(taskId) || !/^[A-Za-z0-9_-]{1,64}$/.test(commentId)) {
@@ -2914,6 +2928,7 @@ async function enviarMencionesPlanit(env, { autor, taskId, commentId }) {
     const acceso = (f && f.access) || {};
     // Mismo criterio que cargarEquipo() del Hub: activo, del equipo y no excluido.
     if (!f || acceso.active === false || !PLANIT_ROLES_INTERNOS.includes(acceso.role) || (f.meta && f.meta.excluded === true)) { resumen.omitidos++; continue; }
+    if (esPrivadoPlanit(proyecto) && !miembrosPlanit(proyecto).has(email) && !responsablesPlanit(tarea).includes(email)) { resumen.omitidos++; continue; }
 
     const marca = 'planit_mencion_' + commentId + '_' + email;
     if (await env.HERO_KV.get(marca)) { resumen.yaAvisados++; continue; }
@@ -2922,7 +2937,10 @@ async function enviarMencionesPlanit(env, { autor, taskId, commentId }) {
       autor: nombreDe(autor),
       destinatario: nombreDe(email),
       tarea: tarea.title || '(sin título)',
-      proyecto: (proyecto && proyecto.name) || 'PlanIt',
+      // Un responsable que no es miembro no ve el proyecto en el Hub: el
+      // correo tampoco le dice su nombre.
+      proyecto: esPrivadoPlanit(proyecto) && !miembrosPlanit(proyecto).has(email)
+        ? 'Proyecto privado' : (proyecto && proyecto.name) || 'PlanIt',
       texto: comentario.text || '',
       enlace: PLANIT_URL + '#tarea/' + encodeURIComponent(taskId),
     });
@@ -3043,6 +3061,7 @@ async function enviarAsignacionPlanit(env, { autor, taskId, nuevos }) {
 
   for (const email of destinatarios) {
     if (!esInterno(ficha.get(email))) { resumen.omitidos++; continue; }
+    if (esPrivadoPlanit(proyecto) && !miembrosPlanit(proyecto).has(email)) { resumen.omitidos++; continue; }
 
     const marca = 'planit_asignacion_' + taskId + '_' + email;
     if (await env.HERO_KV.get(marca)) { resumen.yaAvisados++; continue; }
