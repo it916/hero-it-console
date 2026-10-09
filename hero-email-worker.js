@@ -3910,12 +3910,16 @@ async function copiarFilasIT03(env, filas) {
   return validas.filter(f => yaEstan.has(f.id) || vistas.has(f.id)).map(f => f.id);
 }
 
-// La fecha va como fecha de verdad (=DATE), para ordenar y filtrar; la columna
-// A del Sheet la muestra MM/DD/YYYY. Todo lo demás va como texto con el
-// apóstrofo de Sheets: ni "10/08/2026" se vuelve fecha ni "=algo" una fórmula.
+// La fecha va como fecha de verdad, para ordenar y filtrar: el número de serie
+// de Sheets (días desde el 12/30/1899), que la columna A muestra MM/DD/YYYY.
+// No una fórmula =DATE(…): el separador de argumentos depende de la
+// configuración regional del Sheet y con "," daba #ERROR! (v1, 10/09).
+// Todo lo demás va como texto con el apóstrofo de Sheets: ni "10/08/2026" se
+// vuelve fecha ni "=algo" una fórmula.
 function celdasIT03(fila) {
   const [y, m, d] = fila[0].split('-').map(Number);
-  return ['=DATE(' + y + ',' + m + ',' + d + ')', ...fila.slice(1).map(v => "'" + v)];
+  const serie = Date.UTC(y, m - 1, d) / 86400000 + 25569;
+  return [serie, ...fila.slice(1).map(v => "'" + v)];
 }
 
 // ═══════════════════════════════════════════════════════════════
