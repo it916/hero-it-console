@@ -534,6 +534,27 @@ export default {
       }
     }
 
+    // ── POST /seguridad/sheet — copia de IT-03 al Sheet de la Dirección ──
+    // FixIt → Revisión de seguridad manda las filas pendientes de su cola
+    // (it-seguridad-sheet en Firestore) y marca copiadas las ids que esto
+    // devuelve; las demás las reintenta. FixIt es la fuente: aquí solo se
+    // AGREGAN filas, nunca se edita ni se borra una. Va detrás del gate
+    // (solo it@) y escribe con otra cuenta de servicio, hero-it03-sheet, sin
+    // delegación de dominio: su único permiso es ser Editor de ese Sheet.
+    if (request.method === 'POST' && path === '/seguridad/sheet') {
+      if (bodyTooLarge(request, 256 * 1024)) return json({ error: 'Body demasiado grande' }, 413, cors);
+      try {
+        const body = await request.json();
+        const filas = body && body.filas;
+        if (!Array.isArray(filas)) return json({ error: 'Falta filas' }, 400, cors);
+        const copiadas = await copiarFilasIT03(env, filas.slice(0, IT03_MAX_FILAS));
+        return json({ copiadas }, 200, cors);
+      } catch (err) {
+        logError('it03_sheet_failed', err, { path, method: request.method });
+        return json({ error: err.message || 'Error interno del servidor' }, 502, cors);
+      }
+    }
+
     // ── POST /planit/avisos/prueba — ensayo de los avisos del día ─
     // Manda a quien la llama TODOS los correos que saldrían hoy, marcados
     // [PRUEBA], sin tocar las marcas de KV: el envío real de mañana no cambia.
@@ -3797,16 +3818,18 @@ async function getGoogleToken(env) {
 // `comoAdmin: false` pide el token en nombre de la propia cuenta de servicio,
 // sin delegación de dominio: lo usa Firestore (avisos de PlanIt), donde el
 // permiso es su rol de IAM y no el de it@.
-async function getGoogleTokenFor(env, scope, cacheKey, { comoAdmin = true } = {}) {
+// `cuenta: { email, clave }` firma con OTRA cuenta de servicio (la del Sheet de
+// IT-03), siempre sin delegación: nunca actúa en nombre de nadie.
+async function getGoogleTokenFor(env, scope, cacheKey, { comoAdmin = true, cuenta = null } = {}) {
   const cached = await getCachedToken(env, cacheKey);
   if (cached) return cached;
-  const clientEmail = env.GOOGLE_CLIENT_EMAIL;
-  const privateKey  = env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n');
+  const clientEmail = cuenta ? cuenta.email : env.GOOGLE_CLIENT_EMAIL;
+  const privateKey  = (cuenta ? cuenta.clave : env.GOOGLE_PRIVATE_KEY).replace(/\\n/g, '\n');
   const adminEmail  = env.GOOGLE_ADMIN_EMAIL;
   const now = Math.floor(Date.now() / 1000);
   const b64 = obj => btoa(JSON.stringify(obj)).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
   const claims = { iss: clientEmail, scope, aud: 'https://oauth2.googleapis.com/token', iat: now, exp: now + 3600 };
-  if (comoAdmin) claims.sub = adminEmail;
+  if (comoAdmin && !cuenta) claims.sub = adminEmail;
   const signingInput = b64({ alg:'RS256', typ:'JWT' }) + '.' + b64(claims);
   const keyData = privateKey.replace('-----BEGIN PRIVATE KEY-----','').replace('-----END PRIVATE KEY-----','').replace(/\s/g,'');
   const binaryKey = Uint8Array.from(atob(keyData), c => c.charCodeAt(0));
@@ -3825,6 +3848,74 @@ async function getGoogleTokenFor(env, scope, cacheKey, { comoAdmin = true } = {}
   }
   await setCachedToken(env, cacheKey, tokenData.access_token, tokenData.expires_in);
   return tokenData.access_token;
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  IT-03 · copia al Sheet de la Dirección (POST /seguridad/sheet)
+// ═══════════════════════════════════════════════════════════════
+// Las 12 columnas las arma FixIt (filaDe en js/it-seguridad-store.js del
+// Hub): Fecha … Estado e ID FixIt. Si cambian allí, cambian aquí.
+const IT03_MAX_FILAS = 200;
+const IT03_HOJA = 'Registro';
+const IT03_COLUMNAS = 12;
+const IT03_ENCABEZADO_ID = 'ID FixIt';
+
+// Agrega al final de la pestaña Registro las filas que todavía no están y
+// devuelve las ids que quedaron en el Sheet (las nuevas y las que ya estaban,
+// por si un reintento llega después de una copia que FixIt no llegó a marcar).
+// Del Sheet solo se lee la columna ID FixIt: para saber dónde empieza la tabla
+// y qué filas ya se copiaron. Nada de lo que hay ahí vuelve a FixIt.
+async function copiarFilasIT03(env, filas) {
+  const validas = filas.filter(f => f && typeof f.id === 'string' && /^[\w-]{1,200}$/.test(f.id)
+    && Array.isArray(f.fila) && f.fila.length === IT03_COLUMNAS
+    && f.fila.every(v => typeof v === 'string' && v.length <= 2000)
+    && f.fila[IT03_COLUMNAS - 1] === f.id
+    && /^\d{4}-\d{2}-\d{2}$/.test(f.fila[0]));
+  if (!validas.length) return [];
+
+  const token = await getGoogleTokenFor(env, 'https://www.googleapis.com/auth/spreadsheets',
+    'cache_it03_sheet_token', { cuenta: { email: env.IT03_SA_EMAIL, clave: env.IT03_SA_KEY } });
+  const auth = { Authorization: 'Bearer ' + token };
+  const base = 'https://sheets.googleapis.com/v4/spreadsheets/' + encodeURIComponent(env.IT03_SHEET_ID) + '/values/';
+
+  const r = await fetch(base + encodeURIComponent(IT03_HOJA + '!L:L'), { headers: auth });
+  if (!r.ok) throw new Error('Google Sheets respondió ' + r.status + ' al leer la columna ' + IT03_ENCABEZADO_ID);
+  const columna = ((await r.json()).values || []).map(v => String(v[0] || '').trim());
+  const iEncabezado = columna.indexOf(IT03_ENCABEZADO_ID);
+  if (iEncabezado < 0) throw new Error('No está el encabezado "' + IT03_ENCABEZADO_ID + '" en la pestaña ' + IT03_HOJA);
+  const yaEstan = new Set(columna.slice(iEncabezado + 1));
+
+  const nuevas = [];
+  const vistas = new Set();
+  validas.forEach(f => {
+    if (yaEstan.has(f.id) || vistas.has(f.id)) return;
+    vistas.add(f.id);
+    nuevas.push(celdasIT03(f.fila));
+  });
+
+  if (nuevas.length) {
+    // El rango ancla la tabla en la fila del encabezado; append la sigue hasta
+    // su última fila y agrega debajo, insertando filas (no pisa nada).
+    const filaEncabezado = iEncabezado + 1;
+    const rango = IT03_HOJA + '!A' + filaEncabezado + ':L' + filaEncabezado;
+    const a = await fetch(base + encodeURIComponent(rango)
+      + ':append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS', {
+      method: 'POST',
+      headers: { ...auth, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ values: nuevas }),
+    });
+    if (!a.ok) throw new Error('Google Sheets respondió ' + a.status + ' al agregar filas');
+  }
+  logEvent('it03_sheet_copiadas', { nuevas: nuevas.length, yaEstaban: validas.length - vistas.size });
+  return validas.filter(f => yaEstan.has(f.id) || vistas.has(f.id)).map(f => f.id);
+}
+
+// La fecha va como fecha de verdad (=DATE), para ordenar y filtrar; la columna
+// A del Sheet la muestra MM/DD/YYYY. Todo lo demás va como texto con el
+// apóstrofo de Sheets: ni "10/08/2026" se vuelve fecha ni "=algo" una fórmula.
+function celdasIT03(fila) {
+  const [y, m, d] = fila[0].split('-').map(Number);
+  return ['=DATE(' + y + ',' + m + ',' + d + ')', ...fila.slice(1).map(v => "'" + v)];
 }
 
 // ═══════════════════════════════════════════════════════════════
