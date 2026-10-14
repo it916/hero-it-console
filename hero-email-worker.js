@@ -2509,6 +2509,9 @@ async function runPlanitAvisos(env, { prueba = null } = {}) {
       where: { fieldFilter: { field: { fieldPath: 'status' }, op: 'EQUAL', value: { stringValue: 'activo' } } },
     });
     const nombreProyecto = new Map(proyectos.map(p => [p.id, p.name || 'Proyecto']));
+    // Hub v2.107.0: quien no es miembro de un proyecto privado no ve el
+    // nombre y va directo a la tarea (el proyecto no lo puede abrir).
+    const privados = new Map(proyectos.filter(esPrivadoPlanit).map(p => [p.id, miembrosPlanit(p)]));
 
     // Reparto por persona y por bloque. Fuera: sin responsable, sin fecha,
     // de proyectos archivados o más allá del límite.
@@ -2525,9 +2528,12 @@ async function runPlanitAvisos(env, { prueba = null } = {}) {
       const bloque = dia < hoy.iso ? 'vencidas' : dia === hoy.iso ? 'hoy' : 'proximas';
       for (const email of responsables) {
         if (!porPersona.has(email)) porPersona.set(email, { vencidas: [], hoy: [], proximas: [] });
+        const fuera = privados.has(t.projectId) && !privados.get(t.projectId).has(email);
         porPersona.get(email)[bloque].push({
-          titulo: t.title || '(sin título)', dia, proyecto: nombreProyecto.get(t.projectId),
-          projectId: t.projectId, prioridad: t.priority || 'media',
+          titulo: t.title || '(sin título)', dia,
+          proyecto: fuera ? 'Proyecto privado' : nombreProyecto.get(t.projectId),
+          enlace: PLANIT_URL + (fuera ? '#tarea/' + encodeURIComponent(t.id) : '#proyecto/' + encodeURIComponent(t.projectId)),
+          prioridad: t.priority || 'media',
         });
       }
       resumen.tareas++;
@@ -2613,7 +2619,7 @@ function armarAvisoPlanit(nombre, bloques, hoyIso) {
     cuerpo += '<tr><td style="padding:18px 32px 6px;font-family:Inter,Arial,sans-serif;font-size:11px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;color:' + COLOR[b] + ';">'
       + esc(TITULO[b]) + ' (' + lista.length + ')</td></tr>';
     for (const t of lista) {
-      const enlace = PLANIT_URL + '#proyecto/' + encodeURIComponent(t.projectId);
+      const enlace = t.enlace;
       texto += '- ' + t.titulo + ' · ' + t.proyecto + ' · ' + cuando(b, t.dia) + '\n';
       cuerpo += '<tr><td style="padding:4px 32px;">'
         + '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>'
@@ -2901,9 +2907,12 @@ function armarResumenReportes(lista, desde, hasta) {
 
 const PLANIT_MENCION_MINUTOS = 15;   // un comentario más viejo ya no avisa
 
-// Proyectos de solo miembros (Hub v2.91.0): en uno así no se avisa a quien no
-// es miembro; en una mención, tampoco a quien no está asignado a la tarea, que
-// ya puede verla. Un proyecto de antes sin `visibilidad` es de todo el equipo.
+// Proyectos de solo miembros (Hub v2.91.0): una mención solo avisa a miembros
+// y a responsables de la tarea, que ya pueden verla. Desde Hub v2.107.0 un
+// responsable no tiene por qué ser miembro: la asignación y el aviso diario
+// le llegan, pero sin el nombre del proyecto ("Proyecto privado") y con el
+// enlace a la tarea, porque el proyecto no lo ve. Un proyecto de antes sin
+// `visibilidad` es de todo el equipo.
 function esPrivadoPlanit(proyecto) {
   return !!proyecto && proyecto.visibilidad === 'miembros';
 }
@@ -3082,7 +3091,6 @@ async function enviarAsignacionPlanit(env, { autor, taskId, nuevos }) {
 
   for (const email of destinatarios) {
     if (!esInterno(ficha.get(email))) { resumen.omitidos++; continue; }
-    if (esPrivadoPlanit(proyecto) && !miembrosPlanit(proyecto).has(email)) { resumen.omitidos++; continue; }
 
     const marca = 'planit_asignacion_' + taskId + '_' + email;
     if (await env.HERO_KV.get(marca)) { resumen.yaAvisados++; continue; }
@@ -3091,7 +3099,8 @@ async function enviarAsignacionPlanit(env, { autor, taskId, nuevos }) {
       autor: nombreDe(autor),
       destinatario: nombreDe(email),
       tarea: tarea.title || '(sin título)',
-      proyecto: (proyecto && proyecto.name) || 'PlanIt',
+      proyecto: esPrivadoPlanit(proyecto) && !miembrosPlanit(proyecto).has(email)
+        ? 'Proyecto privado' : (proyecto && proyecto.name) || 'PlanIt',
       fecha: tarea.dueDate instanceof Date ? fechaUS(isoEnNuevaYork(tarea.dueDate)) : '',
       prioridad: PLANIT_PRIORIDADES[tarea.priority] || 'Media',
       principal: responsables[0] === email,
