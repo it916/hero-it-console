@@ -343,6 +343,43 @@ export default {
       }
     }
 
+    // ── POST /rrhh/aviso-it — correo a IT al abrir un ingreso o una salida ──
+    // Lo llama el Hub (js/rrhh-procesos.js, Hero Squad) justo después de
+    // abrir el ingreso o la salida de un empleado. Auth: Firebase ID token
+    // del dominio. Como en PlanIt, no se fía del navegador: lee el documento
+    // de rrhh-procesos y solo avisa si lo abrió quien llama hace poco
+    // (enviarAvisoItRrhh, más abajo). Si esta llamada falla, el cron diario
+    // lo manda a la mañana siguiente.
+    if (request.method === 'POST' && path === '/rrhh/aviso-it') {
+      if (bodyTooLarge(request)) return json({ error: 'Body demasiado grande' }, 413, cors);
+      if (!(await rateLimit(env, 'rrhh-aviso-it', clientIp(request), 20, 60))) {
+        return json({ error: 'Demasiados avisos seguidos. Espera un minuto.' }, 429, cors);
+      }
+      try {
+        const { idToken, movId } = (await request.json()) || {};
+        if (!idToken || !movId) return json({ error: 'Faltan datos' }, 400, cors);
+
+        let claims;
+        try {
+          claims = await verifyFirebaseIdToken(idToken, env);
+        } catch (err) {
+          logError('rrhh_aviso_it_token_invalid', err);
+          return json({ error: 'Token inválido o expirado' }, 401, cors);
+        }
+        const autor = String(claims.email || '').toLowerCase();
+        if (!autor.endsWith('@heroinsuranceusa.com')) {
+          return json({ error: 'Solo cuentas del dominio corporativo' }, 403, cors);
+        }
+
+        const resumen = await enviarAvisoItRrhh(env, { autor, movId: String(movId) });
+        return json({ ok: true, ...resumen }, 200, cors);
+      } catch (err) {
+        if (err && err.status) return json({ error: err.message }, err.status, cors);
+        logError('rrhh_aviso_it_failed', err, { path, method: request.method });
+        return json({ error: 'Error interno del servidor' }, 500, cors);
+      }
+    }
+
     // ── POST /conexion/registrar — deja constancia de la entrada al Hub ──
     // Lo llama el Hub al iniciar sesión (js/auth.js). Sin botón que pulsar:
     // el dato es el mismo que ya da /conexion/quien-soy, aquí además se guarda.
@@ -577,6 +614,20 @@ export default {
       const quien = await requireAuth(request, env);
       if (!quien) return json({ error: 'No autorizado' }, 401, cors);
       const resumen = await runResumenReportes(env, { prueba: quien });
+      return json(resumen, resumen.error ? 500 : 200, cors);
+    }
+
+    // ── POST /rrhh/avisos/prueba — ensayo de los avisos de Hero Squad ─
+    // Manda a quien la llama, marcados [PRUEBA] y sin tocar KV, el aviso del
+    // período de prueba de CADA ingreso abierto con la decisión pendiente
+    // (falte lo que falte, para poder verlo sin esperar al día 7), y el aviso
+    // a IT de los ingresos y salidas abiertos en los últimos 2 días.
+    // Detrás del gate: solo IT. Desde la consola del navegador del IT Console:
+    //   await (await authFetch(WORKER_URL + '/rrhh/avisos/prueba', { method: 'POST' })).json()
+    if (request.method === 'POST' && path === '/rrhh/avisos/prueba') {
+      const quien = await requireAuth(request, env);
+      if (!quien) return json({ error: 'No autorizado' }, 401, cors);
+      const resumen = await runRrhhAvisos(env, { prueba: quien });
       return json(resumen, resumen.error ? 500 : 200, cors);
     }
 
@@ -2277,6 +2328,7 @@ export default {
     ctx.waitUntil(runLicenciaReminders(env));
     ctx.waitUntil(limpiarAdjuntosHuerfanos(env));
     ctx.waitUntil(runPlanitAvisos(env));
+    ctx.waitUntil(runRrhhAvisos(env));
   }
 };
 
@@ -3175,6 +3227,308 @@ function armarAsignacionPlanit({ autor, destinatario, tarea, proyecto, fecha, pr
     + filas.map(([k, v]) => k + ': ' + v).join('\n')
     + '\n\nAbrir la tarea: ' + enlace + '\n\nCorreo automático de Hero Hub. Para dudas sobre la tarea, comenta en ella.';
   return { asunto, html, texto: texto_ };
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  Ingresos y salidas de empleados (Hero Squad, Hub v2.110.0)
+// ═══════════════════════════════════════════════════════════════
+// RRHH abre en Hero Squad el ingreso o la salida de un empleado (colección
+// rrhh-procesos del Hub) y, en el mismo lote, se crea el alta o la baja de
+// FixIt (it-procesos). De aquí salen dos correos:
+//
+//   1. A it@, en el momento: POST /rrhh/aviso-it, que llama el Hub. Si esa
+//      llamada falla, el cron diario manda lo abierto en los últimos 2 días
+//      que no tenga marca en KV.
+//   2. A hr@, en el cron diario: 7 días antes de que termine el período de
+//      prueba y el día que termina, mientras la decisión siga pendiente
+//      (paso `prueba` sin hacer). Si el cron falló el día exacto, el aviso
+//      del final se recupera hasta 3 días después.
+//
+// Campos que se leen (renombrarlos en el Hub rompe esto): tipo, estado,
+// abiertoPor, abiertoEn, itProcesoId, persona.{nombre, apellido, email,
+// correoPersonal}, cargo, area, fechaIngreso, reportaA, correo.{modo, email},
+// sistemas, sistemasCompletos, prueba.{dias, hasta}, telefonoHero.proveedor, pasos.prueba.estado,
+// fechaSalida, riesgo y numero.{accion, a}. Las fechas son MM/DD/YYYY.
+
+const RRHH_FROM = 'Hero Squad <hub@heroinsuranceusa.com>';
+const RRHH_IT_PARA = ['it@heroinsuranceusa.com'];
+const RRHH_HR_PARA = ['hr@heroinsuranceusa.com'];
+const RRHH_HUB = 'https://hub.heroinsuranceusa.com/';
+const RRHH_AVISO_MINUTOS = 15;        // abierto hace más: el Hub ya no avisa, lo hace el cron
+const RRHH_IT_DIAS_RESCATE = 2;
+const RRHH_PRUEBA_DIAS_ANTES = 7;
+const RRHH_PRUEBA_DIAS_DESPUES = 3;
+const RRHH_MARCA_TTL = 30 * 86400;
+
+// Mismos ids y nombres que SISTEMAS y PROVEEDORES_TELEFONO de
+// js/rrhh-procesos-def.js del Hub.
+const RRHH_SISTEMAS = {
+  hub: 'Hero Hub', timedoctor: 'Time Doctor', zoho: 'Zoho Assist', nordvpn: 'NordVPN',
+  crm: 'Hero CRM', ghl: 'GoHighLevel', gather: 'Gather Town', agencybloc: 'AgencyBloc',
+};
+const RRHH_TELEFONO = { onetalk: 'One Talk', ghl: 'GoHighLevel' };
+
+// 'MM/DD/YYYY' → 'AAAA-MM-DD', o null.
+function isoDesdeUS(us) {
+  const m = String(us || '').match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  return m ? m[3] + '-' + m[1] + '-' + m[2] : null;
+}
+function diasEntre(desdeIso, hastaIso) {
+  const a = desdeIso.split('-').map(Number), b = hastaIso.split('-').map(Number);
+  return Math.round((Date.UTC(b[0], b[1] - 1, b[2]) - Date.UTC(a[0], a[1] - 1, a[2])) / 86400000);
+}
+function nombreMovRrhh(mov) {
+  const p = mov.persona || {};
+  return [p.nombre, p.apellido].filter(Boolean).join(' ') || p.email || 'Empleado';
+}
+// Nombre de cada correo, de su ficha en users/; si no tiene, el correo.
+async function nombresRrhh(env, token, correos) {
+  const lista = [...new Set(correos.filter(Boolean).map(e => String(e).toLowerCase()))];
+  const fichas = await fsLeerVarios(env, token, lista.map(e => 'users/' + e));
+  const ficha = new Map(fichas.map(f => [f.id.toLowerCase(), f]));
+  return (email) => {
+    const e = String(email || '').toLowerCase();
+    return (ficha.get(e) && ficha.get(e).identity && ficha.get(e).identity.name) || e || '—';
+  };
+}
+const correosDeMovRrhh = (m) => [m.abiertoPor, m.reportaA, m.numero && m.numero.a];
+
+async function enviarAvisoItRrhh(env, { autor, movId }) {
+  if (!/^[A-Za-z0-9_-]{1,64}$/.test(movId)) {
+    throw Object.assign(new Error('Identificador no válido'), { status: 400 });
+  }
+  const token = await getFirestoreToken(env);
+  const [mov] = await fsLeerVarios(env, token, ['rrhh-procesos/' + movId]);
+  if (!mov) throw Object.assign(new Error('El ingreso o la salida no existe'), { status: 404 });
+  // Solo un admin puede crear en rrhh-procesos (firestore.rules del Hub):
+  // que lo haya abierto quien llama basta para saber que es de RRHH.
+  if (String(mov.abiertoPor || '').toLowerCase() !== autor) {
+    throw Object.assign(new Error('Solo avisa quien lo abrió'), { status: 403 });
+  }
+  const abierto = mov.abiertoEn instanceof Date ? mov.abiertoEn.getTime() : 0;
+  if (Date.now() - abierto > RRHH_AVISO_MINUTOS * 60 * 1000) {
+    throw Object.assign(new Error('Se abrió hace rato: no se avisa desde aquí'), { status: 409 });
+  }
+  const nombreDe = await nombresRrhh(env, token, correosDeMovRrhh(mov));
+  const r = await mandarAvisoItRrhh(env, mov, nombreDe);
+  logEvent('rrhh_aviso_it_done', { movId, ...r });
+  return r;
+}
+
+// Un correo a it@ por ingreso o salida; la marca de KV evita repetirlo
+// (el Hub y el cron pueden intentarlo los dos).
+async function mandarAvisoItRrhh(env, mov, nombreDe, { prueba = null } = {}) {
+  const marca = 'rrhh_aviso_it_' + mov.id;
+  if (!prueba && await env.HERO_KV.get(marca)) return { enviados: 0, yaAvisados: 1, fallidos: 0 };
+  const correo = armarAvisoItRrhh(mov, nombreDe);
+  const resp = await sendResend(env, {
+    from: RRHH_FROM,
+    to: prueba ? [prueba] : RRHH_IT_PARA,
+    subject: (prueba ? '[PRUEBA] ' : '') + correo.asunto,
+    html: correo.html,
+    text: correo.texto,
+  }, { event: 'rrhh_aviso_it', movId: mov.id, prueba: !!prueba });
+  if (resp && resp.ok) {
+    if (!prueba) await env.HERO_KV.put(marca, '1', { expirationTtl: RRHH_MARCA_TTL });
+    return { enviados: 1, yaAvisados: 0, fallidos: 0 };
+  }
+  return { enviados: 0, yaAvisados: 0, fallidos: 1 };
+}
+
+/**
+ * Cron diario: avisos a IT que el Hub no llegó a mandar y avisos del período
+ * de prueba a hr@. Con `prueba` (un correo) no toca KV y manda a esa
+ * dirección el aviso de prueba de TODO ingreso con la decisión pendiente,
+ * falte lo que falte, marcado [PRUEBA].
+ */
+async function runRrhhAvisos(env, { prueba = null } = {}) {
+  const resumen = { dia: null, abiertos: 0, avisosIt: 0, avisosPrueba: 0, yaAvisados: 0, fallidos: 0 };
+  try {
+    const hoy = hoyEnNuevaYork();
+    resumen.dia = hoy.iso;
+    const token = await getFirestoreToken(env);
+    const movs = await fsConsulta(env, token, {
+      from: [{ collectionId: 'rrhh-procesos' }],
+      where: { fieldFilter: { field: { fieldPath: 'estado' }, op: 'EQUAL', value: { stringValue: 'abierto' } } },
+    });
+    resumen.abiertos = movs.length;
+    if (!movs.length) return resumen;
+    const nombreDe = await nombresRrhh(env, token, movs.flatMap(correosDeMovRrhh));
+
+    // 1. Avisos a IT que el Hub no mandó (la llamada falló o se cortó).
+    const desde = Date.now() - RRHH_IT_DIAS_RESCATE * 86400000;
+    for (const mov of movs) {
+      if (!(mov.abiertoEn instanceof Date) || mov.abiertoEn.getTime() < desde) continue;
+      const r = await mandarAvisoItRrhh(env, mov, nombreDe, { prueba });
+      resumen.avisosIt += r.enviados;
+      resumen.yaAvisados += r.yaAvisados;
+      resumen.fallidos += r.fallidos;
+      if (r.enviados || r.fallidos) await new Promise(res => setTimeout(res, 600));
+    }
+
+    // 2. Período de prueba: 7 días antes y el día que termina.
+    for (const mov of movs) {
+      if (mov.tipo !== 'ingreso' || !mov.prueba) continue;
+      const fin = isoDesdeUS(mov.prueba.hasta);
+      if (!fin) continue;
+      if (mov.pasos && mov.pasos.prueba && mov.pasos.prueba.estado === 'hecho') continue;
+      const restante = diasEntre(hoy.iso, fin);
+      const cual = restante >= 1 && restante <= RRHH_PRUEBA_DIAS_ANTES ? 'antes'
+        : restante <= 0 && restante >= -RRHH_PRUEBA_DIAS_DESPUES ? 'fin' : null;
+      if (!cual && !prueba) continue;
+
+      const marca = 'rrhh_prueba_' + mov.id + '_' + cual;
+      if (!prueba && await env.HERO_KV.get(marca)) { resumen.yaAvisados++; continue; }
+
+      const correo = armarAvisoPruebaRrhh(mov, restante, nombreDe);
+      const resp = await sendResend(env, {
+        from: RRHH_FROM,
+        to: prueba ? [prueba] : RRHH_HR_PARA,
+        subject: (prueba ? '[PRUEBA] ' : '') + correo.asunto,
+        html: correo.html,
+        text: correo.texto,
+      }, { event: 'rrhh_aviso_prueba', movId: mov.id, cual, prueba: !!prueba });
+      if (resp && resp.ok) {
+        resumen.avisosPrueba++;
+        if (!prueba) await env.HERO_KV.put(marca, '1', { expirationTtl: RRHH_MARCA_TTL });
+      } else {
+        resumen.fallidos++;
+      }
+      await new Promise(res => setTimeout(res, 600));
+    }
+
+    logEvent('rrhh_avisos_done', { ...resumen, prueba: !!prueba });
+  } catch (err) {
+    logError('rrhh_avisos_failed', err, { prueba: !!prueba });
+    resumen.error = err.message;
+  }
+  return resumen;
+}
+
+function armarAvisoItRrhh(mov, nombreDe) {
+  const nombre = nombreMovRrhh(mov);
+  const quien = nombreDe(mov.abiertoPor);
+  const enlace = RRHH_HUB + 'it-console.html#proceso/' + encodeURIComponent(mov.itProcesoId || '');
+  const p = mov.persona || {};
+
+  if (mov.tipo === 'salida') {
+    const num = mov.numero;
+    return armarCorreoRrhh({
+      asunto: (mov.riesgo ? 'URGENTE · Salida en modo riesgo: ' : 'Salida de empleado: ') + nombre
+        + (mov.fechaSalida ? ' · ' + mov.fechaSalida : ''),
+      titulo: mov.riesgo ? 'Salida en modo riesgo' : 'Salida de empleado',
+      subtitulo: nombre,
+      intro: quien + ' abrió la salida de ' + nombre + ' en Hero Squad. La baja ya está en FixIt, autorizada por RRHH.',
+      alerta: mov.riesgo ? 'Modo riesgo: Google va primero. Suspende la cuenta antes que cualquier otro paso (IT-01 §1).' : null,
+      filas: [
+        ['Correo', p.email || '—'],
+        ['Fecha de salida', mov.fechaSalida || '—'],
+        ['Número de Hero', !num ? 'No tiene' : num.accion === 'reasignar' ? 'Reasignar a ' + nombreDe(num.a) : 'Liberar la línea'],
+      ],
+      boton: { texto: 'Abrir la baja en FixIt', enlace },
+      pie: 'Correo automático de Hero Hub al abrirse una salida en Hero Squad. No respondas a este correo.',
+    });
+  }
+
+  const reuso = mov.correo && mov.correo.modo === 'reutilizar';
+  const elegidos = (Array.isArray(mov.sistemas) ? mov.sistemas : []).map(id => RRHH_SISTEMAS[id] || id);
+  const tel = mov.telefonoHero;
+  return armarCorreoRrhh({
+    asunto: 'Ingreso de empleado: ' + nombre + (mov.fechaIngreso ? ' · empieza el ' + mov.fechaIngreso : ''),
+    titulo: 'Ingreso de empleado',
+    subtitulo: nombre,
+    intro: quien + ' abrió el ingreso de ' + nombre + ' en Hero Squad. El alta ya está en FixIt, autorizada por RRHH.',
+    alerta: null,
+    filas: [
+      ['Cargo', mov.cargo || '—'],
+      ['Espacio', mov.area || '—'],
+      ['Fecha de ingreso', mov.fechaIngreso || '—'],
+      ['Correo', reuso ? 'Reutiliza ' + mov.correo.email + ': hereda el buzón y el Drive' : 'Nuevo, lo crea IT'],
+      ['Correo personal', p.correoPersonal || '—'],
+      // Hasta Hub v2.109.0, Hub, Time Doctor, Zoho y NordVPN iban siempre y
+      // no estaban en la lista (sin `sistemasCompletos`).
+      ['Sistemas', mov.sistemasCompletos
+        ? (elegidos.length ? elegidos.join(', ') : 'Ninguno')
+        : elegidos.concat(['Hero Hub, Time Doctor, Zoho Assist y NordVPN']).join(', ')],
+      ['Número de Hero', tel ? (RRHH_TELEFONO[tel.proveedor] || tel.proveedor || 'Sí') : 'No'],
+      ['Período de prueba', mov.prueba ? mov.prueba.dias + ' días, hasta el ' + mov.prueba.hasta : 'No'],
+    ],
+    boton: { texto: 'Abrir el alta en FixIt', enlace },
+    pie: 'Correo automático de Hero Hub al abrirse un ingreso en Hero Squad. No respondas a este correo.',
+  });
+}
+
+function armarAvisoPruebaRrhh(mov, restante, nombreDe) {
+  const nombre = nombreMovRrhh(mov);
+  const hasta = mov.prueba.hasta;
+  const cuando = restante > 1 ? 'termina en ' + restante + ' días, el ' + hasta
+    : restante === 1 ? 'termina mañana, ' + hasta
+    : restante === 0 ? 'termina hoy, ' + hasta
+    : 'terminó el ' + hasta;
+  return armarCorreoRrhh({
+    asunto: 'Período de prueba de ' + nombre + ': ' + cuando,
+    titulo: 'Período de prueba',
+    subtitulo: nombre,
+    intro: 'El período de prueba de ' + nombre + ' ' + cuando + ', y en Hero Squad falta decidir si sigue en Hero. '
+      + 'Márcalo en su ingreso: si no sigue, desde ahí mismo se abre su salida.',
+    alerta: restante < 0 ? 'El período ya terminó y la decisión sigue pendiente.'
+      : restante === 0 ? 'Hoy es el último día del período de prueba.' : null,
+    filas: [
+      ['Cargo', mov.cargo || '—'],
+      ['Espacio', mov.area || '—'],
+      ['Fecha de ingreso', mov.fechaIngreso || '—'],
+      ['Reporta a', mov.reportaA ? nombreDe(mov.reportaA) : '—'],
+      ['Período de prueba', mov.prueba.dias + ' días, hasta el ' + hasta],
+    ],
+    boton: { texto: 'Decidir en Hero Squad', enlace: RRHH_HUB + 'rrhh.html#movimiento/' + encodeURIComponent(mov.id) },
+    pie: 'Correo automático de Hero Hub: llega ' + RRHH_PRUEBA_DIAS_ANTES + ' días antes de que termine el período de prueba y el día que termina, mientras la decisión siga pendiente. No respondas a este correo.',
+  });
+}
+
+// Plantilla común de Hero Squad. Mismas reglas que los correos de PlanIt
+// (Gmail: tablas, estilos en línea, sin SVG ni emojis).
+function armarCorreoRrhh({ asunto, titulo, subtitulo, intro, alerta, filas, boton, pie }) {
+  const html = '<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>'
+    + '<body style="margin:0;padding:0;background:#f0f4f8;">'
+    + '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f0f4f8;"><tr><td align="center" style="padding:24px 12px;">'
+    + '<table role="presentation" width="560" cellpadding="0" cellspacing="0" border="0" style="max-width:560px;width:100%;background:#ffffff;border-radius:16px;">'
+    +   '<tr><td bgcolor="#06a3b6" style="background:#06a3b6;border-radius:16px 16px 0 0;padding:22px 32px;">'
+    +     '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>'
+    +       '<td valign="middle" style="font-family:Inter,Arial,sans-serif;">'
+    +         '<div style="color:#ffffff;font-size:20px;font-weight:800;">' + esc(titulo) + '</div>'
+    +         '<div style="color:#e8f4f6;font-size:13px;margin-top:4px;">' + esc(subtitulo) + '</div>'
+    +       '</td>'
+    +       '<td valign="middle" align="right" width="44" style="width:44px;">'
+    +         '<img src="https://hub.heroinsuranceusa.com/images/logo-shield-only.png" width="40" height="40" alt="Hero" style="display:block;">'
+    +       '</td>'
+    +     '</tr></table>'
+    +   '</td></tr>'
+    +   '<tr><td style="padding:22px 32px 8px;font-family:Inter,Arial,sans-serif;font-size:14px;color:#0a3d4a;line-height:1.5;">'
+    +     esc(intro)
+    +   '</td></tr>'
+    +   (alerta
+          ? '<tr><td style="padding:6px 32px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>'
+          +   '<td style="border-left:3px solid #d64545;background:#fdecec;padding:10px 14px;font-family:Inter,Arial,sans-serif;font-size:13px;font-weight:700;color:#a12d2d;line-height:1.5;">' + esc(alerta) + '</td>'
+          + '</tr></table></td></tr>'
+          : '')
+    +   '<tr><td style="padding:6px 32px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f0f4f8;border-radius:12px;">'
+    +     filas.map(([k, v]) =>
+            '<tr><td style="padding:8px 16px;font-family:Inter,Arial,sans-serif;font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#5a7480;width:140px;" valign="top">' + esc(k) + '</td>'
+          + '<td style="padding:8px 16px;font-family:Inter,Arial,sans-serif;font-size:14px;color:#0a3d4a;">' + esc(v) + '</td></tr>').join('')
+    +   '</table></td></tr>'
+    +   '<tr><td style="padding:22px 32px 8px;"><table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>'
+    +     '<td bgcolor="#06a3b6" style="background:#06a3b6;border-radius:14px;padding:12px 26px;">'
+    +       '<a href="' + esc(boton.enlace) + '" style="color:#ffffff;font-family:Inter,Arial,sans-serif;font-size:14px;font-weight:700;text-decoration:none;">' + esc(boton.texto) + '</a>'
+    +     '</td></tr></table></td></tr>'
+    +   '<tr><td style="padding:14px 32px 24px;font-family:Inter,Arial,sans-serif;font-size:11px;color:#5a7480;line-height:1.5;">'
+    +     esc(pie)
+    +   '</td></tr>'
+    + '</table></td></tr></table></body></html>';
+
+  const texto = intro + (alerta ? '\n\n' + alerta : '') + '\n\n'
+    + filas.map(([k, v]) => k + ': ' + v).join('\n')
+    + '\n\n' + boton.texto + ': ' + boton.enlace + '\n\n' + pie;
+  return { asunto, html, texto };
 }
 
 function buildLicReminderEmail(lic, days, urgency) {
