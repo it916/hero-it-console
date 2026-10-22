@@ -343,6 +343,41 @@ export default {
       }
     }
 
+    // ── POST /planit/completada — aviso de tarea completada (Hub v2.119.0) ──
+    // Lo llama el Hub unos segundos después de completar una tarea (así un
+    // "Deshacer" la reabre antes y no sale nada). Aquí se lee la tarea y solo
+    // se avisa si sigue completada y se completó hace poco
+    // (enviarCompletadaPlanit, más abajo).
+    if (request.method === 'POST' && path === '/planit/completada') {
+      if (bodyTooLarge(request)) return json({ error: 'Body demasiado grande' }, 413, cors);
+      if (!(await rateLimit(env, 'planit-completada', clientIp(request), 30, 60))) {
+        return json({ error: 'Demasiados avisos seguidos. Espera un minuto.' }, 429, cors);
+      }
+      try {
+        const { idToken, taskId } = (await request.json()) || {};
+        if (!idToken || !taskId) return json({ error: 'Faltan datos' }, 400, cors);
+
+        let claims;
+        try {
+          claims = await verifyFirebaseIdToken(idToken, env);
+        } catch (err) {
+          logError('planit_completada_token_invalid', err);
+          return json({ error: 'Token inválido o expirado' }, 401, cors);
+        }
+        const autor = String(claims.email || '').toLowerCase();
+        if (!autor.endsWith('@heroinsuranceusa.com')) {
+          return json({ error: 'Solo cuentas del dominio corporativo' }, 403, cors);
+        }
+
+        const resumen = await enviarCompletadaPlanit(env, { autor, taskId: String(taskId) });
+        return json({ ok: true, ...resumen }, 200, cors);
+      } catch (err) {
+        if (err && err.status) return json({ error: err.message }, err.status, cors);
+        logError('planit_completada_failed', err, { path, method: request.method });
+        return json({ error: 'Error interno del servidor' }, 500, cors);
+      }
+    }
+
     // ── POST /rrhh/aviso-it — correo a IT al abrir un ingreso o una salida ──
     // Lo llama el Hub (js/rrhh-procesos.js, Hero Squad) justo después de
     // abrir el ingreso o la salida de un empleado. Auth: Firebase ID token
@@ -2437,7 +2472,9 @@ async function limpiarAdjuntosHuerfanos(env) {
 // a mediodía del día elegido, así que ningún huso lo corre de día.
 
 const PLANIT_URL = 'https://hub.heroinsuranceusa.com/planit.html';
-const PLANIT_FROM = 'Hero PlanIt <hub@heroinsuranceusa.com>';
+// Desde v2.119.0 (2026-10-22), planit@ (grupo de Google que reenvía a it@):
+// con hub@, alias de it@, Gmail mostraba la foto de Fernando.
+const PLANIT_FROM = 'Hero PlanIt <planit@heroinsuranceusa.com>';
 const PLANIT_ROLES_INTERNOS = ['admin', 'interno', 'it'];
 const PLANIT_DIAS_ANTES = 2;          // "próximos días" = mañana y pasado mañana
 const PLANIT_TZ = 'America/New_York';
@@ -3226,6 +3263,140 @@ function armarAsignacionPlanit({ autor, destinatario, tarea, proyecto, fecha, pr
   const texto_ = 'Hola, ' + primerNombre + '. ' + autor + ' te asignó la tarea "' + tarea + '". ' + papel + '\n\n'
     + filas.map(([k, v]) => k + ': ' + v).join('\n')
     + '\n\nAbrir la tarea: ' + enlace + '\n\nCorreo automático de Hero Hub. Para dudas sobre la tarea, comenta en ella.';
+  return { asunto, html, texto: texto_ };
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  Tarea completada en PlanIt (Hub v2.119.0)
+// ═══════════════════════════════════════════════════════════════
+// Al completar una tarea (botón Completar, detalle o Tablero), el Hub espera
+// unos segundos y llama a POST /planit/completada. Se avisa a quien la creó y
+// a sus responsables (decisión de Fernando, 2026-10-22), menos a quien llama,
+// solo si la tarea sigue en "hecho" y se completó hace menos de
+// PLANIT_MENCION_MINUTOS (un "Deshacer" la reabre y no sale nada). La marca
+// en KV va por tarea, momento de cierre y persona: reabrir y volver a
+// completar otro día sí avisa otra vez.
+//
+// Igual que en las asignaciones, no hay campo completedBy: el Worker no puede
+// probar que la completó quien llama. Lo peor que cabe es un aviso con otro
+// nombre a quien sí está en la tarea, uno por cierre.
+
+async function enviarCompletadaPlanit(env, { autor, taskId }) {
+  const resumen = { enviados: 0, yaAvisados: 0, omitidos: 0 };
+  if (!/^[A-Za-z0-9_-]{1,64}$/.test(taskId)) {
+    throw Object.assign(new Error('Identificador no válido'), { status: 400 });
+  }
+
+  const token = await getFirestoreToken(env);
+  const [tarea] = await fsLeerVarios(env, token, ['tasks/' + taskId]);
+  if (!tarea) throw Object.assign(new Error('La tarea no existe'), { status: 404 });
+  // Reabierta (Deshacer) antes de que llegara el aviso: no se manda nada.
+  if (tarea.status !== 'hecho') return resumen;
+  const cerrada = tarea.completedAt instanceof Date ? tarea.completedAt.getTime() : 0;
+  if (Date.now() - cerrada > PLANIT_MENCION_MINUTOS * 60 * 1000) {
+    throw Object.assign(new Error('La tarea no se completó hace poco: no se avisa'), { status: 409 });
+  }
+
+  const responsables = [...new Set((Array.isArray(tarea.assignees) && tarea.assignees.length
+    ? tarea.assignees : (tarea.assigneeEmail ? [tarea.assigneeEmail] : []))
+    .map(e => String(e || '').toLowerCase()).filter(Boolean))];
+  const creador = String(tarea.createdBy || '').toLowerCase();
+  const destinatarios = [...new Set([creador, ...responsables])].filter(e => e && e !== autor);
+  if (!destinatarios.length) return resumen;
+
+  const [proyecto] = await fsLeerVarios(env, token, ['projects/' + tarea.projectId]);
+  const fichas = await fsLeerVarios(env, token, [...new Set([autor, ...destinatarios, ...responsables])].map(e => 'users/' + e));
+  const ficha = new Map(fichas.map(f => [f.id.toLowerCase(), f]));
+  const nombreDe = (email) => (ficha.get(email)?.identity?.name) || email;
+  const esInterno = (f) => {
+    const acceso = (f && f.access) || {};
+    return !!f && acceso.active !== false && PLANIT_ROLES_INTERNOS.includes(acceso.role) && !(f.meta && f.meta.excluded === true);
+  };
+  if (!esInterno(ficha.get(autor))) throw Object.assign(new Error('Solo el equipo interno usa PlanIt'), { status: 403 });
+
+  for (const email of destinatarios) {
+    if (!esInterno(ficha.get(email))) { resumen.omitidos++; continue; }
+
+    const marca = 'planit_completada_' + taskId + '_' + cerrada + '_' + email;
+    if (await env.HERO_KV.get(marca)) { resumen.yaAvisados++; continue; }
+
+    const correo = armarCompletadaPlanit({
+      autor: nombreDe(autor),
+      destinatario: nombreDe(email),
+      tarea: tarea.title || '(sin título)',
+      proyecto: esPrivadoPlanit(proyecto) && !miembrosPlanit(proyecto).has(email)
+        ? 'Proyecto privado' : (proyecto && proyecto.name) || 'PlanIt',
+      fecha: tarea.dueDate instanceof Date ? fechaUS(isoEnNuevaYork(tarea.dueDate)) : '',
+      responsables: responsables.map(nombreDe),
+      esCreador: email === creador,
+      enlace: PLANIT_URL + '#tarea/' + encodeURIComponent(taskId),
+    });
+    const resp = await sendResend(env, {
+      from: PLANIT_FROM,
+      to: [email],
+      subject: correo.asunto,
+      html: correo.html,
+      text: correo.texto,
+    }, { event: 'planit_completada', email, taskId });
+
+    if (resp && resp.ok) {
+      resumen.enviados++;
+      await env.HERO_KV.put(marca, '1', { expirationTtl: 3 * 86400 });
+    } else {
+      resumen.omitidos++;
+    }
+  }
+  logEvent('planit_completada_done', { ...resumen, taskId });
+  return resumen;
+}
+
+// Mismas reglas que asignaciones y menciones (Gmail: tablas, estilos en
+// línea, sin SVG ni emojis). Cabecera verde: es una buena noticia.
+function armarCompletadaPlanit({ autor, destinatario, tarea, proyecto, fecha, responsables, esCreador, enlace }) {
+  const primerNombre = String(destinatario).split(' ')[0];
+  const asunto = 'Completada: "' + (tarea.length > 60 ? tarea.slice(0, 60) + '…' : tarea) + '"';
+  const filas = [
+    ['Proyecto', proyecto],
+    ['Fecha límite', fecha || 'Sin fecha'],
+    ['Responsables', responsables.length ? responsables.join(', ') : 'Sin asignar'],
+  ];
+  const motivo = esCreador ? 'Te avisamos porque tú la creaste.' : 'Te avisamos porque eres uno de sus responsables.';
+
+  const html = '<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>'
+    + '<body style="margin:0;padding:0;background:#f0f4f8;">'
+    + '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f0f4f8;"><tr><td align="center" style="padding:24px 12px;">'
+    + '<table role="presentation" width="560" cellpadding="0" cellspacing="0" border="0" style="max-width:560px;width:100%;background:#ffffff;border-radius:16px;">'
+    +   '<tr><td bgcolor="#047857" style="background:#047857;border-radius:16px 16px 0 0;padding:22px 32px;">'
+    +     '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>'
+    +       '<td valign="middle" style="font-family:Inter,Arial,sans-serif;">'
+    +         '<div style="color:#ffffff;font-size:20px;font-weight:800;">Tarea completada</div>'
+    +         '<div style="color:#d1fae5;font-size:13px;margin-top:4px;">' + esc(proyecto) + '</div>'
+    +       '</td>'
+    +       '<td valign="middle" align="right" width="44" style="width:44px;">'
+    +         '<img src="https://hub.heroinsuranceusa.com/images/logo-shield-only.png" width="40" height="40" alt="Hero" style="display:block;">'
+    +       '</td>'
+    +     '</tr></table>'
+    +   '</td></tr>'
+    +   '<tr><td style="padding:22px 32px 8px;font-family:Inter,Arial,sans-serif;font-size:14px;color:#0a3d4a;line-height:1.5;">'
+    +     'Hola, ' + esc(primerNombre) + '. <strong>' + esc(autor) + '</strong> marcó como completada la tarea <strong>' + esc(tarea) + '</strong>. ' + esc(motivo)
+    +   '</td></tr>'
+    +   '<tr><td style="padding:6px 32px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f0f4f8;border-radius:12px;">'
+    +     filas.map(([k, v]) =>
+            '<tr><td style="padding:8px 16px;font-family:Inter,Arial,sans-serif;font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#5a7480;width:120px;" valign="top">' + esc(k) + '</td>'
+          + '<td style="padding:8px 16px;font-family:Inter,Arial,sans-serif;font-size:14px;color:#0a3d4a;">' + esc(v) + '</td></tr>').join('')
+    +   '</table></td></tr>'
+    +   '<tr><td style="padding:22px 32px 8px;"><table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>'
+    +     '<td bgcolor="#06a3b6" style="background:#06a3b6;border-radius:14px;padding:12px 26px;">'
+    +       '<a href="' + esc(enlace) + '" style="color:#ffffff;font-family:Inter,Arial,sans-serif;font-size:14px;font-weight:700;text-decoration:none;">Ver la tarea</a>'
+    +     '</td></tr></table></td></tr>'
+    +   '<tr><td style="padding:14px 32px 24px;font-family:Inter,Arial,sans-serif;font-size:11px;color:#5a7480;line-height:1.5;">'
+    +     'Correo automático de Hero Hub. Si algo quedó pendiente, comenta en la tarea o reábrela.'
+    +   '</td></tr>'
+    + '</table></td></tr></table></body></html>';
+
+  const texto_ = 'Hola, ' + primerNombre + '. ' + autor + ' marcó como completada la tarea "' + tarea + '". ' + motivo + '\n\n'
+    + filas.map(([k, v]) => k + ': ' + v).join('\n')
+    + '\n\nVer la tarea: ' + enlace + '\n\nCorreo automático de Hero Hub. Si algo quedó pendiente, comenta en la tarea o reábrela.';
   return { asunto, html, texto: texto_ };
 }
 
