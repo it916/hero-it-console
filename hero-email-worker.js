@@ -2673,6 +2673,7 @@ async function runPlanitAvisos(env, { prueba = null } = {}) {
     try { tokensDelDia = await tokensPush(env, token, [...porPersona.keys()]); }
     catch (err) { logError('planit_push_tokens_failed', err); }
     resumen.push = 0;
+    const prefs = await preferenciasAviso(env, token, [...porPersona.keys()]);
 
     for (const [email, bloques] of porPersona) {
       const f = ficha.get(email);
@@ -2685,6 +2686,7 @@ async function runPlanitAvisos(env, { prueba = null } = {}) {
 
       const marca = 'planit_aviso_' + email + '_' + hoy.iso;
       if (!prueba && await env.HERO_KV.get(marca)) { resumen.yaAvisados++; continue; }
+      const conCorreo = quiereCorreo(prefs, email);
 
       for (const b of Object.values(bloques)) {
         b.sort((x, y) => x.dia.localeCompare(y.dia) || x.titulo.localeCompare(y.titulo, 'es'));
@@ -2692,16 +2694,18 @@ async function runPlanitAvisos(env, { prueba = null } = {}) {
       const nombre = (f.identity && f.identity.name) || email;
       const correo = armarAvisoPlanit(nombre, bloques, hoy.iso);
 
-      const resp = await sendResend(env, {
+      // Preferencia "solo push" o "solo campana": sin correo (la marca igual,
+      // para que un reintento del cron no mande el push dos veces).
+      const resp = conCorreo ? await sendResend(env, {
         from: PLANIT_FROM,
         to: [prueba || email],
         subject: (prueba ? '[PRUEBA · ' + email + '] ' : '') + correo.asunto,
         html: correo.html,
         text: correo.texto,
-      }, { event: 'planit_aviso', email, prueba: !!prueba });
+      }, { event: 'planit_aviso', email, prueba: !!prueba }) : { ok: true, sinCorreo: true };
 
       if (resp && resp.ok) {
-        resumen.enviados++;
+        if (resp.sinCorreo) resumen.sinCorreo = (resumen.sinCorreo || 0) + 1; else resumen.enviados++;
         if (!prueba) await env.HERO_KV.put(marca, '1', { expirationTtl: 3 * 86400 });
       } else {
         resumen.fallidos++;
@@ -2710,7 +2714,7 @@ async function runPlanitAvisos(env, { prueba = null } = {}) {
       // Push del día (no en prueba: iría a los dispositivos de verdad).
       const nV = bloques.vencidas.length, nH = bloques.hoy.length;
       const suyos = tokensDelDia.get(email) || [];
-      if (!prueba && (nV || nH) && suyos.length) {
+      if (!prueba && (nV || nH) && suyos.length && quierePush(prefs, email)) {
         try {
           const fcmToken = await getFcmToken(env);
           const partes = [];
@@ -3107,12 +3111,14 @@ async function enviarMencionesPlanit(env, { autor, taskId, commentId }) {
   const fichas = await fsLeerVarios(env, token, [autor, ...destinatarios].map(e => 'users/' + e));
   const ficha = new Map(fichas.map(f => [f.id.toLowerCase(), f]));
   const nombreDe = (email) => (ficha.get(email)?.identity?.name) || email;
+  const prefs = await preferenciasAviso(env, token, destinatarios);
 
   for (const email of destinatarios) {
     const f = ficha.get(email);
     const acceso = (f && f.access) || {};
     // Mismo criterio que cargarEquipo() del Hub: activo, del equipo y no excluido.
     if (!f || acceso.active === false || !PLANIT_ROLES_INTERNOS.includes(acceso.role) || (f.meta && f.meta.excluded === true)) { resumen.omitidos++; continue; }
+    if (!quiereCorreo(prefs, email)) { resumen.sinCorreo = (resumen.sinCorreo || 0) + 1; continue; }
     if (esPrivadoPlanit(proyecto) && !miembrosPlanit(proyecto).has(email) && !responsablesPlanit(tarea).includes(email)) { resumen.omitidos++; continue; }
 
     const marca = 'planit_mencion_' + commentId + '_' + email;
@@ -3244,8 +3250,10 @@ async function enviarAsignacionPlanit(env, { autor, taskId, nuevos }) {
   // Quien asigna también tiene que ser del equipo: PlanIt no existe para nadie más.
   if (!esInterno(ficha.get(autor))) throw Object.assign(new Error('Solo el equipo interno usa PlanIt'), { status: 403 });
 
+  const prefs = await preferenciasAviso(env, token, destinatarios);
   for (const email of destinatarios) {
     if (!esInterno(ficha.get(email))) { resumen.omitidos++; continue; }
+    if (!quiereCorreo(prefs, email)) { resumen.sinCorreo = (resumen.sinCorreo || 0) + 1; continue; }
 
     const marca = 'planit_asignacion_' + taskId + '_' + email;
     if (await env.HERO_KV.get(marca)) { resumen.yaAvisados++; continue; }
@@ -3380,8 +3388,10 @@ async function enviarCompletadaPlanit(env, { autor, taskId }) {
   };
   if (!esInterno(ficha.get(autor))) throw Object.assign(new Error('Solo el equipo interno usa PlanIt'), { status: 403 });
 
+  const prefs = await preferenciasAviso(env, token, destinatarios);
   for (const email of destinatarios) {
     if (!esInterno(ficha.get(email))) { resumen.omitidos++; continue; }
+    if (!quiereCorreo(prefs, email)) { resumen.sinCorreo = (resumen.sinCorreo || 0) + 1; continue; }
 
     const marca = 'planit_completada_' + taskId + '_' + cerrada + '_' + email;
     if (await env.HERO_KV.get(marca)) { resumen.yaAvisados++; continue; }
@@ -3509,6 +3519,27 @@ const PUSH_VERBOS = {
   completada: 'completó', reabierta: 'reabrió', cambio: 'actualizó',
 };
 
+// Preferencia de avisos (Hub v2.123.1): `planit-preferencias/{email}.avisos`
+// = 'ambos' | 'correo' | 'push' | 'campana'; sin documento, 'ambos'. La
+// campana del Hub sale siempre; esto decide solo correo y push. Los mismos
+// valores que PREFERENCIAS_AVISO de js/notificaciones.js.
+const AVISOS_VALIDOS = ['ambos', 'correo', 'push', 'campana'];
+async function preferenciasAviso(env, fsToken, emails) {
+  const lista = [...new Set(emails.map(e => String(e || '').toLowerCase()).filter(Boolean))];
+  const prefs = new Map(lista.map(e => [e, 'ambos']));
+  try {
+    for (const d of await fsLeerVarios(env, fsToken, lista.map(e => 'planit-preferencias/' + e))) {
+      if (AVISOS_VALIDOS.includes(d.avisos)) prefs.set(d.id.toLowerCase(), d.avisos);
+    }
+  } catch (err) {
+    // Si no se pueden leer, se avisa como siempre (ambos): mejor de más que nada.
+    logError('planit_preferencias_failed', err);
+  }
+  return prefs;
+}
+const quiereCorreo = (prefs, email) => ['ambos', 'correo'].includes(prefs.get(String(email || '').toLowerCase()) || 'ambos');
+const quierePush = (prefs, email) => ['ambos', 'push'].includes(prefs.get(String(email || '').toLowerCase()) || 'ambos');
+
 function getFcmToken(env) {
   return getGoogleTokenFor(env, 'https://www.googleapis.com/auth/firebase.messaging', 'cache_fcm_token', { comoAdmin: false });
 }
@@ -3564,6 +3595,7 @@ async function enviarPushNotificaciones(env, { autor, ids }) {
       && Date.now() - n.creadaEn.getTime() < PUSH_MINUTOS * 60000);
   if (!notis.length) return resumen;
   const tokens = await tokensPush(env, fsToken, notis.map(n => n.para));
+  const prefs = await preferenciasAviso(env, fsToken, notis.map(n => n.para));
   let fcmToken = null;
   for (const n of notis) {
     const marca = 'push_noti_' + n.id;
@@ -3571,6 +3603,7 @@ async function enviarPushNotificaciones(env, { autor, ids }) {
     await env.HERO_KV.put(marca, '1', { expirationTtl: 86400 });
     resumen.notificaciones++;
     const suyos = tokens.get(String(n.para || '').toLowerCase()) || [];
+    if (!quierePush(prefs, n.para)) { resumen.sinPush = (resumen.sinPush || 0) + 1; continue; }
     if (!suyos.length) { resumen.sinDispositivo++; continue; }
     fcmToken = fcmToken || await getFcmToken(env);
     const nombre = String(n.deNombre || n.de || '').split(' ')[0];
