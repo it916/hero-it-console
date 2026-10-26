@@ -343,6 +343,42 @@ export default {
       }
     }
 
+    // ── POST /push/notificar — avisos push de la campana (Hub v2.123.0) ──
+    // Lo llama notificar() del Hub tras crear notificaciones. Aquí se leen y
+    // solo se envían las que son de quien llama y recientes
+    // (enviarPushNotificaciones, más abajo).
+    if (request.method === 'POST' && path === '/push/notificar') {
+      if (bodyTooLarge(request)) return json({ error: 'Body demasiado grande' }, 413, cors);
+      if (!(await rateLimit(env, 'push-notificar', clientIp(request), 60, 60))) {
+        return json({ error: 'Demasiados avisos seguidos. Espera un minuto.' }, 429, cors);
+      }
+      try {
+        const { idToken, ids } = (await request.json()) || {};
+        if (!idToken || !Array.isArray(ids) || !ids.length) return json({ error: 'Faltan datos' }, 400, cors);
+        const limpios = ids.slice(0, 15).map(String).filter(id => /^[A-Za-z0-9]{10,40}$/.test(id));
+        if (!limpios.length) return json({ error: 'Ids inválidos' }, 400, cors);
+
+        let claims;
+        try {
+          claims = await verifyFirebaseIdToken(idToken, env);
+        } catch (err) {
+          logError('push_notificar_token_invalid', err);
+          return json({ error: 'Token inválido o expirado' }, 401, cors);
+        }
+        const autor = String(claims.email || '').toLowerCase();
+        if (!autor.endsWith('@heroinsuranceusa.com')) {
+          return json({ error: 'Solo cuentas del dominio corporativo' }, 403, cors);
+        }
+
+        const resumen = await enviarPushNotificaciones(env, { autor, ids: limpios });
+        return json({ ok: true, ...resumen }, 200, cors);
+      } catch (err) {
+        if (err && err.status) return json({ error: err.message }, err.status, cors);
+        logError('push_notificar_failed', err, { path, method: request.method });
+        return json({ error: 'Error interno del servidor' }, 500, cors);
+      }
+    }
+
     // ── POST /planit/completada — aviso de tarea completada (Hub v2.119.0) ──
     // Lo llama el Hub unos segundos después de completar una tarea (así un
     // "Deshacer" la reabre antes y no sale nada). Aquí se lee la tarea y solo
@@ -2631,6 +2667,12 @@ async function runPlanitAvisos(env, { prueba = null } = {}) {
     // Solo gente del equipo interno y activa: alguien que salió no recibe nada.
     const fichas = await fsLeerVarios(env, token, [...porPersona.keys()].map(e => 'users/' + e));
     const ficha = new Map(fichas.map(f => [f.id.toLowerCase(), f]));
+    // Push "vence hoy / vencidas" (Hub v2.123.0): a quien lo activó y tiene
+    // algo vencido o para hoy. Si falla, los correos salen igual.
+    let tokensDelDia = new Map();
+    try { tokensDelDia = await tokensPush(env, token, [...porPersona.keys()]); }
+    catch (err) { logError('planit_push_tokens_failed', err); }
+    resumen.push = 0;
 
     for (const [email, bloques] of porPersona) {
       const f = ficha.get(email);
@@ -2663,6 +2705,30 @@ async function runPlanitAvisos(env, { prueba = null } = {}) {
         if (!prueba) await env.HERO_KV.put(marca, '1', { expirationTtl: 3 * 86400 });
       } else {
         resumen.fallidos++;
+      }
+
+      // Push del día (no en prueba: iría a los dispositivos de verdad).
+      const nV = bloques.vencidas.length, nH = bloques.hoy.length;
+      const suyos = tokensDelDia.get(email) || [];
+      if (!prueba && (nV || nH) && suyos.length) {
+        try {
+          const fcmToken = await getFcmToken(env);
+          const partes = [];
+          if (nV) partes.push(nV + (nV === 1 ? ' vencida' : ' vencidas'));
+          if (nH) partes.push(nH + ' para hoy');
+          const primera = (bloques.vencidas[0] || bloques.hoy[0]).titulo;
+          for (const t of suyos) {
+            const r = await enviarPushFcm(env, fcmToken, t, {
+              titulo: 'PlanIt: ' + partes.join(' y '),
+              cuerpo: ('"' + primera + '"' + (nV + nH > 1 ? ' y ' + (nV + nH - 1) + ' más' : '')).slice(0, 240),
+              enlace: PLANIT_URL + '#mis',
+              etiqueta: 'planit-dia-' + hoy.iso,
+            });
+            if (r === 'ok') resumen.push++;
+          }
+        } catch (err) {
+          logError('planit_push_dia_failed', err, { email });
+        }
       }
       // Resend limita las peticiones por segundo; 20 correos seguidos lo rozan.
       await new Promise(r => setTimeout(r, 600));
@@ -3425,6 +3491,104 @@ const RRHH_FROM = 'Hero Squad <hub@heroinsuranceusa.com>';
 const RRHH_IT_PARA = ['it@heroinsuranceusa.com'];
 const RRHH_HR_PARA = ['hr@heroinsuranceusa.com'];
 const RRHH_HUB = 'https://hub.heroinsuranceusa.com/';
+// ═══════════════════════════════════════════════════════════════
+//  Avisos push de PlanIt (Hub v2.123.0) — Firebase Cloud Messaging
+// ═══════════════════════════════════════════════════════════════
+// Cada navegador que activa los avisos en la campana del Hub guarda su token
+// en `push-dispositivos/{token}` = { email, token, navegador, creadoEn }. Aquí
+// se leen con la cuenta de servicio (rol de lectura de Firestore) y se envía
+// con la API HTTP v1 de FCM (rol "Firebase Cloud Messaging API Admin" en
+// hero-hub-de520, dado el 2026-10-26). Un token que FCM da por muerto
+// (UNREGISTERED) solo se cuenta: la cuenta no puede borrar en Firestore; el
+// Hub renueva el suyo cada vez que se abre.
+const PUSH_MINUTOS = 5;               // una notificación más vieja ya no se envía por push
+const PUSH_ICONO = 'https://hub.heroinsuranceusa.com/images/modulos/png/planit-icon-180.png';
+// Los mismos verbos que TIPOS_NOTIFICACION de js/notificaciones.js del Hub.
+const PUSH_VERBOS = {
+  asignacion: 'te asignó', mencion: 'te mencionó en', comentario: 'comentó en',
+  completada: 'completó', reabierta: 'reabrió', cambio: 'actualizó',
+};
+
+function getFcmToken(env) {
+  return getGoogleTokenFor(env, 'https://www.googleapis.com/auth/firebase.messaging', 'cache_fcm_token', { comoAdmin: false });
+}
+
+// Tokens de varios correos: Map(email → [token]). La consulta IN admite 30.
+async function tokensPush(env, fsToken, emails) {
+  const porEmail = new Map();
+  const lista = [...new Set(emails.map(e => String(e || '').toLowerCase()).filter(Boolean))];
+  for (let i = 0; i < lista.length; i += 30) {
+    const docs = await fsConsulta(env, fsToken, {
+      from: [{ collectionId: 'push-dispositivos' }],
+      where: { fieldFilter: { field: { fieldPath: 'email' }, op: 'IN',
+        value: { arrayValue: { values: lista.slice(i, i + 30).map(v => ({ stringValue: v })) } } } },
+    });
+    for (const d of docs) {
+      if (!d.token) continue;
+      if (!porEmail.has(d.email)) porEmail.set(d.email, []);
+      porEmail.get(d.email).push(d.token);
+    }
+  }
+  return porEmail;
+}
+
+// Un aviso a un token. Devuelve 'ok', 'muerto' (el navegador ya no existe) o 'error'.
+async function enviarPushFcm(env, fcmToken, token, { titulo, cuerpo, enlace, etiqueta }) {
+  const resp = await fetch('https://fcm.googleapis.com/v1/projects/' + env.FIREBASE_PROJECT_ID + '/messages:send', {
+    method: 'POST',
+    headers: { 'Authorization': 'Bearer ' + fcmToken, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ message: {
+      token,
+      webpush: {
+        notification: { title: titulo, body: cuerpo, icon: PUSH_ICONO, ...(etiqueta ? { tag: etiqueta } : {}) },
+        fcm_options: { link: enlace },
+      },
+    } }),
+  });
+  if (resp.ok) return 'ok';
+  const data = await resp.json().catch(() => ({}));
+  const codigo = JSON.stringify(data);
+  if (resp.status === 404 || /UNREGISTERED|registration-token-not-registered/.test(codigo)) return 'muerto';
+  logError('push_fcm_failed', new Error('FCM ' + resp.status), { detalle: codigo.slice(0, 300) });
+  return 'error';
+}
+
+// POST /push/notificar: las notificaciones de la campana que acaba de crear
+// `autor`. Solo se envían si existen, son suyas (`de`) y tienen menos de
+// PUSH_MINUTOS; cada una una sola vez (marca en KV).
+async function enviarPushNotificaciones(env, { autor, ids }) {
+  const resumen = { notificaciones: 0, enviados: 0, muertos: 0, fallidos: 0, sinDispositivo: 0 };
+  const fsToken = await getFirestoreToken(env);
+  const notis = (await fsLeerVarios(env, fsToken, ids.map(id => 'notificaciones/' + id)))
+    .filter(n => String(n.de || '').toLowerCase() === autor && n.creadaEn instanceof Date
+      && Date.now() - n.creadaEn.getTime() < PUSH_MINUTOS * 60000);
+  if (!notis.length) return resumen;
+  const tokens = await tokensPush(env, fsToken, notis.map(n => n.para));
+  let fcmToken = null;
+  for (const n of notis) {
+    const marca = 'push_noti_' + n.id;
+    if (await env.HERO_KV.get(marca)) continue;
+    await env.HERO_KV.put(marca, '1', { expirationTtl: 86400 });
+    resumen.notificaciones++;
+    const suyos = tokens.get(String(n.para || '').toLowerCase()) || [];
+    if (!suyos.length) { resumen.sinDispositivo++; continue; }
+    fcmToken = fcmToken || await getFcmToken(env);
+    const nombre = String(n.deNombre || n.de || '').split(' ')[0];
+    const aviso = {
+      titulo: (nombre + ' ' + (PUSH_VERBOS[n.tipo] || 'actualizó') + ' una tarea').slice(0, 120),
+      cuerpo: ('"' + (n.tarea || 'Tarea') + '"' + (n.detalle ? ' · ' + n.detalle : '')).slice(0, 240),
+      enlace: PLANIT_URL + '#tarea/' + encodeURIComponent(n.taskId || ''),
+      etiqueta: 'planit-' + n.id,
+    };
+    for (const t of suyos) {
+      const r = await enviarPushFcm(env, fcmToken, t, aviso);
+      if (r === 'ok') resumen.enviados++; else if (r === 'muerto') resumen.muertos++; else resumen.fallidos++;
+    }
+  }
+  logEvent('push_notificar_done', { autor, ...resumen });
+  return resumen;
+}
+
 const RRHH_AVISO_MINUTOS = 15;        // abierto hace más: el Hub ya no avisa, lo hace el cron
 const RRHH_IT_DIAS_RESCATE = 2;
 const RRHH_PRUEBA_DIAS_ANTES = 7;
