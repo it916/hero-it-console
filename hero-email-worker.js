@@ -379,6 +379,40 @@ export default {
       }
     }
 
+    // ── POST /planit/estado — aviso de cambio de estado (Hub v2.132.0) ──
+    // Lo llama el Hub 10 s después de pasar una tarea a En revisión, En espera
+    // o Detenido. Solo se avisa si la tarea sigue en ese estado y se tocó hace
+    // poco (enviarEstadoPlanit, más abajo).
+    if (request.method === 'POST' && path === '/planit/estado') {
+      if (bodyTooLarge(request)) return json({ error: 'Body demasiado grande' }, 413, cors);
+      if (!(await rateLimit(env, 'planit-estado', clientIp(request), 30, 60))) {
+        return json({ error: 'Demasiados avisos seguidos. Espera un minuto.' }, 429, cors);
+      }
+      try {
+        const { idToken, taskId, status } = (await request.json()) || {};
+        if (!idToken || !taskId || !status) return json({ error: 'Faltan datos' }, 400, cors);
+
+        let claims;
+        try {
+          claims = await verifyFirebaseIdToken(idToken, env);
+        } catch (err) {
+          logError('planit_estado_token_invalid', err);
+          return json({ error: 'Token inválido o expirado' }, 401, cors);
+        }
+        const autor = String(claims.email || '').toLowerCase();
+        if (!autor.endsWith('@heroinsuranceusa.com')) {
+          return json({ error: 'Solo cuentas del dominio corporativo' }, 403, cors);
+        }
+
+        const resumen = await enviarEstadoPlanit(env, { autor, taskId: String(taskId), status: String(status) });
+        return json({ ok: true, ...resumen }, 200, cors);
+      } catch (err) {
+        if (err && err.status) return json({ error: err.message }, err.status, cors);
+        logError('planit_estado_failed', err, { path, method: request.method });
+        return json({ error: 'Error interno del servidor' }, 500, cors);
+      }
+    }
+
     // ── POST /planit/completada — aviso de tarea completada (Hub v2.119.0) ──
     // Lo llama el Hub unos segundos después de completar una tarea (así un
     // "Deshacer" la reabre antes y no sale nada). Aquí se lee la tarea y solo
@@ -2518,6 +2552,10 @@ const PLANIT_TZ = 'America/New_York';
 // `aviso: true` de ESTADOS en js/planit-datos.js del Hub: En espera, Detenido
 // y Postergado están pausados a propósito y no se avisan.
 const PLANIT_ESTADOS_AVISO = ['pendiente', 'en_curso', 'en_revision'];
+// Estados que mandan correo al cambiar (Hub v2.132.0): los que piden algo a
+// otra persona. Copia de ESTADOS_CORREO en js/planit-datos.js del Hub: un
+// estado nuevo va en los dos sitios (decisión de Fernando, 2026-11-04).
+const PLANIT_ESTADOS_CORREO = { en_revision: 'En revisión', en_espera: 'En espera', detenido: 'Detenido' };
 
 function firestoreBase(env) {
   return 'https://firestore.googleapis.com/v1/projects/' + env.FIREBASE_PROJECT_ID + '/databases/(default)/documents';
@@ -3424,6 +3462,160 @@ async function enviarCompletadaPlanit(env, { autor, taskId }) {
   }
   logEvent('planit_completada_done', { ...resumen, taskId });
   return resumen;
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  Cambio de estado en PlanIt (Hub v2.132.0)
+// ═══════════════════════════════════════════════════════════════
+// Al pasar una tarea a En revisión, En espera o Detenido (Guardar en el
+// detalle o el Tablero), el Hub espera 10 s y llama a POST /planit/estado.
+// Se avisa a quien la creó y a sus responsables, menos a quien llama, solo si
+// la tarea sigue en ese estado (si se movió otra vez en esos 10 s, no sale
+// nada) y se tocó hace menos de PLANIT_MENCION_MINUTOS. Quien la creó es quien
+// la revisa (decisión de Fernando, 2026-11-04): a él "En revisión" le llega
+// como "lista para revisar". La marca en KV va por tarea, estado, momento del
+// cambio (updatedAt) y persona. Como en completada, no hay statusChangedBy:
+// el Worker no puede probar que el cambio lo hizo quien llama.
+
+async function enviarEstadoPlanit(env, { autor, taskId, status }) {
+  const resumen = { enviados: 0, yaAvisados: 0, omitidos: 0 };
+  if (!/^[A-Za-z0-9_-]{1,64}$/.test(taskId)) {
+    throw Object.assign(new Error('Identificador no válido'), { status: 400 });
+  }
+  if (!PLANIT_ESTADOS_CORREO[status]) {
+    throw Object.assign(new Error('Ese estado no avisa por correo'), { status: 400 });
+  }
+
+  const token = await getFirestoreToken(env);
+  const [tarea] = await fsLeerVarios(env, token, ['tasks/' + taskId]);
+  if (!tarea) throw Object.assign(new Error('La tarea no existe'), { status: 404 });
+  // Se movió otra vez antes de que llegara el aviso: no se manda nada.
+  if (tarea.status !== status) return resumen;
+  const tocada = tarea.updatedAt instanceof Date ? tarea.updatedAt.getTime() : 0;
+  if (Date.now() - tocada > PLANIT_MENCION_MINUTOS * 60 * 1000) {
+    throw Object.assign(new Error('La tarea no cambió hace poco: no se avisa'), { status: 409 });
+  }
+
+  const responsables = [...new Set((Array.isArray(tarea.assignees) && tarea.assignees.length
+    ? tarea.assignees : (tarea.assigneeEmail ? [tarea.assigneeEmail] : []))
+    .map(e => String(e || '').toLowerCase()).filter(Boolean))];
+  const creador = String(tarea.createdBy || '').toLowerCase();
+  const destinatarios = [...new Set([creador, ...responsables])].filter(e => e && e !== autor);
+  if (!destinatarios.length) return resumen;
+
+  const [proyecto] = await fsLeerVarios(env, token, ['projects/' + tarea.projectId]);
+  const fichas = await fsLeerVarios(env, token, [...new Set([autor, ...destinatarios, ...responsables])].map(e => 'users/' + e));
+  const ficha = new Map(fichas.map(f => [f.id.toLowerCase(), f]));
+  const nombreDe = (email) => (ficha.get(email)?.identity?.name) || email;
+  const esInterno = (f) => {
+    const acceso = (f && f.access) || {};
+    return !!f && acceso.active !== false && PLANIT_ROLES_INTERNOS.includes(acceso.role) && !(f.meta && f.meta.excluded === true);
+  };
+  if (!esInterno(ficha.get(autor))) throw Object.assign(new Error('Solo el equipo interno usa PlanIt'), { status: 403 });
+
+  const prefs = await preferenciasAviso(env, token, destinatarios);
+  for (const email of destinatarios) {
+    if (!esInterno(ficha.get(email))) { resumen.omitidos++; continue; }
+    if (!quiereCorreo(prefs, email)) { resumen.sinCorreo = (resumen.sinCorreo || 0) + 1; continue; }
+
+    const marca = 'planit_estado_' + taskId + '_' + status + '_' + tocada + '_' + email;
+    if (await env.HERO_KV.get(marca)) { resumen.yaAvisados++; continue; }
+
+    const correo = armarEstadoPlanit({
+      autor: nombreDe(autor),
+      destinatario: nombreDe(email),
+      status,
+      tarea: tarea.title || '(sin título)',
+      proyecto: esPrivadoPlanit(proyecto) && !miembrosPlanit(proyecto).has(email)
+        ? 'Proyecto privado' : (proyecto && proyecto.name) || 'PlanIt',
+      fecha: tarea.dueDate instanceof Date ? fechaUS(isoEnNuevaYork(tarea.dueDate)) : '',
+      responsables: responsables.map(nombreDe),
+      esCreador: email === creador,
+      enlace: PLANIT_URL + '#tarea/' + encodeURIComponent(taskId),
+    });
+    const resp = await sendResend(env, {
+      from: PLANIT_FROM,
+      to: [email],
+      subject: correo.asunto,
+      html: correo.html,
+      text: correo.texto,
+    }, { event: 'planit_estado', email, taskId });
+
+    if (resp && resp.ok) {
+      resumen.enviados++;
+      await env.HERO_KV.put(marca, '1', { expirationTtl: 3 * 86400 });
+    } else {
+      resumen.omitidos++;
+    }
+  }
+  logEvent('planit_estado_done', { ...resumen, taskId, status });
+  return resumen;
+}
+
+// Mismas reglas que el resto de correos de PlanIt (Gmail: tablas, estilos en
+// línea, sin SVG ni emojis). Color de cabecera por estado: cyan para revisar,
+// ámbar para en espera, rojo para detenido.
+function armarEstadoPlanit({ autor, destinatario, status, tarea, proyecto, fecha, responsables, esCreador, enlace }) {
+  const primerNombre = String(destinatario).split(' ')[0];
+  const corta = tarea.length > 60 ? tarea.slice(0, 60) + '…' : tarea;
+  const paraRevisar = status === 'en_revision' && esCreador;
+  const estilo = {
+    en_revision: { fondo: '#06a3b6', claro: '#d5f5f9', titulo: paraRevisar ? 'Lista para revisar' : 'Pasó a En revisión', asunto: paraRevisar ? 'Lista para revisar' : 'En revisión', accion: 'la pasó a En revisión' },
+    en_espera:   { fondo: '#b45309', claro: '#fde9c8', titulo: 'Tarea en espera', asunto: 'En espera', accion: 'la puso En espera' },
+    detenido:    { fondo: '#b91c1c', claro: '#fde2e2', titulo: 'Tarea detenida', asunto: 'Detenida', accion: 'la marcó como Detenida' },
+  }[status];
+  const asunto = estilo.asunto + ': "' + corta + '"';
+  const frase = paraRevisar
+    ? '<strong>' + esc(autor) + '</strong> dejó lista para que la revises la tarea <strong>' + esc(tarea) + '</strong>. Te avisamos porque tú la creaste.'
+    : '<strong>' + esc(autor) + '</strong> ' + esc(estilo.accion) + ': <strong>' + esc(tarea) + '</strong>. '
+      + esc(esCreador ? 'Te avisamos porque tú la creaste.' : 'Te avisamos porque eres uno de sus responsables.');
+  const fraseTexto = paraRevisar
+    ? autor + ' dejó lista para que la revises la tarea "' + tarea + '". Te avisamos porque tú la creaste.'
+    : autor + ' ' + estilo.accion + ': "' + tarea + '". ' + (esCreador ? 'Te avisamos porque tú la creaste.' : 'Te avisamos porque eres uno de sus responsables.');
+  const filas = [
+    ['Proyecto', proyecto],
+    ['Estado', PLANIT_ESTADOS_CORREO[status]],
+    ['Fecha límite', fecha || 'Sin fecha'],
+    ['Responsables', responsables.length ? responsables.join(', ') : 'Sin asignar'],
+  ];
+  const pie = 'Correo automático de Hero Hub. Para responder, comenta en la tarea.';
+
+  const html = '<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>'
+    + '<body style="margin:0;padding:0;background:#f0f4f8;">'
+    + '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f0f4f8;"><tr><td align="center" style="padding:24px 12px;">'
+    + '<table role="presentation" width="560" cellpadding="0" cellspacing="0" border="0" style="max-width:560px;width:100%;background:#ffffff;border-radius:16px;">'
+    +   '<tr><td bgcolor="' + estilo.fondo + '" style="background:' + estilo.fondo + ';border-radius:16px 16px 0 0;padding:22px 32px;">'
+    +     '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>'
+    +       '<td valign="middle" style="font-family:Inter,Arial,sans-serif;">'
+    +         '<div style="color:#ffffff;font-size:20px;font-weight:800;">' + esc(estilo.titulo) + '</div>'
+    +         '<div style="color:' + estilo.claro + ';font-size:13px;margin-top:4px;">' + esc(proyecto) + '</div>'
+    +       '</td>'
+    +       '<td valign="middle" align="right" width="44" style="width:44px;">'
+    +         '<img src="https://hub.heroinsuranceusa.com/images/logo-shield-only.png" width="40" height="40" alt="Hero" style="display:block;">'
+    +       '</td>'
+    +     '</tr></table>'
+    +   '</td></tr>'
+    +   '<tr><td style="padding:22px 32px 8px;font-family:Inter,Arial,sans-serif;font-size:14px;color:#0a3d4a;line-height:1.5;">'
+    +     'Hola, ' + esc(primerNombre) + '. ' + frase
+    +   '</td></tr>'
+    +   '<tr><td style="padding:6px 32px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f0f4f8;border-radius:12px;">'
+    +     filas.map(([k, v]) =>
+            '<tr><td style="padding:8px 16px;font-family:Inter,Arial,sans-serif;font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#5a7480;width:120px;" valign="top">' + esc(k) + '</td>'
+          + '<td style="padding:8px 16px;font-family:Inter,Arial,sans-serif;font-size:14px;color:#0a3d4a;">' + esc(v) + '</td></tr>').join('')
+    +   '</table></td></tr>'
+    +   '<tr><td style="padding:22px 32px 8px;"><table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>'
+    +     '<td bgcolor="#06a3b6" style="background:#06a3b6;border-radius:14px;padding:12px 26px;">'
+    +       '<a href="' + esc(enlace) + '" style="color:#ffffff;font-family:Inter,Arial,sans-serif;font-size:14px;font-weight:700;text-decoration:none;">' + (paraRevisar ? 'Revisar la tarea' : 'Ver la tarea') + '</a>'
+    +     '</td></tr></table></td></tr>'
+    +   '<tr><td style="padding:14px 32px 24px;font-family:Inter,Arial,sans-serif;font-size:11px;color:#5a7480;line-height:1.5;">'
+    +     esc(pie)
+    +   '</td></tr>'
+    + '</table></td></tr></table></body></html>';
+
+  const texto_ = 'Hola, ' + primerNombre + '. ' + fraseTexto + '\n\n'
+    + filas.map(([k, v]) => k + ': ' + v).join('\n')
+    + '\n\n' + (paraRevisar ? 'Revisar la tarea: ' : 'Ver la tarea: ') + enlace + '\n\n' + pie;
+  return { asunto, html, texto: texto_ };
 }
 
 // Mismas reglas que asignaciones y menciones (Gmail: tablas, estilos en
