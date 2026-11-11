@@ -262,6 +262,39 @@ export default {
       }
     }
 
+    // ── POST /campana/pendientes — lo pendiente de FixIt para la campana (Hub v2.138.0) ──
+    // Los tickets y las solicitudes de cuenta viven aquí, en KV, no en
+    // Firestore: la campana del Hub (js/avisos-calculados.js) los pide con el
+    // ID token de Firebase. A it@ le tocan los tickets abiertos y las
+    // solicitudes ya autorizadas; a cada autorizador (config_authorizers), las
+    // que esperan autorización, con su propio enlace firmado (el mismo que le
+    // llega por correo). A cualquier otro, nada, y sin tocar KV.
+    if (request.method === 'POST' && path === '/campana/pendientes') {
+      if (bodyTooLarge(request)) return json({ error: 'Body demasiado grande' }, 413, cors);
+      if (!(await rateLimit(env, 'campana-pendientes', clientIp(request), 30, 60))) {
+        return json({ error: 'Demasiadas consultas seguidas. Espera un minuto.' }, 429, cors);
+      }
+      try {
+        const { idToken } = (await request.json()) || {};
+        if (!idToken) return json({ error: 'Falta idToken' }, 400, cors);
+        let claims;
+        try {
+          claims = await verifyFirebaseIdToken(idToken, env);
+        } catch (err) {
+          logError('campana_pendientes_token_invalid', err);
+          return json({ error: 'Token inválido o expirado' }, 401, cors);
+        }
+        const email = String(claims.email || '').toLowerCase();
+        if (!email.endsWith('@heroinsuranceusa.com')) {
+          return json({ error: 'Solo cuentas del dominio corporativo' }, 403, cors);
+        }
+        return json(await pendientesCampana(env, email, url.origin), 200, cors);
+      } catch (err) {
+        logError('campana_pendientes_failed', err, { path, method: request.method });
+        return json({ error: 'Error interno del servidor' }, 500, cors);
+      }
+    }
+
     // ── POST /conexion/quien-soy — desde dónde se conecta quien llama ──
     // PROTOTIPO (Fase A). Devuelve el dato, NO lo guarda todavía: sirve para
     // enseñar qué se capturaría antes de decidir si se registra a nadie.
@@ -4260,6 +4293,9 @@ async function withListCache(env, cacheKey, ttl, hasCursor, computeFn) {
   return data;
 }
 async function invalidateCaches(env, ...keys) {
+  // Lo que invalida las estadísticas (un ticket o una solicitud nuevos o que
+  // cambian) también deja vieja la lista de la campana.
+  if (keys.includes('cache_stats')) keys.push(CAMPANA_CACHE_KEY);
   return Promise.all(keys.map(k => env.HERO_KV.delete(k).catch(() => {})));
 }
 
@@ -5372,4 +5408,92 @@ function armarDecisionAusencia({ a, meta, quien, ensayoPara }) {
     + 'Enviado desde el Hero Hub.';
 
   return { asunto: meta.asunto + ' · ' + dia, html, texto };
+}
+// ═══════════════════════════════════════════════════════════════
+//  Pendientes de FixIt para la campana del Hub (v2.138.0)
+// ═══════════════════════════════════════════════════════════════
+// POST /campana/pendientes. La lista sale de dos KV.list (ticket_ y alta_) y
+// se guarda CAMPANA_CACHE_SEG en KV para todos: el plan gratis de KV da 1,000
+// list al día, y la campana pregunta en cada página que se abre.
+// invalidateCaches la borra cuando cambia un ticket o una solicitud.
+const CAMPANA_CACHE_KEY = 'cache_campana_pendientes';
+const CAMPANA_CACHE_SEG = 300;
+const CAMPANA_MAX = 10;   // por lista; la campana resume si hay más de 5
+
+async function leerPendientesKV(env) {
+  try {
+    const c = await env.HERO_KV.get(CAMPANA_CACHE_KEY);
+    if (c) return JSON.parse(c);
+  } catch (_) { /* caché corrupta: se relee */ }
+
+  const [tickets, solicitudes] = await Promise.all([
+    env.HERO_KV.list({ prefix: 'ticket_' }),
+    env.HERO_KV.list({ prefix: 'alta_' }),
+  ]);
+  // Con metadata (todas desde el backfill) se filtra sin leer; sin ella, se lee.
+  const conEstado = async (keys, estados) => {
+    const salida = [];
+    for (const k of keys) {
+      if (k.metadata && k.metadata.estado !== undefined && !estados.includes(k.metadata.estado)) continue;
+      const v = await env.HERO_KV.get(k.name);
+      if (!v) continue;
+      try { const o = JSON.parse(v); if (estados.includes(o.estado)) salida.push(o); } catch (_) { /* entrada rota */ }
+    }
+    return salida.sort((a, b) => new Date(b.fecha) - new Date(a.fecha)).slice(0, CAMPANA_MAX);
+  };
+  const [abiertos, sols] = await Promise.all([
+    conEstado(tickets.keys, ['abierto']),
+    conEstado(solicitudes.keys, ['pendiente', 'autorizada']),
+  ]);
+  const solicitud = (s) => ({
+    id: s.id,
+    tipo: s.tipoSolicitud === 'baja' ? 'baja' : 'alta',
+    persona: s.tipoPersona === 'empleado' ? 'empleado' : 'agente',
+    nombre: s.tipoSolicitud === 'baja' ? (s.nombre || '') : [s.nombre, s.apellido].filter(Boolean).join(' '),
+    solicitante: s.solicitanteNombre || '',
+    autorizadaPor: s.autorizadaPor || '',
+    fecha: s.fecha || '',
+  });
+  const datos = {
+    tickets: abiertos.map(t => ({
+      ticketId: t.ticketId || '', asunto: t.asunto || '', nombre: t.nombre || '',
+      prioridad: t.prioridad || '', fecha: t.fecha || '',
+    })),
+    pendientes: sols.filter(s => s.estado === 'pendiente').map(solicitud),
+    autorizadas: sols.filter(s => s.estado === 'autorizada').map(solicitud),
+  };
+  try { await env.HERO_KV.put(CAMPANA_CACHE_KEY, JSON.stringify(datos), { expirationTtl: CAMPANA_CACHE_SEG }); }
+  catch (e) { logError('campana_cache_write_failed', e); }
+  return datos;
+}
+
+async function pendientesCampana(env, email, workerBase) {
+  const vacio = { tickets: [], porProcesar: [], porAutorizar: [] };
+  const esIT = email === ALLOWED_EMAIL;
+  const autorizadores = await getAuthorizerList(env);
+  const esAutorizador = autorizadores.some(a => String(a.email || '').toLowerCase() === email);
+  if (!esIT && !esAutorizador) return vacio;
+
+  const datos = await leerPendientesKV(env);
+  const salida = { ...vacio };
+  if (esIT) {
+    salida.tickets = datos.tickets;
+    salida.porProcesar = datos.autorizadas;
+  }
+  if (esAutorizador) {
+    // El mismo enlace del correo, firmado para quien pregunta, que caduca
+    // en un día: autorizar desde la campana es autorizar con su nombre.
+    const exp = Math.floor(Date.now() / 1000) + 24 * 3600;
+    salida.porAutorizar = await Promise.all(datos.pendientes.map(async s => {
+      let enlace = null;
+      try {
+        const sig = await signAuth(env, s.id, email, exp);
+        enlace = workerBase + '/solicitud-cuenta/autorizar'
+          + '?id=' + encodeURIComponent(s.id) + '&by=' + encodeURIComponent(email)
+          + '&exp=' + exp + '&sig=' + encodeURIComponent(sig);
+      } catch (e) { logError('campana_firma_failed', e); }
+      return { ...s, enlace };
+    }));
+  }
+  return salida;
 }
