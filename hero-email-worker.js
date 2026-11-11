@@ -173,19 +173,32 @@ export default {
         const cuando = reporte.fecha
           ? reporte.fecha + (reporte.hora ? ' a las ' + hora12(reporte.hora) : '')
           : 'sin fecha';
-        const subject = meta.titulo + ' · ' + nombre + ' — ' + (reporte.fecha || '');
+        // Solicitud de ausencia (Hub v2.135.0): horario, recuperación y los
+        // botones para responderla. Sin `ausencia` (Hub viejo) sale el aviso
+        // de siempre.
+        const solicitud = reporte.type === 'ausencia' ? solicitudAusencia(reporte) : null;
+        const titulo = solicitud ? 'Solicitud de ausencia' : meta.titulo;
+        const subject = titulo + ' · ' + nombre + ' — ' + (reporte.fecha || '');
 
         const html = renderReporteEmail({
-          reporte, meta, nombre, email: userEmail, cuando,
+          reporte, meta, nombre, email: userEmail, cuando, solicitud,
           ensayoPara: REPORTES_MODO_ENSAYO ? listaReal : null,
         });
-        const text = meta.titulo + '\n\n'
+        const text = titulo + '\n\n'
           + 'Quién: ' + nombre + ' (' + userEmail + ')\n'
           + 'Cuándo: ' + cuando + '\n'
+          + (solicitud ? 'Horario: ' + solicitud.horario + '\n' + 'Recupera: ' + solicitud.recuperacion + '\n' : '')
+          + (solicitud && solicitud.otraSemana ? 'Ojo: recupera en otra semana (puede generar horas extra).\n' : '')
           + (reporte.llegadaEstimada ? 'Llegada estimada: ' + hora12(reporte.llegadaEstimada) + '\n' : '')
           + (reporte.detalle ? 'Detalle: ' + reporte.detalle + '\n' : '')
           + (reporte.alMomento === true ? '\nReportado al momento, con la hora actual.\n'
              : reporte.alMomento === false ? '\nLa hora fue ajustada por la persona antes de enviar.\n' : '')
+          + (solicitud && solicitud.id
+             ? '\nAprobar: ' + enlaceAusencia(solicitud.id, 'aprobar') + '\n'
+               + 'Rechazar: ' + enlaceAusencia(solicitud.id, 'rechazar') + '\n'
+               + 'Consultar: ' + enlaceAusencia(solicitud.id, 'consultar') + '\n'
+               + 'Responden Jesús, Anny o Aurys; vale la primera respuesta.\n'
+             : '')
           + '\nEnviado desde el Hero Hub · Responde a este correo para contestarle directamente.';
 
         const resendResp = await sendResend(env, {
@@ -210,6 +223,41 @@ export default {
         return json({ ok: true, id: result.id || null, to: destinos }, 200, cors);
       } catch (err) {
         logError('handler_failed', err, { path, method: request.method });
+        return json({ error: 'Error interno del servidor' }, 500, cors);
+      }
+    }
+
+    // ── POST /ausencias/decision — avisa al empleado de la respuesta (Hub v2.135.0) ──
+    // Lo llama el Hub (js/ausencias-aprobar.js) justo después de que un
+    // aprobador aprueba, rechaza o consulta una solicitud de ausencia. Solo
+    // trae el id: el Worker lee el documento (enviarDecisionAusencia, más
+    // abajo) y no se fía de nada que diga el navegador.
+    if (request.method === 'POST' && path === '/ausencias/decision') {
+      if (bodyTooLarge(request)) return json({ error: 'Body demasiado grande' }, 413, cors);
+      if (!(await rateLimit(env, 'ausencias-decision', clientIp(request), 20, 60))) {
+        return json({ error: 'Demasiados avisos seguidos. Espera un minuto.' }, 429, cors);
+      }
+      try {
+        const { idToken, id } = (await request.json()) || {};
+        if (!idToken || !id) return json({ error: 'Faltan datos' }, 400, cors);
+
+        let claims;
+        try {
+          claims = await verifyFirebaseIdToken(idToken, env);
+        } catch (err) {
+          logError('ausencias_decision_token_invalid', err);
+          return json({ error: 'Token inválido o expirado' }, 401, cors);
+        }
+        const autor = String(claims.email || '').toLowerCase();
+        if (!autor.endsWith('@heroinsuranceusa.com')) {
+          return json({ error: 'Solo cuentas del dominio corporativo' }, 403, cors);
+        }
+
+        const resumen = await enviarDecisionAusencia(env, { autor, id: String(id) });
+        return json({ ok: true, ...resumen }, 200, cors);
+      } catch (err) {
+        if (err && err.status) return json({ error: err.message }, err.status, cors);
+        logError('ausencias_decision_failed', err, { path, method: request.method });
         return json({ error: 'Error interno del servidor' }, 500, cors);
       }
     }
@@ -2966,7 +3014,11 @@ async function runResumenReportes(env, { prueba = null, desdeCron = false } = {}
     for (const a of asistencia) {
       if (a.type !== 'Ausencia') continue;
       de(a.email, a.name).items.push({ tipo: 'ausencia', cuando: a.timestamp,
-        texto: (a.absenceDate ? 'Falta el ' + a.absenceDate : 'Sin fecha') + (a.reason ? ' · "' + a.reason + '"' : '') });
+        texto: (a.absenceDate ? 'Falta el ' + a.absenceDate : 'Sin fecha')
+          // Solicitudes desde Hub v2.135.0: horario si son unas horas, y estado.
+          + (a.jornada === 'parcial' ? ' · ' + textosAusencia(a, a.absenceDate).horario : '')
+          + (RESUMEN_ESTADO_AUSENCIA[a.estado] ? ' · ' + RESUMEN_ESTADO_AUSENCIA[a.estado] : '')
+          + (a.reason ? ' · "' + a.reason + '"' : '') });
     }
 
     // Cierre de cada corte (luz o internet volvieron) dentro de la ventana,
@@ -5054,7 +5106,7 @@ function hora12(hm) {
 
 // Correo del aviso. Sin SVG inline ni CSS externo: Gmail los strippea, así
 // que todo va en estilos inline y el logo es un PNG hospedado en el Hub.
-function renderReporteEmail({ reporte, meta, nombre, email, cuando, ensayoPara }) {
+function renderReporteEmail({ reporte, meta, nombre, email, cuando, solicitud, ensayoPara }) {
   const dato = (etiqueta, valor) => valor
     ? '<p style="margin:0 0 6px;font-size:13px;color:#4a5568;"><strong>' + esc(etiqueta) + ':</strong> ' + esc(valor) + '</p>'
     : '';
@@ -5073,19 +5125,26 @@ function renderReporteEmail({ reporte, meta, nombre, email, cuando, ensayoPara }
     + '<div style="background:linear-gradient(135deg,#06a3b6,#048395);padding:26px 40px;text-align:center;">'
     +   '<img src="https://hub.heroinsuranceusa.com/images/logo.png" width="120" style="display:block;margin:0 auto 14px;" alt="Hero Insurance USA"/>'
     +   '<div style="display:inline-block;background:rgba(255,255,255,0.2);color:#fff;font-weight:700;font-size:11px;letter-spacing:3px;padding:5px 14px;border-radius:20px;margin-bottom:10px;">REPORTE DEL EQUIPO</div>'
-    +   '<h1 style="color:#fff;margin:0;font-size:20px;font-weight:700;">' + meta.emoji + ' ' + esc(meta.titulo) + '</h1>'
+    +   '<h1 style="color:#fff;margin:0;font-size:20px;font-weight:700;">' + meta.emoji + ' ' + esc(solicitud ? 'Solicitud de ausencia' : meta.titulo) + '</h1>'
     + '</div>'
     + '<div style="padding:28px 40px;">'
-    +   '<p style="margin:0 0 18px;font-size:14px;color:#4a5568;"><strong>' + esc(nombre) + '</strong> ' + esc(meta.bajada) + '.</p>'
+    +   '<p style="margin:0 0 18px;font-size:14px;color:#4a5568;"><strong>' + esc(nombre) + '</strong> ' + esc(solicitud ? 'pide permiso para ausentarse' : meta.bajada) + '.</p>'
     +   marca
     +   '<div style="background:#f7faff;border-radius:10px;border:1px solid #d8e1ea;padding:18px;margin:0 0 18px;">'
-    +     '<p style="margin:0 0 10px;font-size:10px;font-weight:700;letter-spacing:2px;color:' + meta.color + ';text-transform:uppercase;">Detalle del reporte</p>'
+    +     '<p style="margin:0 0 10px;font-size:10px;font-weight:700;letter-spacing:2px;color:' + meta.color + ';text-transform:uppercase;">' + (solicitud ? 'Detalle de la solicitud' : 'Detalle del reporte') + '</p>'
     +     dato('Quién', nombre + ' (' + email + ')')
-    +     dato('Cuándo', cuando)
+    +     dato(solicitud ? 'Día' : 'Cuándo', solicitud ? reporte.fecha || cuando : cuando)
+    +     dato('Horario', solicitud ? solicitud.horario : '')
+    +     dato('Recupera', solicitud ? solicitud.recuperacion : '')
     +     dato('Llegada estimada', reporte.llegadaEstimada ? hora12(reporte.llegadaEstimada) : '')
     +     dato('Estuvo sin servicio', duracionTexto(reporte.duracionMin))
     +     dato(reporte.type === 'ausencia' || reporte.type === 'retraso' ? 'Motivo' : 'Comentario', reporte.detalle)
     +   '</div>'
+    +   (solicitud && solicitud.otraSemana
+        ? '<div style="background:#fff7e6;border-left:4px solid #f5b830;border-radius:8px;padding:12px 14px;margin:0 0 18px;">'
+          + '<p style="margin:0;font-size:12px;color:#8a6100;"><strong>Recupera en otra semana.</strong> Si es un empleado por hora, esas horas podrían contar como horas extra.</p></div>'
+        : '')
+    +   (solicitud && solicitud.id ? botonesAusencia(solicitud.id) : '')
     +   '<p style="font-size:12px;color:#999;line-height:1.6;margin:0;">Responde a este correo y le contestas directamente a ' + esc(nombre) + '. El reporte también queda registrado en el panel de Recursos Humanos del Hero Hub.</p>'
     + '</div>'
     + '<div style="padding:12px 40px;background:#f0f4f8;text-align:center;">'
@@ -5095,4 +5154,222 @@ function renderReporteEmail({ reporte, meta, nombre, email, cuando, ensayoPara }
         : '')
     + '</div>'
     + '</div></div>';
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  Solicitudes de ausencia (Hub v2.135.0)
+// ═══════════════════════════════════════════════════════════════
+// Desde v2.135.0 una ausencia es una solicitud: el Hub la guarda en
+// `attendance` con estado "pendiente" y la aprueba, la rechaza o la consulta
+// uno de APROBADORES_AUSENCIA desde el Hub (los botones del correo abren
+// index.html?ausencia={id}&accion=…, con su cuenta). Vale la primera
+// respuesta: lo garantizan el Hub (transacción) y firestore.rules.
+// APROBADORES_AUSENCIA va a la vez aquí, en js/ausencias.js del Hub y en
+// esAprobadorAusencias() de firestore.rules. it@ no aprueba, pero puede
+// responder (para probar y para destrabar una solicitud).
+const APROBADORES_AUSENCIA = [
+  'jgutierrez@heroinsuranceusa.com',
+  'contracting@heroinsuranceusa.com',
+  'hr@heroinsuranceusa.com',
+];
+const AUSENCIA_IT = 'it@heroinsuranceusa.com';
+const AUSENCIA_HUB_URL = 'https://hub.heroinsuranceusa.com/index.html';
+// El Hub llama a /ausencias/decision justo después de guardar la respuesta.
+const AUSENCIA_DECISION_MINUTOS = 15;
+const AUSENCIA_HM = /^([01]\d|2[0-3]):[0-5]\d$/;
+const AUSENCIA_US = /^(0[1-9]|1[0-2])\/(0[1-9]|[12]\d|3[01])\/\d{4}$/;
+const AUSENCIA_ID = /^[A-Za-z0-9_-]{1,64}$/;
+// Cómo sale cada estado en el resumen semanal de los viernes.
+const RESUMEN_ESTADO_AUSENCIA = {
+  pendiente: 'sin responder',
+  consulta:  'en consulta',
+  aprobada:  'aprobada',
+  rechazada: 'no aprobada',
+};
+
+function enlaceAusencia(id, accion) {
+  return AUSENCIA_HUB_URL + '?ausencia=' + encodeURIComponent(id) + (accion ? '&accion=' + accion : '');
+}
+
+// "MM/DD/YYYY" → lunes de esa semana (ms). La semana va de lunes a domingo,
+// como en el formulario del Hub.
+function lunesDeUS(us) {
+  const [m, d, y] = us.split('/').map(Number);
+  const f = new Date(Date.UTC(y, m - 1, d));
+  f.setUTCDate(f.getUTCDate() - ((f.getUTCDay() + 6) % 7));
+  return f.getTime();
+}
+
+// Horario, recuperación y si recupera en otra semana, a partir de los campos
+// de la solicitud (del body del Hub o del documento de `attendance`). Valida
+// cada campo: si viene algo raro, no se pinta.
+function textosAusencia(a, fecha) {
+  let horario = 'Todo el día';
+  if (a.jornada === 'parcial' && AUSENCIA_HM.test(a.horaInicio || '')) {
+    const [h, m] = a.horaInicio.split(':').map(Number);
+    const dur = Number.isInteger(a.duracionMin) && a.duracionMin > 0 ? a.duracionMin : 0;
+    const finMin = h * 60 + m + dur;
+    const fin = dur && finMin < 24 * 60
+      ? String(Math.floor(finMin / 60)).padStart(2, '0') + ':' + String(finMin % 60).padStart(2, '0')
+      : '';
+    horario = hora12(a.horaInicio) + (fin ? ' – ' + hora12(fin) : '') + (dur ? ' (' + duracionTexto(dur) + ')' : '');
+  }
+  const rec = AUSENCIA_US.test(a.recuperaFecha || '') ? a.recuperaFecha : null;
+  const recuperacion = rec
+    ? rec + (AUSENCIA_HM.test(a.recuperaHora || '') ? ' a las ' + hora12(a.recuperaHora) : '')
+    : 'No aplica';
+  const otraSemana = !!(rec && AUSENCIA_US.test(fecha || '') && lunesDeUS(rec) !== lunesDeUS(fecha));
+  return { horario, recuperacion, otraSemana };
+}
+
+// La solicitud que trae /reportes/notificar en reporte.ausencia, o null si es
+// un aviso del Hub viejo. Sin id válido sale el correo sin botones.
+function solicitudAusencia(reporte) {
+  const a = reporte.ausencia;
+  if (!a || typeof a !== 'object') return null;
+  const id = AUSENCIA_ID.test(String(a.id || '')) ? String(a.id) : null;
+  return { id, ...textosAusencia(a, reporte.fecha) };
+}
+
+// Botones del correo de la solicitud. Son enlaces sueltos (no una tabla) para
+// que en el celular bajen de línea en vez de salirse del correo.
+function botonesAusencia(id) {
+  const boton = (texto, accion, color) =>
+    '<a href="' + esc(enlaceAusencia(id, accion)) + '" style="display:inline-block;margin:4px;background:' + color
+    + ';color:#ffffff;text-decoration:none;font-weight:700;font-size:13px;padding:11px 20px;border-radius:8px;">' + texto + '</a>';
+  return '<div style="text-align:center;margin:0 0 8px;">'
+    + boton('Aprobar', 'aprobar', '#0f8054')
+    + boton('Rechazar', 'rechazar', '#e11d48')
+    + boton('Consultar', 'consultar', '#7c3aed')
+    + '</div>'
+    + '<p style="margin:0 0 18px;font-size:12px;color:#6b7280;line-height:1.6;text-align:center;">'
+    + 'Abren el Hero Hub con tu cuenta. Responden Jesús, Anny o Aurys: vale la primera respuesta. '
+    + '<a href="' + esc(AUSENCIA_HUB_URL + '?ausencias=pendientes') + '" style="color:#06a3b6;">Ver todas las pendientes</a></p>';
+}
+
+const DECISIONES_AUSENCIA = {
+  aprobada:  { asunto: 'Ausencia aprobada',          titulo: 'Tu ausencia fue aprobada',           emoji: '✅', color: '#0f8054' },
+  rechazada: { asunto: 'Ausencia no aprobada',       titulo: 'Tu ausencia no fue aprobada',        emoji: '⛔', color: '#e11d48' },
+  consulta:  { asunto: 'Pregunta sobre tu ausencia', titulo: 'Tienen una pregunta sobre tu ausencia', emoji: '💬', color: '#7c3aed' },
+};
+
+// Correo al empleado cuando responden su solicitud, con copia a los otros
+// aprobadores (así saben que ya está respondida). No se fía del navegador:
+// lee el documento y solo avisa si la respuesta es de quien llama y es de
+// hace poco. Marca en KV por solicitud, estado y momento: una consulta y,
+// después, la aprobación de la misma solicitud son dos correos.
+async function enviarDecisionAusencia(env, { autor, id }) {
+  if (!AUSENCIA_ID.test(id)) throw Object.assign(new Error('Identificador no válido'), { status: 400 });
+  if (!APROBADORES_AUSENCIA.includes(autor) && autor !== AUSENCIA_IT) {
+    throw Object.assign(new Error('Solo Dirección y RRHH responden ausencias'), { status: 403 });
+  }
+
+  const token = await getFirestoreToken(env);
+  const [a] = await fsLeerVarios(env, token, ['attendance/' + id]);
+  if (!a || a.type !== 'Ausencia') throw Object.assign(new Error('La solicitud no existe'), { status: 404 });
+  const meta = DECISIONES_AUSENCIA[a.estado];
+  if (!meta) throw Object.assign(new Error('La solicitud sigue sin responder'), { status: 409 });
+
+  const consulta = a.estado === 'consulta';
+  const por = String((consulta ? a.consultadaPor : a.decididaPor) || '').toLowerCase();
+  const en = consulta ? a.consultadaEn : a.decididaEn;
+  if (por !== autor) throw Object.assign(new Error('Esa respuesta no es tuya'), { status: 403 });
+  const momento = en instanceof Date ? en.getTime() : 0;
+  if (Date.now() - momento > AUSENCIA_DECISION_MINUTOS * 60 * 1000) {
+    throw Object.assign(new Error('La solicitud no se respondió hace poco: no se avisa'), { status: 409 });
+  }
+
+  const marca = 'ausencia_decision_' + id + '_' + a.estado + '_' + momento;
+  if (await env.HERO_KV.get(marca)) return { enviados: 0, yaAvisado: true };
+
+  const empleado = String(a.email || '').toLowerCase();
+  if (!empleado.endsWith('@heroinsuranceusa.com')) {
+    throw Object.assign(new Error('La solicitud no tiene un correo del dominio'), { status: 409 });
+  }
+  const copia = APROBADORES_AUSENCIA.filter(e => e !== autor && e !== empleado);
+  const para = REPORTES_MODO_ENSAYO ? REPORTES_ENSAYO : [empleado];
+  const cc = REPORTES_MODO_ENSAYO ? [] : copia;
+
+  const correo = armarDecisionAusencia({
+    a, meta,
+    quien: String((consulta ? a.consultadaNombre : a.decididaNombre) || autor),
+    ensayoPara: REPORTES_MODO_ENSAYO ? [empleado].concat(copia) : null,
+  });
+  const resp = await sendResend(env, {
+    from: 'Hero Hub · Reportes <it@heroinsuranceusa.com>',
+    to: para,
+    ...(cc.length ? { cc } : {}),
+    // Responder le llega a quien respondió: así se contesta una consulta.
+    reply_to: autor,
+    subject: correo.asunto,
+    html: correo.html,
+    text: correo.texto,
+  }, { event: 'ausencia_' + a.estado, to: para.join(','), by: autor });
+  if (!resp || !resp.ok) throw Object.assign(new Error('No se pudo enviar el correo'), { status: 502 });
+
+  await env.HERO_KV.put(marca, '1', { expirationTtl: 3 * 86400 });
+  logEvent('ausencia_decision_done', { id, estado: a.estado, by: autor });
+  return { enviados: 1 };
+}
+
+function armarDecisionAusencia({ a, meta, quien, ensayoPara }) {
+  const nombre = String(a.name || a.email || '');
+  const dia = AUSENCIA_US.test(a.absenceDate || '') ? a.absenceDate : 'sin fecha';
+  const t = textosAusencia(a, a.absenceDate);
+  const nota = a.estado === 'consulta' ? a.pregunta : a.comentario;
+
+  const frase = a.estado === 'aprobada'
+    ? quien + ' aprobó tu ausencia del ' + dia + '.'
+    : a.estado === 'rechazada'
+    ? quien + ' no aprobó tu ausencia del ' + dia + '. Si de todas formas faltas, la ausencia queda como no justificada.'
+    : quien + ' tiene una pregunta antes de responder tu solicitud del ' + dia + '. Responde a este correo para contestarle.';
+
+  const dato = (etiqueta, valor) => valor
+    ? '<p style="margin:0 0 6px;font-size:13px;color:#4a5568;"><strong>' + esc(etiqueta) + ':</strong> ' + esc(valor) + '</p>'
+    : '';
+
+  const html = ''
+    + '<div style="font-family:Trebuchet MS,Arial,sans-serif;max-width:620px;background:#f0f4f8;padding:32px 16px;">'
+    + '<div style="background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);">'
+    + '<div style="background:linear-gradient(135deg,#06a3b6,#048395);padding:26px 40px;text-align:center;">'
+    +   '<img src="https://hub.heroinsuranceusa.com/images/logo.png" width="120" style="display:block;margin:0 auto 14px;" alt="Hero Insurance USA"/>'
+    +   '<div style="display:inline-block;background:rgba(255,255,255,0.2);color:#fff;font-weight:700;font-size:11px;letter-spacing:3px;padding:5px 14px;border-radius:20px;margin-bottom:10px;">SOLICITUD DE AUSENCIA</div>'
+    +   '<h1 style="color:#fff;margin:0;font-size:20px;font-weight:700;">' + meta.emoji + ' ' + esc(meta.titulo) + '</h1>'
+    + '</div>'
+    + '<div style="padding:28px 40px;">'
+    +   '<p style="margin:0 0 6px;font-size:14px;color:#4a5568;">Hola ' + esc(nombre.split(' ')[0]) + ',</p>'
+    +   '<p style="margin:0 0 18px;font-size:14px;color:#4a5568;line-height:1.6;">' + esc(frase) + '</p>'
+    +   (nota
+        ? '<div style="background:#f7faff;border-left:4px solid ' + meta.color + ';border-radius:8px;padding:12px 14px;margin:0 0 18px;">'
+          + '<p style="margin:0 0 4px;font-size:10px;font-weight:700;letter-spacing:2px;color:' + meta.color + ';text-transform:uppercase;">'
+          + (a.estado === 'consulta' ? 'Pregunta' : 'Comentario') + '</p>'
+          + '<p style="margin:0;font-size:13px;color:#2d3748;line-height:1.6;">' + esc(nota) + '</p></div>'
+        : '')
+    +   '<div style="background:#f7faff;border-radius:10px;border:1px solid #d8e1ea;padding:18px;margin:0 0 18px;">'
+    +     '<p style="margin:0 0 10px;font-size:10px;font-weight:700;letter-spacing:2px;color:' + meta.color + ';text-transform:uppercase;">Tu solicitud</p>'
+    +     dato('Día', dia)
+    +     dato('Horario', t.horario)
+    +     dato('Recupera', t.recuperacion)
+    +     dato('Motivo', a.reason)
+    +   '</div>'
+    +   '<p style="font-size:12px;color:#999;line-height:1.6;margin:0;">Tus solicitudes y su estado están en el Hero Hub, en '
+    +     '<a href="https://hub.heroinsuranceusa.com/mi-perfil.html#reportes" style="color:#06a3b6;">Mi perfil → Mis reportes</a>.</p>'
+    + '</div>'
+    + '<div style="padding:12px 40px;background:#f0f4f8;text-align:center;">'
+    +   '<p style="margin:0;font-size:10px;color:#aaa;">Enviado automáticamente desde el Hero Hub · Hero Insurance USA</p>'
+    +   (ensayoPara && ensayoPara.length
+        ? '<p style="margin:8px 0 0;font-size:10px;color:#b45309;"><strong>MODO ENSAYO</strong> — en producción este aviso iría a: ' + esc(ensayoPara.join(', ')) + '</p>'
+        : '')
+    + '</div>'
+    + '</div></div>';
+
+  const texto = meta.titulo + '\n\n'
+    + 'Hola ' + nombre.split(' ')[0] + ',\n\n' + frase + '\n'
+    + (nota ? '\n' + (a.estado === 'consulta' ? 'Pregunta' : 'Comentario') + ': ' + nota + '\n' : '')
+    + '\nDía: ' + dia + '\nHorario: ' + t.horario + '\nRecupera: ' + t.recuperacion + '\n'
+    + (a.reason ? 'Motivo: ' + a.reason + '\n' : '')
+    + '\nTus solicitudes: https://hub.heroinsuranceusa.com/mi-perfil.html#reportes\n'
+    + 'Enviado desde el Hero Hub.';
+
+  return { asunto: meta.asunto + ' · ' + dia, html, texto };
 }
