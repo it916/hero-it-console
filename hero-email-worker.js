@@ -1135,6 +1135,17 @@ export default {
             recoveryEmail: u.recoveryEmail || '',
           };
         });
+        // Última vez que entró a Gmail (Reports API, Hub v2.139.0). lastLoginTime
+        // solo cambia al escribir la contraseña: quien lee el correo en el
+        // celular sigue conectado meses y salía "inactivo". FixIt decide la
+        // inactividad con `ultimaActividad`, la más reciente de las dos
+        // (decisión de Fernando, 2026-11-12). Sin el permiso de la Reports API,
+        // `ultimoGmail` llega vacío y todo sigue con el último login.
+        const gmail = await ultimoGmailPorCorreo(env);
+        for (const u of users) {
+          u.ultimoGmail = gmail.get(u.email.toLowerCase()) || '';
+          u.ultimaActividad = masReciente(u.ultimoLogin, u.ultimoGmail);
+        }
         try { await env.HERO_KV.put('cache_users', JSON.stringify(users), { expirationTtl: 60 }); }
         catch (e) { logError('users_cache_write_failed', e); }
         return json({ users }, 200, cors);
@@ -5496,4 +5507,69 @@ async function pendientesCampana(env, email, workerBase) {
     }));
   }
   return salida;
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  Última vez en Gmail, para la inactividad de FixIt (Hub v2.139.0)
+// ═══════════════════════════════════════════════════════════════
+// Reports API, informe de uso por usuario: `gmail:last_access_time` de todo
+// el dominio en una consulta (1,000 por página). Pide el scope
+// admin.reports.usage.readonly en la delegación de dominio del Worker: solo
+// estadísticas de uso, nada del contenido del correo. El informe llega con 2
+// o 3 días de retraso, así que se prueba desde hace 2 días hacia atrás hasta
+// encontrar uno con datos. Se guarda 6 h en KV: con un umbral de 90 días, un
+// dato de hoy o de ayer da igual. Si algo falla (por ejemplo, sin el
+// permiso), devuelve un mapa vacío y FixIt sigue con el último login.
+const GMAIL_USO_CACHE = 'cache_gmail_uso';
+const GMAIL_USO_SCOPE = 'https://www.googleapis.com/auth/admin.reports.usage.readonly';
+
+async function ultimoGmailPorCorreo(env) {
+  try {
+    const c = await env.HERO_KV.get(GMAIL_USO_CACHE);
+    if (c) return new Map(JSON.parse(c));
+  } catch (_) { /* caché corrupta: se pide otra vez */ }
+
+  const mapa = new Map();
+  try {
+    const token = await getGoogleTokenFor(env, GMAIL_USO_SCOPE, 'cache_google_token_reports');
+    for (let atras = 2; atras <= 5 && !mapa.size; atras++) {
+      const fecha = new Date(Date.now() - atras * 86400000).toISOString().slice(0, 10);
+      let pageToken = '';
+      for (let pagina = 0; pagina < 10; pagina++) {
+        const resp = await fetch('https://admin.googleapis.com/admin/reports/v1/usage/users/all/dates/' + fecha
+          + '?parameters=gmail:last_access_time&maxResults=1000'
+          + (pageToken ? '&pageToken=' + encodeURIComponent(pageToken) : ''),
+          { headers: { 'Authorization': 'Bearer ' + token } });
+        const data = await resp.json().catch(() => ({}));
+        // Una fecha sin datos todavía responde error: se prueba la anterior.
+        if (!resp.ok) { mapa.clear(); break; }
+        for (const r of data.usageReports || []) {
+          const email = String((r.entity && r.entity.userEmail) || '').toLowerCase();
+          const p = (r.parameters || []).find(x => x.name === 'gmail:last_access_time');
+          if (email && p && p.datetimeValue) mapa.set(email, p.datetimeValue);
+        }
+        pageToken = data.nextPageToken || '';
+        if (!pageToken) break;
+      }
+    }
+  } catch (e) {
+    logError('gmail_uso_failed', e);
+    return mapa;
+  }
+  if (mapa.size) {
+    try { await env.HERO_KV.put(GMAIL_USO_CACHE, JSON.stringify([...mapa]), { expirationTtl: 6 * 3600 }); }
+    catch (e) { logError('gmail_uso_cache_write_failed', e); }
+  }
+  return mapa;
+}
+
+// La más reciente de varias fechas ISO. '' y el 1970 de "nunca" no cuentan.
+function masReciente(...fechas) {
+  let mejor = '';
+  let t = 0;
+  for (const f of fechas) {
+    const x = f ? Date.parse(f) : NaN;
+    if (x > 86400000 && x > t) { t = x; mejor = f; }
+  }
+  return mejor;
 }
