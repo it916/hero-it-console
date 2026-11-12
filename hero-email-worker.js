@@ -1135,7 +1135,7 @@ export default {
             recoveryEmail: u.recoveryEmail || '',
           };
         });
-        // Última vez que entró a Gmail (Reports API, Hub v2.139.0). lastLoginTime
+        // Última vez que usó Gmail (Reports API, Hub v2.139.0). lastLoginTime
         // solo cambia al escribir la contraseña: quien lee el correo en el
         // celular sigue conectado meses y salía "inactivo". FixIt decide la
         // inactividad con `ultimaActividad`, la más reciente de las dos
@@ -5510,17 +5510,22 @@ async function pendientesCampana(env, email, workerBase) {
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  Última vez en Gmail, para la inactividad de FixIt (Hub v2.139.0)
+//  Última vez que usó Gmail, para la inactividad de FixIt (Hub v2.139.0)
 // ═══════════════════════════════════════════════════════════════
-// Reports API, informe de uso por usuario: `gmail:last_access_time` de todo
-// el dominio en una consulta (1,000 por página). Pide el scope
+// Reports API, informe de uso por usuario: `gmail:last_interaction_time` de
+// todo el dominio en una consulta (1,000 por página). Interacción y no acceso
+// (`gmail:last_access_time`): el acceso lo mueve también la app del celular
+// cuando sincroniza sola. Prueba del 11/12/2026 en las 59 cuentas activas: en
+// 47 las dos fechas coinciden (0-2 días), pero una cuenta con acceso de hace
+// 7 días no tenía ninguna interacción y su último login era de hace 100: el
+// celular sincronizando una cuenta que nadie usa. Decisión de Fernando. Pide el scope
 // admin.reports.usage.readonly en la delegación de dominio del Worker: solo
 // estadísticas de uso, nada del contenido del correo. El informe llega con 2
 // o 3 días de retraso, así que se prueba desde hace 2 días hacia atrás hasta
 // encontrar uno con datos. Se guarda 6 h en KV: con un umbral de 90 días, un
 // dato de hoy o de ayer da igual. Si algo falla (por ejemplo, sin el
 // permiso), devuelve un mapa vacío y FixIt sigue con el último login.
-const GMAIL_USO_CACHE = 'cache_gmail_uso';
+const GMAIL_USO_CACHE = 'cache_gmail_interaccion';
 const GMAIL_USO_SCOPE = 'https://www.googleapis.com/auth/admin.reports.usage.readonly';
 
 async function ultimoGmailPorCorreo(env) {
@@ -5537,7 +5542,7 @@ async function ultimoGmailPorCorreo(env) {
       let pageToken = '';
       for (let pagina = 0; pagina < 10; pagina++) {
         const resp = await fetch('https://admin.googleapis.com/admin/reports/v1/usage/users/all/dates/' + fecha
-          + '?parameters=gmail:last_access_time&maxResults=1000'
+          + '?parameters=gmail:last_interaction_time&maxResults=1000'
           + (pageToken ? '&pageToken=' + encodeURIComponent(pageToken) : ''),
           { headers: { 'Authorization': 'Bearer ' + token } });
         const data = await resp.json().catch(() => ({}));
@@ -5545,7 +5550,7 @@ async function ultimoGmailPorCorreo(env) {
         if (!resp.ok) { mapa.clear(); break; }
         for (const r of data.usageReports || []) {
           const email = String((r.entity && r.entity.userEmail) || '').toLowerCase();
-          const p = (r.parameters || []).find(x => x.name === 'gmail:last_access_time');
+          const p = (r.parameters || []).find(x => x.name === 'gmail:last_interaction_time');
           if (email && p && p.datetimeValue) mapa.set(email, p.datetimeValue);
         }
         pageToken = data.nextPageToken || '';
